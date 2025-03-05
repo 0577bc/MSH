@@ -117,13 +117,13 @@
         <button id="closeLogButton">关闭</button>
     </div>
 
+    <div class="admin-section">
+        <h2>数据管理</h2>
+        <button id="exportDataButton">导出数据</button>
+        <button id="importDataButton">导入数据</button>
+        <input type="file" id="importFileInput" style="display: none;" accept=".json">
+    </div>
+
     <script type="module" src="./src/admin.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./src/service-worker.js')
-          .then(registration => console.log('Service Worker registered.'))
-          .catch(error => console.log('Service Worker registration failed:', error));
-      }
-    </script>
 </body>
 </html>
