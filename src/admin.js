@@ -420,4 +420,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         importFileInput.addEventListener('change', importData);
+    } else {
+        // 如果未通过验证，隐藏按钮或跳转回签到页面
+        exportDataButton.style.display = 'none';
+        importDataButton.style.display = 'none';
+        alert('管理员验证失败，请返回签到页面。');
+        window.location.href = "index.html";
     }
+});
