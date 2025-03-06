@@ -1,295 +1,270 @@
-const summaryList = document.getElementById('summaryList');
-const showAttendanceButton = document.getElementById('showAttendanceButton');
-const dailyReportButton = document.getElementById('dailyReportButton');
-const quarterlyReportButton = document.getElementById('quarterlyReportButton');
-const yearlyReportButton = document.getElementById('yearlyReportButton');
-const backButton = document.getElementById('backButton');
-const summaryTable = document.getElementById('summaryTable');
-const dailyReportSection = document.getElementById('dailyReportSection');
-const dailyDate = document.getElementById('dailyDate');
-const generateDailyReport = document.getElementById('generateDailyReport');
-const exportDailyReport = document.getElementById('exportDailyReport');
-const dailyReportList = document.getElementById('dailyReportList');
-const dailyReportTable = document.getElementById('dailyReportTable');
-const quarterlyReportSection = document.getElementById('quarterlyReportSection');
-const quarterlyYear = document.getElementById('quarterlyYear');
-const quarterlyQuarter = document.getElementById('quarterlyQuarter');
-const generateQuarterlyReport = document.getElementById('generateQuarterlyReport');
-const exportQuarterlyReport = document.getElementById('exportQuarterlyReport');
-const quarterlyReportList = document.getElementById('quarterlyReportList');
-const quarterlyReportTable = document.getElementById('quarterlyReportTable');
-const yearlyReportSection = document.getElementById('yearlyReportSection');
-const yearlyYear = document.getElementById('yearlyYear');
-const generateYearlyReport = document.getElementById('generateYearlyReport');
-const exportYearlyReport = document.getElementById('exportYearlyReport');
-const clearYearlyRecords = document.getElementById('clearYearlyRecords');
-const yearlyReportList = document.getElementById('yearlyReportList');
-const yearlyReportTable = document.getElementById('yearlyReportTable');
-
-// 加载签到记录
-let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-
-// 加载小组名称
-const groupNames = JSON.parse(localStorage.getItem('groupNames')) || {
-    group1: "小组1",
-    group2: "小组2",
-    group3: "小组3",
-    group4: "小组4",
-    group5: "小组5",
-    group6: "小组6",
-    group7: "小组7"
-};
-
-// 加载小组成员（使用对象数组，与 localStorage 一致）
-const groups = JSON.parse(localStorage.getItem('groups')) || {
-    group1: [{ name: "成员A", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group2: [{ name: "成员D", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group3: [{ name: "成员G", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group4: [{ name: "成员J", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group5: [{ name: "成员M", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group6: [{ name: "成员P", phone: "", gender: "男", baptized: "否", age: "90后" }],
-    group7: [{ name: "成员S", phone: "", gender: "男", baptized: "否", age: "90后" }]
-};
-
-function isSunday(dateStr) {
-    const date = new Date(dateStr);
-    return date.getDay() === 0; // 0 表示周日
-}
-
-// 通用渲染函数
-function renderTable(list, tableId, headers) {
-    const tbody = document.getElementById(list);
-    const table = document.getElementById(tableId);
-    tbody.innerHTML = '';
-    if (attendanceRecords.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + headers.length + '">无签到记录</td></tr>';
-    } else {
-        attendanceRecords.forEach(record => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${record.date}</td>
-                <td>${groupNames[record.group] || record.group}</td>
-                <td>${record.member}</td>
-                <td>${record.time}</td>
-            `;
-            tbody.appendChild(row);
-        });
+document.addEventListener('DOMContentLoaded', () => {
+    const summaryList = document.getElementById('summaryList');
+    const tableHead = document.getElementById('tableHead');
+    const reportTitle = document.getElementById('reportTitle');
+    const backButton = document.getElementById('backButton');
+    const backToSigninButton = document.getElementById('backToSigninButton');
+    const clearRecordsButton = document.getElementById('clearRecordsButton');
+    const exportButton = document.getElementById('exportButton');
+    const reportType = document.getElementById('reportType');
+    const reportPeriod = document.getElementById('reportPeriod');
+    const periodLabel = document.getElementById('periodLabel');
+  
+    let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    const groupNames = JSON.parse(localStorage.getItem('groupNames')) || {
+      group1: "小组1",
+      group2: "小组2",
+      group3: "小组3",
+      group4: "小组4",
+      group5: "小组5",
+      group6: "小组6",
+      group7: "小组7"
+    };
+    let adminPassword = localStorage.getItem('adminPassword') || "1234";
+  
+    function getMorningAttendanceType(date) {
+      const hours = date.getHours();
+      const minutes = date.getMinutes();
+      const time = hours + minutes / 60;
+      if (time >= 5 && time < 9) return '早到'; // 5:00 - 9:00
+      if (time >= 9 && time < 9.5) return '准时'; // 9:00 - 9:30
+      if (time >= 9.5 && time < 11.5) return '迟到'; // 9:30 - 11:30
+      return '其他';
     }
-    table.style.display = 'table';
-}
-
-// 签到记录
-function renderSummary() {
-    renderTable('summaryList', 'summaryTable', ['日期', '组别', '姓名', '时间']);
-}
-
-// 导出 CSV 文件
-function exportToCSV(data, filename) {
-    const csv = [];
-    const headers = ['日期,组别,姓名,时间\n'].join('');
-    csv.push(headers);
-    data.forEach(row => {
-        csv.push(`${row.date},${groupNames[row.group] || row.group},${row.member},${row.time}\n`);
-    });
-    const csvContent = csv.join('');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-}
-
-// 每日报表
-function generateDailyReportSummary(date) {
-    const todayRecords = attendanceRecords.filter(record => record.date === date);
-    const totalSigned = todayRecords.length;
-    const reportDateElement = document.getElementById('reportDate');
-    if (reportDateElement) {
-        reportDateElement.textContent = `日期：${date}（总签到人数：${totalSigned}人）`;
-    } else {
-        console.error("Element 'reportDate' not found in the DOM.");
+  
+    function countSundays(start, end) {
+      let sundays = 0;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0) sundays++;
+      }
+      return sundays;
     }
-
-    dailyReportList.innerHTML = '';
-    for (let group in groups) {
-        const groupRecords = todayRecords.filter(record => record.group === group);
-        const groupMembers = groups[group].map(member => member.name); // 提取成员姓名作为字符串数组
-        const signedMembers = groupRecords.map(record => record.member); // 签到成员姓名数组
-        const unsignedMembers = groupMembers.filter(member => !signedMembers.includes(member)); // 过滤未签到成员
-
-        const early = [];
-        const onTime = [];
-        const late = [];
-        groupRecords.forEach(record => {
-            const timeParts = record.time.split(':');
-            const hours = parseInt(timeParts[0], 10);
-            const minutes = parseInt(timeParts[1], 10);
-            if (hours < 9 || (hours === 9 && minutes === 0)) {
-                early.push(record.member);
-            } else if (hours === 9 && minutes <= 30) {
-                onTime.push(record.member);
-            } else {
-                late.push(record.member);
-            }
-        });
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${groupNames[group] || group}</td>
-            <td>${early.join(', ') || '-'}</td>
-            <td>${onTime.join(', ') || '-'}</td>
-            <td>${late.join(', ') || '-'}</td>
-            <td>${unsignedMembers.join(', ') || '-'}</td>
+  
+    function generateSummary(filterType = 'records', period = null) {
+      summaryList.innerHTML = '';
+      tableHead.innerHTML = '';
+      reportTitle.textContent = filterType === 'records' ? '签到记录' : filterType === 'quarterly' ? '季度报告' : '年度报告';
+  
+      if (filterType === 'records') {
+        tableHead.innerHTML = `
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+            <th>签到时间</th>
+            <th>签到时段</th>
+            <th>操作</th>
+          </tr>
         `;
-        dailyReportList.appendChild(row);
+        attendanceRecords.forEach((record, index) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${groupNames[record.group] || record.group}</td>
+            <td>${record.name}</td>
+            <td><input type="text" value="${record.time}" data-index="${index}"></td>
+            <td>${record.timeSlot || getMorningAttendanceType(new Date(record.time))}</td>
+            <td><button class="saveTime" data-index="${index}">保存</button></td>
+          `;
+          summaryList.appendChild(row);
+        });
+  
+        document.querySelectorAll('.saveTime').forEach(button => {
+          button.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const newTime = e.target.parentElement.previousElementSibling.previousElementSibling.querySelector('input').value;
+            attendanceRecords[index].time = newTime;
+            attendanceRecords[index].timeSlot = getMorningAttendanceType(new Date(newTime));
+            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+            alert('时间已更新！');
+            generateSummary('records');
+          });
+        });
+      } else {
+        tableHead.innerHTML = `
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+            <th>早到次数</th>
+            <th>准时次数</th>
+            <th>迟到次数</th>
+            <th>签到率</th>
+          </tr>
+        `;
+        const startDate = filterType === 'quarterly' && period ? 
+          new Date(period.split('-Q')[0], (parseInt(period.split('-Q')[1]) - 1) * 3, 1) : 
+          new Date(parseInt(period), 0, 1);
+        const endDate = filterType === 'quarterly' && period ? 
+          new Date(period.split('-Q')[0], parseInt(period.split('-Q')[1]) * 3, 0) : 
+          new Date(parseInt(period), 11, 31);
+        const filteredRecords = attendanceRecords.filter(record => {
+          const date = new Date(record.time);
+          return date.getDay() === 0 && 
+                 date >= startDate && 
+                 date <= endDate && 
+                 getMorningAttendanceType(date) !== '其他';
+        });
+  
+        const memberStats = {};
+        filteredRecords.forEach(record => {
+          const key = `${record.group}-${record.name}`;
+          if (!memberStats[key]) {
+            memberStats[key] = { 
+              group: record.group, 
+              name: record.name, 
+              early: 0, 
+              onTime: 0, 
+              late: 0 
+            };
+          }
+          const type = getMorningAttendanceType(new Date(record.time));
+          if (type === '早到') memberStats[key].early++;
+          else if (type === '准时') memberStats[key].onTime++;
+          else if (type === '迟到') memberStats[key].late++;
+        });
+  
+        const totalSundays = countSundays(startDate, endDate);
+        Object.values(memberStats).forEach(stat => {
+          const totalSignIns = stat.early + stat.onTime + stat.late;
+          const signInRate = `${totalSignIns}/${totalSundays}`;
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${groupNames[stat.group] || stat.group}</td>
+            <td>${stat.name}</td>
+            <td>${stat.early}</td>
+            <td>${stat.onTime}</td>
+            <td>${stat.late}</td>
+            <td>${signInRate}</td>
+          `;
+          summaryList.appendChild(row);
+        });
+      }
     }
-    dailyReportTable.style.display = 'table';
-    exportDailyReport.style.display = 'inline-block';
-}
-
-// 季度报表
-function generateQuarterlyReportSummary(year, quarter) {
-    const startMonth = (quarter - 1) * 3;
-    const endMonth = startMonth + 2;
-    const sundayRecords = attendanceRecords.filter(record => {
-        const date = new Date(record.date);
-        return isSunday(record.date) &&
-               date.getFullYear() === parseInt(year) &&
-               date.getMonth() >= startMonth && date.getMonth() <= endMonth;
-    });
-    renderTable('quarterlyReportList', 'quarterlyReportTable', ['日期', '组别', '姓名', '时间']);
-    exportQuarterlyReport.style.display = 'inline-block';
-}
-
-// 年度报表
-function generateYearlyReportSummary(year) {
-    const sundayRecords = attendanceRecords.filter(record => {
-        const date = new Date(record.date);
-        return isSunday(record.date) && date.getFullYear() === parseInt(year);
-    });
-    renderTable('yearlyReportList', 'yearlyReportTable', ['日期', '组别', '姓名', '时间']);
-    exportYearlyReport.style.display = 'inline-block';
-    clearYearlyRecords.style.display = 'inline-block';
-}
-
-// 清空某年签到记录
-function clearYearlyRecordsFunc(year) {
-    const originalRecords = [...attendanceRecords];
-    attendanceRecords = attendanceRecords.filter(record => {
-        const date = new Date(record.date);
-        return date.getFullYear() !== parseInt(year);
-    });
-    localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-    logModification(`清空 ${year} 年的签到记录：${JSON.stringify(originalRecords.filter(r => new Date(r.date).getFullYear() === parseInt(year)))}`);
-    generateYearlyReportSummary(year);
-    alert(`已清空 ${year} 年的所有签到记录！`);
-}
-
-// 记录修改日志
-function logModification(action) {
-    let modificationLogs = JSON.parse(localStorage.getItem('modificationLogs')) || [];
-    const now = new Date().toLocaleString('zh-CN');
-    modificationLogs.push({ date: now, action: action });
-    localStorage.setItem('modificationLogs', JSON.stringify(modificationLogs));
-}
-
-// 事件监听
-showAttendanceButton.addEventListener('click', () => {
-    hideAllSections();
-    renderSummary();
-    exportDailyReport.style.display = 'none';
-    exportQuarterlyReport.style.display = 'none';
-    exportYearlyReport.style.display = 'none';
-    clearYearlyRecords.style.display = 'none';
-});
-
-dailyReportButton.addEventListener('click', () => {
-    hideAllSections();
-    dailyReportSection.style.display = 'block';
-    dailyDate.value = new Date().toISOString().split('T')[0];
-    generateDailyReportSummary(dailyDate.value);
-});
-
-generateDailyReport.addEventListener('click', () => {
-    generateDailyReportSummary(dailyDate.value);
-});
-
-exportDailyReport.addEventListener('click', () => {
-    const date = dailyDate.value;
-    const todayRecords = attendanceRecords.filter(record => record.date === date);
-    exportToCSV(todayRecords, `日报表_${date}`);
-});
-
-quarterlyReportButton.addEventListener('click', () => {
-    hideAllSections();
-    quarterlyReportSection.style.display = 'block';
-    generateQuarterlyReportSummary(quarterlyYear.value, quarterlyQuarter.value);
-});
-
-generateQuarterlyReport.addEventListener('click', () => {
-    generateQuarterlyReportSummary(quarterlyYear.value, quarterlyQuarter.value);
-});
-
-exportQuarterlyReport.addEventListener('click', () => {
-    const year = quarterlyYear.value;
-    const quarter = quarterlyQuarter.value;
-    const startMonth = (quarter - 1) * 3;
-    const endMonth = startMonth + 2;
-    const sundayRecords = attendanceRecords.filter(record => {
-        const date = new Date(record.date);
-        return isSunday(record.date) &&
-               date.getFullYear() === parseInt(year) &&
-               date.getMonth() >= startMonth && date.getMonth() <= endMonth;
-    });
-    exportToCSV(sundayRecords, `季度报表_${year}_Q${quarter}`);
-});
-
-yearlyReportButton.addEventListener('click', () => {
-    hideAllSections();
-    yearlyReportSection.style.display = 'block';
-    generateYearlyReportSummary(yearlyYear.value);
-});
-
-generateYearlyReport.addEventListener('click', () => {
-    generateYearlyReportSummary(yearlyYear.value);
-});
-
-exportYearlyReport.addEventListener('click', () => {
-    const year = yearlyYear.value;
-    const sundayRecords = attendanceRecords.filter(record => {
-        const date = new Date(record.date);
-        return isSunday(record.date) && date.getFullYear() === parseInt(year);
-    });
-    exportToCSV(sundayRecords, `年度报表_${year}`);
-});
-
-clearYearlyRecords.addEventListener('click', () => {
-    const year = yearlyYear.value;
-    if (confirm(`确定清空 ${year} 年的所有签到记录吗？这将影响相关报表！`)) {
-        clearYearlyRecordsFunc(year);
+  
+    function updatePeriodOptions(type) {
+      reportPeriod.innerHTML = '';
+      periodLabel.style.display = 'none';
+      reportPeriod.style.display = 'none';
+      if (type === 'quarterly') {
+        periodLabel.style.display = 'inline';
+        reportPeriod.style.display = 'inline';
+        const years = [...new Set(attendanceRecords.map(r => new Date(r.time).getFullYear()))];
+        years.forEach(year => {
+          for (let q = 1; q <= 4; q++) {
+            const option = document.createElement('option');
+            option.value = `${year}-Q${q}`;
+            option.textContent = `${year}年第${q}季度`;
+            reportPeriod.appendChild(option);
+          }
+        });
+      } else if (type === 'yearly') {
+        periodLabel.style.display = 'inline';
+        reportPeriod.style.display = 'inline';
+        const years = [...new Set(attendanceRecords.map(r => new Date(r.time).getFullYear()))];
+        years.forEach(year => {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = `${year}年`;
+          reportPeriod.appendChild(option);
+        });
+      }
     }
-});
-
-backButton.addEventListener('click', () => {
-    window.location.href = "admin.html";
-});
-
-// 隐藏所有报表部分
-function hideAllSections() {
-    summaryTable.style.display = 'none';
-    dailyReportSection.style.display = 'none';
-    quarterlyReportSection.style.display = 'none';
-    yearlyReportSection.style.display = 'none';
-    exportDailyReport.style.display = 'none';
-    exportQuarterlyReport.style.display = 'none';
-    exportYearlyReport.style.display = 'none';
-    clearYearlyRecords.style.display = 'none';
-}
-
-// 初始隐藏所有报表
-hideAllSections();
-renderSummary();
+  
+    function exportToCSV(type, period = null) {
+      let data = [];
+      let filename = '';
+      if (type === 'records') {
+        data = attendanceRecords.map(r => [groupNames[r.group] || r.group, r.name, r.time, r.timeSlot || getMorningAttendanceType(new Date(r.time))]);
+        filename = 'attendance_records.csv';
+      } else {
+        const startDate = type === 'quarterly' && period ? 
+          new Date(period.split('-Q')[0], (parseInt(period.split('-Q')[1]) - 1) * 3, 1) : 
+          new Date(parseInt(period), 0, 1);
+        const endDate = type === 'quarterly' && period ? 
+          new Date(period.split('-Q')[0], parseInt(period.split('-Q')[1]) * 3, 0) : 
+          new Date(parseInt(period), 11, 31);
+        const filteredRecords = attendanceRecords.filter(record => {
+          const date = new Date(record.time);
+          return date.getDay() === 0 && 
+                 date >= startDate && 
+                 date <= endDate && 
+                 getMorningAttendanceType(date) !== '其他';
+        });
+  
+        const memberStats = {};
+        filteredRecords.forEach(record => {
+          const key = `${record.group}-${record.name}`;
+          if (!memberStats[key]) {
+            memberStats[key] = { 
+              group: record.group, 
+              name: record.name, 
+              early: 0, 
+              onTime: 0, 
+              late: 0 
+            };
+          }
+          const attType = getMorningAttendanceType(new Date(record.time));
+          if (attType === '早到') memberStats[key].early++;
+          else if (attType === '准时') memberStats[key].onTime++;
+          else if (attType === '迟到') memberStats[key].late++;
+        });
+  
+        const totalSundays = countSundays(startDate, endDate);
+        data = Object.values(memberStats).map(stat => {
+          const totalSignIns = stat.early + stat.onTime + stat.late;
+          const signInRate = `${totalSignIns}/${totalSundays}`;
+          return [groupNames[stat.group] || stat.group, stat.name, stat.early, stat.onTime, stat.late, signInRate];
+        });
+        filename = type === 'quarterly' ? `quarterly_${period}.csv` : `yearly_${period}.csv`;
+      }
+  
+      const csvContent = "data:text/csv;charset=utf-8," + 
+        [(type === 'records' ? ['组别', '姓名', '签到时间', '签到时段'] : ['组别', '姓名', '早到次数', '准时次数', '迟到次数', '签到率'])].concat(data)
+        .map(row => row.join(',')).join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  
+    backButton.addEventListener('click', () => {
+      window.location.href = "admin.html";
+    });
+  
+    backToSigninButton.addEventListener('click', () => {
+      window.location.href = "index.html";
+    });
+  
+    clearRecordsButton.addEventListener('click', () => {
+      const enteredPassword = prompt("请输入管理员密码：");
+      if (enteredPassword === adminPassword) {
+        if (confirm("确定清空所有签到记录吗？此操作不可恢复！")) {
+          attendanceRecords = [];
+          localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+          alert('签到记录已清空！');
+          generateSummary('records');
+        }
+      } else {
+        alert('密码错误，清空失败！');
+      }
+    });
+  
+    exportButton.addEventListener('click', () => {
+      const type = reportType.value;
+      exportToCSV(type, type === 'records' ? null : reportPeriod.value || reportPeriod.options[0]?.value);
+    });
+  
+    reportType.addEventListener('change', () => {
+      const type = reportType.value;
+      updatePeriodOptions(type);
+      generateSummary(type, type === 'records' ? null : reportPeriod.value || reportPeriod.options[0]?.value);
+    });
+  
+    reportPeriod.addEventListener('change', () => {
+      generateSummary(reportType.value, reportPeriod.value);
+    });
+  
+    generateSummary('records');
+    updatePeriodOptions('records');
+  });

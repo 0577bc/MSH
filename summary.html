@@ -1,122 +1,34 @@
 <!DOCTYPE html>
 <html lang="zh-Hans">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>签到汇总</title>
-    <link rel="stylesheet" href="./src/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH签到汇总</title>
+  <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
-    <h1>签到汇总</h1>
-    
-    <div class="button-row">
-        <button id="showAttendanceButton">签到记录</button>
-        <button id="dailyReportButton">日报表</button>
-        <button id="quarterlyReportButton">季度报表</button>
-        <button id="yearlyReportButton">年度报表</button>
-        <button id="backButton">返回管理员页面</button>
-    </div>
-
-    <div id="reportContainer">
-        <table id="summaryTable" style="display: none;">
-            <thead>
-                <tr>
-                    <th>日期</th>
-                    <th>组别</th>
-                    <th>姓名</th>
-                    <th>时间</th>
-                </tr>
-            </thead>
-            <tbody id="summaryList">
-            </tbody>
-        </table>
-
-        <div id="dailyReportSection" style="display: none;">
-            <h2>日报表</h2>
-            <div id="reportDate"></div>
-            <label for="dailyDate">选择日期：</label>
-            <input type="date" id="dailyDate" value="">
-            <button id="generateDailyReport">生成日报表</button>
-            <button id="exportDailyReport" style="display: none;">导出 Excel</button>
-            <table id="dailyReportTable">
-                <thead>
-                    <tr>
-                        <th>组别</th>
-                        <th>早到</th>
-                        <th>准时</th>
-                        <th>迟到</th>
-                        <th>未签到</th>
-                    </tr>
-                </thead>
-                <tbody id="dailyReportList">
-                </tbody>
-            </table>
-        </div>
-
-        <div id="quarterlyReportSection" style="display: none;">
-            <h2>季度报表</h2>
-            <label for="quarterlyYear">选择年份：</label>
-            <select id="quarterlyYear">
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <!-- 可根据需要添加更多年份 -->
-            </select>
-            <label for="quarterlyQuarter">选择季度：</label>
-            <select id="quarterlyQuarter">
-                <option value="1">第一季度</option>
-                <option value="2">第二季度</option>
-                <option value="3">第三季度</option>
-                <option value="4">第四季度</option>
-            </select>
-            <button id="generateQuarterlyReport">生成季度报表</button>
-            <button id="exportQuarterlyReport" style="display: none;">导出 Excel</button>
-            <table id="quarterlyReportTable">
-                <thead>
-                    <tr>
-                        <th>日期</th>
-                        <th>组别</th>
-                        <th>姓名</th>
-                        <th>时间</th>
-                    </tr>
-                </thead>
-                <tbody id="quarterlyReportList">
-                </tbody>
-            </table>
-        </div>
-
-        <div id="yearlyReportSection" style="display: none;">
-            <h2>年度报表</h2>
-            <label for="yearlyYear">选择年份：</label>
-            <select id="yearlyYear">
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <!-- 可根据需要添加更多年份 -->
-            </select>
-            <button id="generateYearlyReport">生成年度报表</button>
-            <button id="exportYearlyReport" style="display: none;">导出 Excel</button>
-            <button id="clearYearlyRecords" style="display: none;">清空签到记录</button>
-            <table id="yearlyReportTable">
-                <thead>
-                    <tr>
-                        <th>日期</th>
-                        <th>组别</th>
-                        <th>姓名</th>
-                        <th>时间</th>
-                    </tr>
-                </thead>
-                <tbody id="yearlyReportList">
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script type="module" src="./src/summary.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./src/service-worker.js')
-          .then(registration => console.log('Service Worker registered.'))
-          .catch(error => console.log('Service Worker registration failed:', error));
-      }
-    </script>
+  <h1>MSH签到汇总</h1>
+  <div class="button-row">
+    <button id="backButton">返回管理页面</button>
+    <button id="backToSigninButton">返回签到页面</button>
+    <button id="clearRecordsButton">清空签到记录</button>
+    <button id="exportButton">导出记录</button>
+  </div>
+  <div class="report-selection">
+    <label for="reportType">选择报告类型：</label>
+    <select id="reportType">
+      <option value="records">签到记录</option>
+      <option value="quarterly">季度报告</option>
+      <option value="yearly">年度报告</option>
+    </select>
+    <label for="reportPeriod" id="periodLabel" style="display: none;">选择周期：</label>
+    <select id="reportPeriod" style="display: none;"></select>
+  </div>
+  <h2 id="reportTitle">签到记录</h2>
+  <table id="summaryTable" class="attendance-table">
+    <thead id="tableHead"></thead>
+    <tbody id="summaryList"></tbody>
+  </table>
+  <script type="module" src="./src/summary.js"></script>
 </body>
 </html>

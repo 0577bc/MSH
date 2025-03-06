@@ -1,44 +1,49 @@
 <!DOCTYPE html>
 <html lang="zh-Hans">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日报表</title>
-    <link rel="stylesheet" href="./src/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH日报表</title>
+  <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
-    <h1>日报表</h1>
-    <h2 id="reportDate"></h2>
-    
-    <table id="dailyReportTable">
-        <thead>
-            <tr>
-                <th>组别</th>
-                <th>早到</th>
-                <th>准时</th>
-                <th>迟到</th>
-                <th>未签到</th>
-            </tr>
-        </thead>
-        <tbody id="dailyReportList">
-        </tbody>
-    </table>
-
-    <!-- 添加当天新增人员显示区域 -->
-    <div id="newMembersSection" style="margin-top: 20px;">
-        <h3>当天新增人员</h3>
-        <p>姓名：<span id="newMembersNames"></span>（共 <span id="newMembersCount"></span> 人）</p>
-    </div>
-
+  <h1>MSH日报表</h1>
+  <div class="button-row">
     <button id="backButton">返回签到页面</button>
-
-    <script type="module" src="./src/daily-report.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./src/service-worker.js')
-          .then(registration => console.log('Service Worker registered.'))
-          .catch(error => console.log('Service Worker registration failed:', error));
-      }
-    </script>
+  </div>
+  <h2>当日签到人员</h2>
+  <table id="signedTable" class="attendance-table">
+    <thead>
+      <tr>
+        <th>组别</th>
+        <th>姓名</th>
+        <th>签到时间</th>
+      </tr>
+    </thead>
+    <tbody id="signedList"></tbody>
+  </table>
+  <p>签到总人数：<span id="totalSigned">0</span></p>
+  <h2>当日新增人员</h2>
+  <table id="newcomersTable" class="attendance-table">
+    <thead>
+      <tr>
+        <th>组别</th>
+        <th>姓名</th>
+      </tr>
+    </thead>
+    <tbody id="newcomersList"></tbody>
+  </table>
+  <p>新增总人数：<span id="totalNewcomers">0</span></p>
+  <h2>当日未签到人员</h2>
+  <table id="unsignedTable" class="attendance-table">
+    <thead>
+      <tr>
+        <th>组别</th>
+        <th>未签到人员</th>
+      </tr>
+    </thead>
+    <tbody id="unsignedList"></tbody>
+  </table>
+  <script type="module" src="./src/daily-report.js"></script>
 </body>
 </html>
