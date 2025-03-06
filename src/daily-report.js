@@ -14,7 +14,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database(app);
+const db = firebase.database();
 
 document.addEventListener('DOMContentLoaded', () => {
   const signedList = document.getElementById('signedList');

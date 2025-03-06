@@ -6,6 +6,7 @@
   <title>MSH签到系统</title>
   <link rel="stylesheet" href="./src/style.css">
   <link rel="manifest" href="manifest.json">
+  <!-- 引入 Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.x.x/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.x.x/firebase-database.js"></script>
 </head>
@@ -81,6 +82,8 @@
     </table>
   </div>
   <button id="adminButton">管理</button>
-  <script type="module" src="./src/main.js"></script>
+  <script src="./src/main.js"></script>
+  <script src="./src/daily-report.js"></script>
+  <script src="./src/summary.js"></script>
 </body>
 </html>
