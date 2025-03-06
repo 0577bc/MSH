@@ -1,19 +1,8 @@
 // src/main.js
-// 使用全局 firebase 对象（通过 CDN 引入）
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAtxq7tQkHjFEK5Eo0sh-X0H1ywrExYir0",
-  authDomain: "mshsystem-e50ca.firebaseapp.com",
-  projectId: "mshsystem-e50ca",
-  storageBucket: "mshsystem-e50ca.firebasestorage.app",
-  messagingSenderId: "188333154672",
-  appId: "1:188333154672:web:ebb15e9d7f2e7a77c82fb5",
-  measurementId: "G-1NJQ1K6YTH"
-};
+// 使用全局 firebase 对象（通过 CDN 引入）和 window.firebaseConfig
 
 // Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
+const app = firebase.initializeApp(window.firebaseConfig);
 const db = firebase.database();
 
 document.addEventListener('DOMContentLoaded', () => {
