@@ -1,6 +1,5 @@
 // src/main.js
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, get, onValue, push } from "firebase/database";
+// 使用全局 firebase 对象（通过 CDN 引入）
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -14,8 +13,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database(app);
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("DOM loaded successfully");
@@ -45,22 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadDataFromFirebase() {
     try {
       // 加载 groups
-      const groupsRef = ref(db, 'groups');
-      const groupsSnapshot = await get(groupsRef);
+      const groupsRef = firebase.database().ref('groups');
+      const groupsSnapshot = await groupsRef.once('value');
       if (groupsSnapshot.exists()) {
         groups = groupsSnapshot.val() || {};
       }
 
       // 加载 groupNames
-      const groupNamesRef = ref(db, 'groupNames');
-      const groupNamesSnapshot = await get(groupNamesRef);
+      const groupNamesRef = firebase.database().ref('groupNames');
+      const groupNamesSnapshot = await groupNamesRef.once('value');
       if (groupNamesSnapshot.exists()) {
         groupNames = groupNamesSnapshot.val() || {};
       }
 
       // 加载 attendanceRecords
-      const attendanceRef = ref(db, 'attendanceRecords');
-      const attendanceSnapshot = await get(attendanceRef);
+      const attendanceRef = firebase.database().ref('attendanceRecords');
+      const attendanceSnapshot = await attendanceRef.once('value');
       if (attendanceSnapshot.exists()) {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
       }
@@ -74,15 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 实时监听数据变化（可选）
-  onValue(ref(db, 'groups'), (snapshot) => {
+  firebase.database().ref('groups').on('value', (snapshot) => {
     groups = snapshot.val() || {};
     loadGroupsAndMembers();
   });
-  onValue(ref(db, 'groupNames'), (snapshot) => {
+  firebase.database().ref('groupNames').on('value', (snapshot) => {
     groupNames = snapshot.val() || {};
     loadGroupsAndMembers();
   });
-  onValue(ref(db, 'attendanceRecords'), (snapshot) => {
+  firebase.database().ref('attendanceRecords').on('value', (snapshot) => {
     attendanceRecords = Object.values(snapshot.val() || {});
     loadAttendanceRecords();
   });
@@ -225,8 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
         time: now.toLocaleString('zh-CN'),
         timeSlot
       };
-      const newRecordRef = push(ref(db, 'attendanceRecords'));
-      set(newRecordRef, record);
+      const newRecordRef = firebase.database().ref('attendanceRecords').push();
+      newRecordRef.set(record);
       attendanceRecords.push(record); // 更新本地缓存
       loadAttendanceRecords();
       alert('签到成功！');
@@ -258,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       if (!groups[group]) groups[group] = [];
       groups[group].push(newMember);
-      set(ref(db, `groups/${group}`), groups[group]);
+      firebase.database().ref(`groups/${group}`).set(groups[group]);
       if (addMemberForm) addMemberForm.style.display = 'none';
       newGroupSelect.value = '';
       newMemberName.value = '';

@@ -1,6 +1,5 @@
 // src/daily-report.js
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, get } from "firebase/database";
+// 使用全局 firebase 对象（通过 CDN 引入）
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -14,8 +13,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database(app);
 
 document.addEventListener('DOMContentLoaded', () => {
   const signedList = document.getElementById('signedList');
@@ -31,20 +30,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadDataFromFirebase() {
     try {
-      const attendanceRef = ref(db, 'attendanceRecords');
-      const attendanceSnapshot = await get(attendanceRef);
+      const attendanceRef = firebase.database().ref('attendanceRecords');
+      const attendanceSnapshot = await attendanceRef.once('value');
       if (attendanceSnapshot.exists()) {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
       }
 
-      const groupsRef = ref(db, 'groups');
-      const groupsSnapshot = await get(groupsRef);
+      const groupsRef = firebase.database().ref('groups');
+      const groupsSnapshot = await groupsRef.once('value');
       if (groupsSnapshot.exists()) {
         groups = groupsSnapshot.val() || {};
       }
 
-      const groupNamesRef = ref(db, 'groupNames');
-      const groupNamesSnapshot = await get(groupNamesRef);
+      const groupNamesRef = firebase.database().ref('groupNames');
+      const groupNamesSnapshot = await groupNamesRef.once('value');
       if (groupNamesSnapshot.exists()) {
         Object.assign(groupNames, groupNamesSnapshot.val() || {});
       }

@@ -1,6 +1,5 @@
 // src/summary.js
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, get, set } from "firebase/database";
+// 使用全局 firebase 对象（通过 CDN 引入）
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -14,8 +13,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.database(app);
 
 document.addEventListener('DOMContentLoaded', () => {
   const summaryList = document.getElementById('summaryList');
@@ -34,14 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadDataFromFirebase() {
     try {
-      const attendanceRef = ref(db, 'attendanceRecords');
-      const attendanceSnapshot = await get(attendanceRef);
+      const attendanceRef = firebase.database().ref('attendanceRecords');
+      const attendanceSnapshot = await attendanceRef.once('value');
       if (attendanceSnapshot.exists()) {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
       }
 
-      const groupNamesRef = ref(db, 'groupNames');
-      const groupNamesSnapshot = await get(groupNamesRef);
+      const groupNamesRef = firebase.database().ref('groupNames');
+      const groupNamesSnapshot = await groupNamesRef.once('value');
       if (groupNamesSnapshot.exists()) {
         Object.assign(groupNames, groupNamesSnapshot.val() || {});
       }
@@ -104,8 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const newTime = e.target.parentElement.previousElementSibling.previousElementSibling.querySelector('input').value;
           attendanceRecords[index].time = newTime;
           attendanceRecords[index].timeSlot = getMorningAttendanceType(new Date(newTime));
-          const recordRef = ref(db, `attendanceRecords/${Object.keys(attendanceRecords[index])[0]}`); // 假设使用 push 生成的键
-          set(recordRef, attendanceRecords[index]);
+          const recordRef = firebase.database().ref(`attendanceRecords/${Object.keys(attendanceRecords[index])[0]}`); // 假设使用 push 生成的键
+          recordRef.set(attendanceRecords[index]);
           alert('时间已更新！');
           generateSummary('records');
         });
@@ -285,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const enteredPassword = prompt("请输入管理员密码：");
       if (enteredPassword === adminPassword) {
         if (confirm("确定清空所有签到记录吗？此操作不可恢复！")) {
-          set(ref(db, 'attendanceRecords'), {});
+          firebase.database().ref('attendanceRecords').set({});
           attendanceRecords = [];
           alert('签到记录已清空！');
           generateSummary('records');
