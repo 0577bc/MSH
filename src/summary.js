@@ -293,3 +293,5 @@ function hideAllSections() {
 // 初始隐藏所有报表
 hideAllSections();
 renderSummary();
+
+const db = firebase.firestore();

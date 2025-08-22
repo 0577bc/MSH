@@ -94,7 +94,23 @@
     <!-- 管理按钮 -->
     <button id="adminButton">管理</button>
 
-    <script type="module" src="./src/main.js"></script>
+    <!-- 在 body 结束前引入 Firebase 和 main.js -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
+        authDomain: "yjys-4102e.firebaseapp.com",
+        projectId: "yjys-4102e",
+        storageBucket: "yjys-4102e.firebaseapp.com",
+        messagingSenderId: "690578220792",
+        appId: "1:690578220792:web:8e6d537901e2636782fd0d"
+      };
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+    </script>
+    <script src="./src/main.js"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./src/service-worker.js')

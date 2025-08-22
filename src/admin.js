@@ -345,3 +345,5 @@ removeGroupButton.addEventListener('click', () => {
 updateGroupSelects();
 renderLogs();
 renderMemberTable(groupSelect.value || 'group1'); // 初始加载 group1 成员
+
+const db = firebase.firestore();

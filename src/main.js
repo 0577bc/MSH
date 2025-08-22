@@ -231,6 +231,7 @@ function updateTableVisibility() {
 
     tables.forEach(table => {
         const tableElement = document.getElementById(table.id);
+        if (!tableElement || !table.tbody) return; // 防止空指针
         if (table.tbody.children.length === 0) {
             tableElement.classList.add('hidden');
         } else {
@@ -253,25 +254,30 @@ saveNewMemberButton.addEventListener('click', () => {
     const name = newMemberName.value.trim();
     const phone = newMemberPhone.value.trim();
     if (group && name && phone) {
-        if (!groups[group]) {
-            groups[group] = [];
-        }
         const now = new Date();
-        const addedDate = now.toISOString().split('T')[0]; // 记录新增日期
-        groups[group].push({ 
-            name, 
-            phone: phone, 
-            gender: "男", 
-            baptized: "否", 
+        const addedDate = now.toISOString().split('T')[0];
+        // 写入 Firestore
+        db.collection('members').add({
+            group,
+            name,
+            phone,
+            gender: "男",
+            baptized: "否",
             age: "90后",
-            addedDate: addedDate // 添加新增日期字段
+            addedDate
+        }).then((docRef) => {
+            // 本地同步
+            if (!groups[group]) groups[group] = [];
+            groups[group].push({ name, phone, gender: "男", baptized: "否", age: "90后", addedDate });
+            localStorage.setItem('groups', JSON.stringify(groups));
+            updateMemberSelect(group);
+            addMemberForm.style.display = 'none';
+            newMemberName.value = '';
+            newMemberPhone.value = '';
+            alert('新人已新增！');
+        }).catch((error) => {
+            alert('保存失败: ' + error.message);
         });
-        localStorage.setItem('groups', JSON.stringify(groups));
-        updateMemberSelect(group);
-        addMemberForm.style.display = 'none';
-        newMemberName.value = '';
-        newMemberPhone.value = '';
-        alert('新人已新增！');
     } else {
         alert('请选择小组并输入新人姓名和联系号码！');
     }
@@ -298,3 +304,6 @@ adminButton.addEventListener('click', () => {
 dailyReportButton.addEventListener('click', () => {
     window.location.href = "daily-report.html";
 });
+
+// 获取 Firestore 数据库对象
+const db = firebase.firestore();

@@ -29,6 +29,8 @@ const groups = JSON.parse(localStorage.getItem('groups')) || {
     group7: [{ name: "成员S", phone: "", gender: "男", baptized: "否", age: "90后", addedDate: "" }]
 };
 
+const db = firebase.firestore();
+
 function getToday() {
     return new Date().toISOString().split('T')[0]; // 使用 ISO 格式
 }
