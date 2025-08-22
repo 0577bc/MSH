@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日报表</title>
+    <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+    <h1>日报表</h1>
+    <h2 id="reportDate"></h2>
+    
+    <table id="dailyReportTable">
+        <thead>
+            <tr>
+                <th>组别</th>
+                <th>早到</th>
+                <th>准时</th>
+                <th>迟到</th>
+                <th>未签到</th>
+            </tr>
+        </thead>
+        <tbody id="dailyReportList">
+        </tbody>
+    </table>
+
+    <!-- 添加当天新增人员显示区域 -->
+    <div id="newMembersSection" style="margin-top: 20px;">
+        <h3>当天新增人员</h3>
+        <p>姓名：<span id="newMembersNames"></span>（共 <span id="newMembersCount"></span> 人）</p>
+    </div>
+
+    <button id="backButton">返回签到页面</button>
+
+    <script type="module" src="./src/daily-report.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./src/service-worker.js')
+          .then(registration => console.log('Service Worker registered.'))
+          .catch(error => console.log('Service Worker registration failed:', error));
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH签到系统</title>
+    <link rel="stylesheet" href="./src/style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <h1>MSH签到系统</h1>
+    
+    <div class="selection-row">
+        <label for="groupSelect">选择小组：</label>
+        <select id="groupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+
+        <label for="memberSelect">选择成员：</label>
+        <select id="memberSelect">
+            <option value="">--请选择成员--</option>
+        </select>
+    </div>
+
+    <div class="search-row">
+        <label for="memberSearch">姓名检索：</label>
+        <input type="text" id="memberSearch" placeholder="输入姓名检索">
+        <div id="suggestions" style="display: none; border: 1px solid #ddd; max-height: 150px; overflow-y: auto;"></div>
+    </div>
+
+    <div class="button-row">
+        <button id="signinButton">签到</button>
+        <button id="addNewcomerButton">新增新人</button>
+        <button id="dailyReportButton">日报表</button>
+    </div>
+
+    <!-- 新增新人表单，初始隐藏 -->
+    <div id="addMemberForm" style="display: none; margin-top: 20px;">
+        <h3>新增新人</h3>
+        <label for="newGroupSelect">选择小组：</label>
+        <select id="newGroupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+        <br>
+        <label for="newMemberName">新人姓名：</label>
+        <input type="text" id="newMemberName" placeholder="请输入新人姓名">
+        <br>
+        <label for="newMemberPhone">联系号码：</label>
+        <input type="text" id="newMemberPhone" placeholder="请输入联系号码">
+        <br>
+        <button id="saveNewMemberButton">保存</button>
+        <button id="cancelNewMemberButton">取消</button>
+    </div>
+
+    <h2>签到名单</h2>
+    <div class="tables-container">
+        <table id="morningTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>组别</th>
+                    <th>姓名</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody id="morningList">
+            </tbody>
+        </table>
+
+        <table id="midMorningTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>组别</th>
+                    <th>姓名</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody id="midMorningList">
+            </tbody>
+        </table>
+
+        <table id="lateMorningTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>组别</th>
+                    <th>姓名</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody id="lateMorningList">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 管理按钮 -->
+    <button id="adminButton">管理</button>
+
+    <script type="module" src="./src/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./src/service-worker.js')
+          .then(registration => console.log('Service Worker registered.'))
+          .catch(error => console.log('Service Worker registration failed:', error));
+      }
+    </script>
+</body>
+</html>
