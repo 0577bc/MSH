@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MSH签到系统-管理</title>
     <link rel="stylesheet" href="./src/style.css">
+    <link rel="icon" href="data:,"> <!-- 禁用 favicon 避免 404 -->
 </head>
 <body>
     <h1>管理员页面</h1>
@@ -28,8 +29,7 @@
                     <th>操作</th>
                 </tr>
             </thead>
-            <tbody id="memberList">
-            </tbody>
+            <tbody id="memberList"></tbody>
         </table>
 
         <button id="saveButton">确认修改</button>
@@ -111,34 +111,19 @@
                     <th>操作</th>
                 </tr>
             </thead>
-            <tbody id="logList">
-            </tbody>
+            <tbody id="logList"></tbody>
         </table>
         <button id="closeLogButton">关闭</button>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script>
-      const firebaseConfig = {
-        apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
-        authDomain: "yjys-4102e.firebaseapp.com",
-        projectId: "yjys-4102e",
-        storageBucket: "yjys-4102e.firebaseapp.com",
-        messagingSenderId: "690578220792",
-        appId: "1:690578220792:web:8e6d537901e2636782fd0d"
-      };
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-    </script>
-    <script src="./src/admin.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./src/service-worker.js')
-          .then(registration => console.log('Service Worker registered.'))
-          .catch(error => console.log('Service Worker registration failed:', error));
-      }
+    <script type="module" src="./src/admin.js"></script>
+    <script type="module">
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./src/service-worker.js')
+                .then(registration => console.log('Service Worker registered.'))
+                .catch(error => console.log('Service Worker registration failed:', error));
+        }
     </script>
 </body>
 </html>

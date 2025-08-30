@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MSH签到系统-日报表</title>
+    <title>日报表</title>
     <link rel="stylesheet" href="./src/style.css">
+    <link rel="icon" href="data:,">
 </head>
 <body>
     <h1>日报表</h1>
-    <h2 id="reportDate"></h2>
-    
-    <table id="dailyReportTable">
+    <button id="backButton">返回</button>
+    <table id="dailyReportTable" class="attendance-table">
         <thead>
             <tr>
                 <th>组别</th>
@@ -19,41 +19,19 @@
                 <th>迟到</th>
                 <th>未签到</th>
             </tr>
+            <tr id="dateRow" style="text-align: right;">
+                <td colspan="5"></td>
+            </tr>
         </thead>
-        <tbody id="dailyReportList">
-        </tbody>
+        <tbody id="dailyReportList"></tbody>
     </table>
-
-    <!-- 添加当天新增人员显示区域 -->
-    <div id="newMembersSection" style="margin-top: 20px;">
-        <h3>当天新增人员</h3>
-        <p>姓名：<span id="newMembersNames"></span>（共 <span id="newMembersCount"></span> 人）</p>
-    </div>
-
-    <button id="backButton">返回签到页面</button>
-
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script>
-      const firebaseConfig = {
-        apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
-        authDomain: "yjys-4102e.firebaseapp.com",
-        projectId: "yjys-4102e",
-        storageBucket: "yjys-4102e.firebaseapp.com",
-        messagingSenderId: "690578220792",
-        appId: "1:690578220792:web:8e6d537901e2636782fd0d"
-      };
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-    </script>
-    <script src="./src/daily-report.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./src/service-worker.js')
-          .then(registration => console.log('Service Worker registered.'))
-          .catch(error => console.log('Service Worker registration failed:', error));
-      }
+    <script type="module" src="./src/daily-report.js"></script>
+    <script type="module">
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./src/service-worker.js')
+                .then(registration => console.log('Service Worker registered.'))
+                .catch(error => console.log('Service Worker registration failed:', error));
+        }
     </script>
 </body>
 </html>

@@ -1,206 +1,64 @@
 body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
+    font-family: Arial, sans-serif;
+    margin: 20px;
 }
 
-h1 {
-  color: #333;
-  font-family: SimSun, serif; /* 宋体 */
-  text-align: center; /* 标题居中 */
+h1, h2, h3 {
+    color: #333;
 }
 
-h2, h3 {
-  color: #333;
-}
-
-/* 通用输入和按钮样式 */
-select, button, input {
-  padding: 8px;
-  margin: 5px;
-}
-
-/* 按钮行样式 */
 .button-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
+    margin-bottom: 20px;
 }
 
-/* 表格容器样式 */
-.tables-container {
-  display: flex;
-  gap: 20px;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-/* 签到表格样式 */
-.attendance-table {
-  border-collapse: collapse;
-  width: 30%;
-  min-width: 200px;
-}
-
-.attendance-table th, .attendance-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-
-.attendance-table th {
-  background-color: #f2f2f2;
-}
-
-.attendance-table.hidden {
-  display: none; /* 隐藏空表格 */
-}
-
-/* 按钮样式 */
 button {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  cursor: pointer;
+    margin-right: 10px;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
 }
 
 button:hover {
-  background-color: #0056b3;
+    background-color: #0056b3;
 }
 
-/* 新增新人表单样式 */
-#addMemberForm {
-  border: 1px solid #ddd;
-  padding: 15px;
-  background-color: #f9f9f9;
+.attendance-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
 }
 
-#addMemberForm label {
-  margin-right: 10px;
+.attendance-table th, .attendance-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
 }
 
-#addMemberForm input, #addMemberForm select {
-  margin-bottom: 10px;
+.hidden {
+    display: none;
 }
 
-/* 密码修改表单样式 */
-#changePasswordForm {
-  border: 1px solid #ddd;
-  padding: 15px;
-  background-color: #f9f9f9;
+.suggestions {
+    border: 1px solid #ddd;
+    max-height: 150px;
+    overflow-y: auto;
 }
 
-#changePasswordForm label {
-  margin-right: 10px;
+.suggestion {
+    padding: 10px;
+    cursor: pointer;
 }
 
-#changePasswordForm input {
-  margin-bottom: 10px;
+.suggestion:hover {
+    background-color: #f0f0f0;
 }
 
-/* 更改小组名称表单样式 */
-#changeGroupNameForm {
-  border: 1px solid #ddd;
-  padding: 15px;
-  background-color: #f9f9f9;
-}
-
-#changeGroupNameForm label {
-  margin-right: 10px;
-}
-
-#changeGroupNameForm input, #changeGroupNameForm select {
-  margin-bottom: 10px;
-}
-
-/* 修改日志容器样式 */
-#logContainer {
-  border: 1px solid #ddd;
-  padding: 15px;
-  background-color: #f9f9f9;
-}
-
-#logTable {
-  border-collapse: collapse;
-  width: 100%;
-  margin-top: 10px;
-}
-
-#logTable th, #logTable td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-
-#logTable th {
-  background-color: #f2f2f2;
-}
-
-/* 报表表格样式 */
-#summaryTable, #dailyReportTable, #quarterlyReportTable, #yearlyReportTable {
-  border-collapse: collapse;
-  width: 100%;
-  margin-top: 20px;
-  border: 3px solid #000; /* 粗外框 */
-}
-
-#summaryTable th, #summaryTable td,
-#dailyReportTable th, #dailyReportTable td,
-#quarterlyReportTable th, #quarterlyReportTable td,
-#yearlyReportTable th, #yearlyReportTable td {
-  border: 1px solid #000; /* 内框 */
-  padding: 10px;
-  text-align: center;
-  vertical-align: top; /* 顶部对齐 */
-}
-
-#summaryTable th, #dailyReportTable th, #quarterlyReportTable th, #yearlyReportTable th {
-  background-color: #f2f2f2;
-  font-weight: bold;
-}
-
-/* 报表容器样式 */
-#reportContainer {
-  margin-top: 20px;
-}
-
-#reportContainer h2 {
-  margin-top: 20px;
-  margin-bottom: 10px;
-}
-
-#reportContainer label {
-  margin-right: 10px;
-}
-
-#reportContainer select, #reportContainer input[type="date"] {
-  padding: 8px;
-  margin-right: 10px;
-}
-
-/* 管理员页面专用样式 */
 .admin-section {
-  margin: 20px 0;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
+    margin-top: 20px;
 }
 
 .form-group {
-  margin-bottom: 15px;
-  padding: 10px;
-  background: #f9f9f9;
-  border-radius: 5px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-}
-
-.form-group input, .form-group select, .form-group button {
-  margin: 5px 0;
-}
-
-.form-group button {
-  margin-right: 10px;
+    margin-bottom: 20px;
 }
