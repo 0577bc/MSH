@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH签到系统</title>
+    <link rel="stylesheet" href="./src/style.css">
+    <link rel="icon" href="data:,"> <!-- 禁用 favicon 避免 404 -->
+</head>
+<body>
+    <h1>MSH签到系统</h1>
+
+    <div id="signinSection">
+        <h2>签到</h2>
+        <label for="groupSelect">选择小组：</label>
+        <select id="groupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+        <br>
+        <label for="memberSelect">选择姓名：</label>
+        <select id="memberSelect">
+            <option value="">--请选择姓名--</option>
+        </select>
+        <br>
+        <label for="memberSearch">搜索成员：</label>
+        <input type="text" id="memberSearch" placeholder="输入成员姓名">
+        <div id="suggestions" class="suggestions"></div>
+        <br>
+        <button id="signinButton">签到</button>
+        <p id="signInMessage"></p>
+    </div>
+
+    <div id="addMemberForm" style="display: none;">
+        <h2>新人登记</h2>
+        <label for="newGroupSelect">选择小组：</label>
+        <select id="newGroupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+        <br>
+        <label for="newMemberName">姓名：</label>
+        <input type="text" id="newMemberName" placeholder="请输入姓名">
+        <br>
+        <label for="newMemberPhone">联系方式：</label>
+        <input type="text" id="newMemberPhone" placeholder="请输入联系方式">
+        <br>
+        <label for="newMemberGender">性别：</label>
+        <select id="newMemberGender">
+            <option value="男">男</option>
+            <option value="女">女</option>
+        </select>
+        <br>
+        <label for="newMemberBaptized">是否受洗：</label>
+        <select id="newMemberBaptized">
+            <option value="是">是</option>
+            <option value="否">否</option>
+        </select>
+        <br>
+        <label for="newMemberAge">年龄段：</label>
+        <select id="newMemberAge">
+            <option value="90后">90后</option>
+            <option value="00后">00后</option>
+            <option value="80后">80后</option>
+        </select>
+        <br>
+        <button id="saveNewMemberButton">添加新人</button>
+        <button id="cancelNewMemberButton">取消</button>
+    </div>
+
+    <div class="admin-section">
+        <h2>今日签到</h2>
+        <div id="morningSection" class="hidden">
+            <h3>上午签到（9:00前）</h3>
+            <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th>组别</th>
+                        <th>姓名</th>
+                        <th>时间</th>
+                    </tr>
+                </thead>
+                <tbody id="morningList"></tbody>
+            </table>
+        </div>
+        <div id="midMorningSection" class="hidden">
+            <h3>上午签到（9:00-9:30）</h3>
+            <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th>组别</th>
+                        <th>姓名</th>
+                        <th>时间</th>
+                    </tr>
+                </thead>
+                <tbody id="midMorningList"></tbody>
+            </table>
+        </div>
+        <div id="lateMorningSection" class="hidden">
+            <h3>迟到（9:30后）</h3>
+            <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th>组别</th>
+                        <th>姓名</th>
+                        <th>时间</th>
+                    </tr>
+                </thead>
+                <tbody id="lateMorningList"></tbody>
+            </table>
+        </div>
+        <button id="addNewcomerButton">新人登记</button>
+        <button id="adminButton">管理员页面</button>
+        <button id="dailyReportButton">查看日报表</button>
+    </div>
+
+    <div id="adminLoginSection" style="display: none;">
+        <h2>管理员登录</h2>
+        <label for="adminPassword">密码：</label>
+        <input type="password" id="adminPassword" placeholder="请输入管理员密码">
+        <br>
+        <button id="adminLoginButton">登录</button>
+        <button id="cancelAdminLoginButton">取消</button>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>

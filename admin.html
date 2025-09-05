@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH签到系统-管理</title>
+    <link rel="stylesheet" href="./src/style.css">
+    <link rel="icon" href="data:,"> <!-- 禁用 favicon 避免 404 -->
+</head>
+<body>
+    <h1>管理员页面</h1>
+    
+    <div class="admin-section">
+        <h2>小组成员管理</h2>
+        <label for="groupSelect">选择小组：</label>
+        <select id="groupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+
+        <table id="memberTable">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>联系方式</th>
+                    <th>是否受洗</th>
+                    <th>年龄段</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="memberList"></tbody>
+        </table>
+
+        <button id="saveButton">确认修改</button>
+    </div>
+
+    <div class="admin-section">
+        <h2>小组管理</h2>
+        <!-- 增加小组表单 -->
+        <div id="addGroupForm" class="form-group" style="margin-bottom: 20px;">
+            <h3>增加新小组</h3>
+            <label for="newGroupName">小组名称：</label>
+            <input type="text" id="newGroupName" placeholder="请输入小组名称">
+            <br>
+            <label for="newGroupMembers">成员姓名（用逗号分隔）：</label>
+            <input type="text" id="newGroupMembers" placeholder="例如：成员A,成员B,成员C">
+            <br>
+            <button id="addGroupButton">增加小组</button>
+        </div>
+
+        <!-- 删除小组表单 -->
+        <div id="removeGroupForm" class="form-group" style="margin-bottom: 20px;">
+            <h3>删除小组</h3>
+            <label for="removeGroupSelect">选择要删除的小组：</label>
+            <select id="removeGroupSelect">
+                <option value="">--请选择小组--</option>
+            </select>
+            <br>
+            <button id="removeGroupButton">删除小组</button>
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <h2>其他管理</h2>
+        <button id="backButton">返回签到页面</button>
+        <button id="summaryButton">查看签到汇总</button>
+        <button id="changePasswordButton">修改密码</button>
+        <button id="viewLogButton">查看修改日志</button>
+        <button id="changeGroupNameButton">更改小组名称</button>
+    </div>
+
+    <!-- 更改小组名称表单，初始隐藏 -->
+    <div id="changeGroupNameForm" class="form-group" style="display: none; margin-top: 20px;">
+        <h3>更改小组名称</h3>
+        <label for="currentGroupSelect">当前小组：</label>
+        <select id="currentGroupSelect">
+            <option value="">--请选择小组--</option>
+        </select>
+        <br>
+        <label for="newGroupNameChange">新名称：</label>
+        <input type="text" id="newGroupNameChange" placeholder="请输入新名称">
+        <br>
+        <button id="saveGroupNameButton">保存</button>
+        <button id="cancelGroupNameButton">取消</button>
+    </div>
+
+    <!-- 密码修改表单，初始隐藏 -->
+    <div id="changePasswordForm" class="form-group" style="display: none; margin-top: 20px;">
+        <h3>修改密码</h3>
+        <label for="oldPassword">当前密码：</label>
+        <input type="password" id="oldPassword" placeholder="请输入当前密码">
+        <br>
+        <label for="newPassword">新密码：</label>
+        <input type="password" id="newPassword" placeholder="请输入新密码">
+        <br>
+        <label for="confirmPassword">确认新密码：</label>
+        <input type="password" id="confirmPassword" placeholder="请再次输入新密码">
+        <br>
+        <button id="savePasswordButton">保存</button>
+        <button id="cancelPasswordButton">取消</button>
+    </div>
+
+    <!-- 修改日志，初始隐藏 -->
+    <div id="logContainer" class="form-group" style="display: none; margin-top: 20px;">
+        <h3>修改日志</h3>
+        <table id="logTable">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="logList"></tbody>
+        </table>
+        <button id="closeLogButton">关闭</button>
+    </div>
+
+    <script type="module" src="./src/admin.js"></script>
+    <script type="module">
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./src/service-worker.js')
+                .then(registration => console.log('Service Worker registered.'))
+                .catch(error => console.log('Service Worker registration failed:', error));
+        }
+    </script>
+</body>
+</html>

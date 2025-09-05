@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签到汇总</title>
+    <link rel="stylesheet" href="./src/style.css">
+   <link rel="icon" href="data:,"> <!-- 禁用 favicon 避免 404 -->
+<body>
+    <h1>签到汇总</h1>
+
+    <div class="button-row">
+        <button id="showAttendanceButton">签到记录</button>
+        <button id="dailyReportButton">日报表</button>
+        <button id="quarterlyReportButton">季度报表</button>
+        <button id="yearlyReportButton">年度报表</button>
+        <button id="backButton">返回管理员页面</button>
+    </div>
+
+    <table id="summaryTable" class="attendance-table" style="display: none;">
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>组别</th>
+                <th>姓名</th>
+                <th>时间</th>
+            </tr>
+        </thead>
+        <tbody id="summaryList"></tbody>
+    </table>
+
+    <div id="dailyReportSection" style="display: none;">
+        <label for="dailyDate">选择日期：</label>
+        <input type="date" id="dailyDate">
+        <button id="generateDailyReport">生成日报表</button>
+        <button id="exportDailyReport">导出 Excel</button>
+        <table id="dailyReportTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>组别</th>
+                    <th>早到</th>
+                    <th>准时</th>
+                    <th>迟到</th>
+                    <th>未签到</th>
+                </tr>
+                <tr id="dateRow" style="text-align: right;">
+                    <td colspan="5"></td>
+                </tr>
+            </thead>
+            <tbody id="dailyReportList"></tbody>
+        </table>
+    </div>
+
+    <div id="quarterlyReportSection" style="display: none;">
+        <label for="quarterlyYear">选择年份：</label>
+        <select id="quarterlyYear">
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+        </select>
+        <label for="quarterlyQuarter">选择季度：</label>
+        <select id="quarterlyQuarter">
+            <option value="1">第一季度</option>
+            <option value="2">第二季度</option>
+            <option value="3">第三季度</option>
+            <option value="4">第四季度</option>
+        </select>
+        <button id="generateQuarterlyReport">生成季度报表</button>
+        <button id="exportQuarterlyReport">导出 Excel</button>
+        <table id="quarterlyReportTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>组别</th>
+                    <th>姓名</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody id="quarterlyReportList"></tbody>
+        </table>
+    </div>
+
+    <div id="yearlyReportSection" style="display: none;">
+        <label for="yearlyYear">选择年份：</label>
+        <select id="yearlyYear">
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+        </select>
+        <button id="generateYearlyReport">生成年度报表</button>
+        <button id="exportYearlyReport">导出 Excel</button>
+        <table id="yearlyReportTable" class="attendance-table">
+            <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>组别</th>
+                    <th>姓名</th>
+                    <th>时间</th>
+                </tr>
+            </thead>
+            <tbody id="yearlyReportList"></tbody>
+        </table>
+    </div>
+
+    <script type="module" src="src/summary.js"></script>
+    <script type="module">
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./src/service-worker.js')
+                .then(registration => console.log('Service Worker registered.'))
+                .catch(error => console.log('Service Worker registration failed:', error));
+        }
+    </script>
+</body>
+</html>
