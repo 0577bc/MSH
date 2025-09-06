@@ -112,9 +112,37 @@
       <button id="exportButton" type="button" aria-label="导出数据">导出数据</button>
       <button id="importButton" type="button" aria-label="导入数据">导入数据</button>
       <button id="viewLogsButton" type="button" aria-label="查看日志">查看日志</button>
+      <button id="excludeStatsButton" type="button" aria-label="未签到不统计">未签到不统计</button>
       <button id="logoutButton" type="button" aria-label="登出" class="danger-button">登出</button>
       <input type="file" id="importFile" accept=".json" class="hidden-form" aria-label="选择要导入的JSON文件">
       
+      
+      <!-- 未签到不统计管理界面 -->
+      <div id="excludeStatsView" class="form-group hidden-form">
+        <h3>未签到不统计人员管理</h3>
+        <div class="exclude-controls">
+          <div class="search-section">
+            <form id="excludeSearchForm">
+              <label for="excludeSearchInput">姓名检索：</label>
+              <input type="text" id="excludeSearchInput" placeholder="输入姓名检索" aria-label="搜索成员姓名" autocomplete="off">
+              <div id="excludeSuggestions" class="suggestions-box"></div>
+            </form>
+          </div>
+          <div class="exclude-actions">
+            <button id="addToExcludeButton" type="button" class="success-button">添加到不统计列表</button>
+            <button id="removeFromExcludeButton" type="button" class="danger-button">从列表中移除</button>
+          </div>
+        </div>
+        <div class="exclude-list-section">
+          <h4>当前不统计人员列表：</h4>
+          <div id="excludeList" class="exclude-list">
+            <!-- 动态生成的不统计人员列表 -->
+          </div>
+        </div>
+        <div class="exclude-buttons">
+          <button id="closeExcludeButton" type="button">关闭</button>
+        </div>
+      </div>
       
       <!-- 日志查看界面 -->
       <div id="logsView" class="form-group hidden-form">

@@ -165,9 +165,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadGroupsAndMembers() {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      // 按字母顺序排序小组
+      // 按字母顺序排序小组，"未分组"永远排在最后
       const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+        const nameA = groupNames[a];
+        const nameB = groupNames[b];
+        
+        // "未分组"永远排在最后
+        if (nameA === "未分组") return 1;
+        if (nameB === "未分组") return -1;
+        
+        return nameA.localeCompare(nameB, 'zh-CN');
       });
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
@@ -178,9 +185,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (newGroupSelect) {
       newGroupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      // 按字母顺序排序小组
+      // 按字母顺序排序小组，"未分组"永远排在最后
       const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+        const nameA = groupNames[a];
+        const nameB = groupNames[b];
+        
+        // "未分组"永远排在最后
+        if (nameA === "未分组") return 1;
+        if (nameB === "未分组") return -1;
+        
+        return nameA.localeCompare(nameB, 'zh-CN');
       });
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
@@ -365,13 +379,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toLocaleDateString('zh-CN');
     const todayNewcomers = [];
     
-    // 查找当日新增的成员
+    // 查找当日新增的成员（只有通过"新朋友"按钮添加的人员）
     Object.keys(groups).forEach(group => {
       if (groups[group]) {
         groups[group].forEach(member => {
           if (member.joinDate) {
             const joinDate = new Date(member.joinDate).toLocaleDateString('zh-CN');
-            if (joinDate === today) {
+            // 只有通过"新朋友"按钮添加的人员才显示在当日新增人员表中
+            if (joinDate === today && member.addedViaNewcomerButton === true) {
               todayNewcomers.push({
                 ...member,
                 group: group
@@ -583,7 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
         gender,
         baptized,
         age,
-        joinDate: new Date().toISOString()
+        joinDate: new Date().toISOString(),
+        addedViaNewcomerButton: true // 标识通过"新朋友"按钮添加
       };
       if (!groups[group]) groups[group] = [];
       groups[group].push(newMember);

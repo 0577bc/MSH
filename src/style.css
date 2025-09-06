@@ -474,7 +474,7 @@ button:hover {
 
 .statistics-table tbody tr:last-child {
   background-color: #f8f9ff;
-  font-weight: 600;
+  font-weight: normal;
 }
 
 .statistics-table tbody tr:last-child td {
@@ -483,7 +483,7 @@ button:hover {
 
 /* 统计数字样式 */
 #earlyCount, #onTimeCount, #lateCount, #totalCount {
-  font-weight: 600;
+  font-weight: normal;
   color: #2c3e50;
 }
 
@@ -550,7 +550,7 @@ button:hover {
 
 .newcomer-table tbody tr:last-child {
   background-color: #f8f9ff;
-  font-weight: 600;
+  font-weight: normal;
 }
 
 .newcomer-table tbody tr:last-child td {
@@ -558,8 +558,8 @@ button:hover {
 }
 
 /* 新增人员表格数字样式 */
-.newcomer-table td:not(:last-child) {
-  font-weight: 500;
+.newcomer-table td {
+  font-weight: normal;
   color: #2c3e50;
 }
 
@@ -974,4 +974,128 @@ button:hover {
   padding: 10px;
   margin-top: 10px;
   font-size: 14px;
+}
+
+/* 未签到不统计管理界面样式 */
+.exclude-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.search-section {
+  margin-bottom: 15px;
+}
+
+.search-section form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-section label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-right: 10px;
+}
+
+.search-section input {
+  padding: 5px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-right: 10px;
+}
+
+.exclude-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.exclude-list-section {
+  margin-bottom: 20px;
+}
+
+.exclude-list-section h4 {
+  color: #2c3e50;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.exclude-list {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  min-height: 100px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.exclude-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.exclude-item:hover {
+  background-color: #f8f9ff;
+  border-color: #667eea;
+}
+
+.exclude-item:last-child {
+  margin-bottom: 0;
+}
+
+.exclude-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.exclude-item-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.exclude-item-group {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.exclude-item-remove {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.exclude-item-remove:hover {
+  background-color: #c82333;
+}
+
+.exclude-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.empty-exclude-list {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
 }

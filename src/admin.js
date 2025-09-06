@@ -287,9 +287,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadGroups() {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      // 按字母顺序排序小组
+      // 按字母顺序排序小组，"未分组"永远排在最后
       const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+        const nameA = groupNames[a];
+        const nameB = groupNames[b];
+        
+        // "未分组"永远排在最后
+        if (nameA === "未分组") return 1;
+        if (nameB === "未分组") return -1;
+        
+        return nameA.localeCompare(nameB, 'zh-CN');
       });
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
@@ -747,6 +754,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportLogsButton = document.getElementById('exportLogsButton');
   const closeLogsButton = document.getElementById('closeLogsButton');
   const logsList = document.getElementById('logsList');
+  
+  // 未签到不统计相关元素
+  const excludeStatsButton = document.getElementById('excludeStatsButton');
+  const excludeStatsView = document.getElementById('excludeStatsView');
+  const excludeSearchInput = document.getElementById('excludeSearchInput');
+  const excludeSuggestions = document.getElementById('excludeSuggestions');
+  const addToExcludeButton = document.getElementById('addToExcludeButton');
+  const removeFromExcludeButton = document.getElementById('removeFromExcludeButton');
+  const excludeList = document.getElementById('excludeList');
+  const closeExcludeButton = document.getElementById('closeExcludeButton');
 
   // 显示日志界面
   viewLogsButton.addEventListener('click', () => {
@@ -758,6 +775,227 @@ document.addEventListener('DOMContentLoaded', () => {
   closeLogsButton.addEventListener('click', () => {
     logsView.classList.add('hidden-form');
   });
+
+  // 未签到不统计功能
+  let excludedMembers = []; // 存储不统计的人员列表
+  let selectedMember = null; // 当前选中的成员
+
+  // 显示未签到不统计界面
+  excludeStatsButton.addEventListener('click', () => {
+    excludeStatsView.classList.remove('hidden-form');
+    loadExcludedMembers();
+  });
+
+  // 关闭未签到不统计界面
+  closeExcludeButton.addEventListener('click', () => {
+    excludeStatsView.classList.add('hidden-form');
+    excludeSearchInput.value = '';
+    excludeSuggestions.innerHTML = '';
+    selectedMember = null;
+  });
+
+  // 搜索人员功能（与index页面保持一致）
+  excludeSearchInput.addEventListener('input', () => {
+    const query = excludeSearchInput.value.toLowerCase();
+    excludeSuggestions.innerHTML = '';
+    excludeSuggestions.style.display = 'none';
+    if (query.length < 1) {
+      selectedMember = null;
+      return;
+    }
+    
+    // 获取所有成员信息，包括组别
+    const allMembers = [];
+    Object.keys(groups).forEach(group => {
+      if (groups[group]) {
+        groups[group].forEach(member => {
+          allMembers.push({
+            ...member,
+            group: group
+          });
+        });
+      }
+    });
+
+    // 过滤匹配的人员（排除已在不统计列表中的人员）
+    const matches = allMembers.filter(member => 
+      member.name.toLowerCase().includes(query) &&
+      !excludedMembers.some(excluded => excluded.name === member.name && excluded.group === member.group)
+    );
+    
+    if (matches.length > 0) {
+      excludeSuggestions.style.display = 'block';
+      matches.forEach(member => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <span class="member-name">${member.name}</span>
+          <span class="member-group">(${groupNames[member.group] || member.group})</span>
+        `;
+        div.className = 'suggestion-item';
+        div.addEventListener('click', () => {
+          excludeSearchInput.value = member.name;
+          excludeSuggestions.style.display = 'none';
+          selectedMember = {
+            name: member.name,
+            group: member.group,
+            groupName: groupNames[member.group] || member.group
+          };
+        });
+        excludeSuggestions.appendChild(div);
+      });
+    }
+  });
+
+  // 添加到不统计列表
+  addToExcludeButton.addEventListener('click', () => {
+    if (!selectedMember) {
+      alert('请先搜索并选择要添加的人员！');
+      return;
+    }
+
+    // 检查是否已经存在
+    const exists = excludedMembers.some(excluded => 
+      excluded.name === selectedMember.name && excluded.group === selectedMember.group
+    );
+
+    if (exists) {
+      alert('该人员已经在不统计列表中！');
+      return;
+    }
+
+    // 添加到列表
+    excludedMembers.push(selectedMember);
+    saveExcludedMembers();
+    loadExcludedMembers();
+    
+    // 清空搜索
+    excludeSearchInput.value = '';
+    excludeSuggestions.innerHTML = '';
+    selectedMember = null;
+
+    // 记录日志
+    if (window.systemLogger) {
+      window.systemLogger.info(`添加人员到不统计列表: ${selectedMember.name} (${selectedMember.groupName})`);
+    }
+
+    alert('已添加到不统计列表！');
+  });
+
+  // 从列表中移除
+  removeFromExcludeButton.addEventListener('click', () => {
+    if (!selectedMember) {
+      alert('请先搜索并选择要移除的人员！');
+      return;
+    }
+
+    // 从列表中移除
+    excludedMembers = excludedMembers.filter(excluded => 
+      !(excluded.name === selectedMember.name && excluded.group === selectedMember.group)
+    );
+    
+    saveExcludedMembers();
+    loadExcludedMembers();
+    
+    // 清空搜索
+    excludeSearchInput.value = '';
+    excludeSuggestions.innerHTML = '';
+    selectedMember = null;
+
+    // 记录日志
+    if (window.systemLogger) {
+      window.systemLogger.info(`从不统计列表移除人员: ${selectedMember.name} (${selectedMember.groupName})`);
+    }
+
+    alert('已从列表中移除！');
+  });
+
+  // 加载不统计人员列表
+  function loadExcludedMembers() {
+    if (!excludeList) return;
+
+    if (excludedMembers.length === 0) {
+      excludeList.innerHTML = '<div class="empty-exclude-list">暂无人员</div>';
+      return;
+    }
+
+    excludeList.innerHTML = '';
+    excludedMembers.forEach((member, index) => {
+      const item = document.createElement('div');
+      item.className = 'exclude-item';
+      item.innerHTML = `
+        <div class="exclude-item-info">
+          <div class="exclude-item-name">${member.name}</div>
+          <div class="exclude-item-group">${member.groupName}</div>
+        </div>
+        <button class="exclude-item-remove" onclick="removeExcludedMember(${index})">移除</button>
+      `;
+      excludeList.appendChild(item);
+    });
+  }
+
+  // 移除不统计人员（全局函数）
+  window.removeExcludedMember = function(index) {
+    const member = excludedMembers[index];
+    if (confirm(`确定要从不统计列表中移除 ${member.name} 吗？`)) {
+      excludedMembers.splice(index, 1);
+      saveExcludedMembers();
+      loadExcludedMembers();
+      
+      // 记录日志
+      if (window.systemLogger) {
+        window.systemLogger.info(`从不统计列表移除人员: ${member.name} (${member.groupName})`);
+      }
+    }
+  };
+
+  // 保存不统计人员列表
+  function saveExcludedMembers() {
+    try {
+      localStorage.setItem('msh_excludedMembers', JSON.stringify(excludedMembers));
+      // 同步到Firebase
+      if (db) {
+        db.ref('excludedMembers').set(excludedMembers).catch(error => {
+          console.error('同步不统计人员列表到Firebase失败:', error);
+        });
+      }
+    } catch (error) {
+      console.error('保存不统计人员列表失败:', error);
+    }
+  }
+
+  // 加载不统计人员列表
+  function loadExcludedMembersFromStorage() {
+    try {
+      // 从本地存储加载
+      const localData = localStorage.getItem('msh_excludedMembers');
+      if (localData) {
+        excludedMembers = JSON.parse(localData);
+      }
+      
+      // 从Firebase加载
+      if (db) {
+        db.ref('excludedMembers').once('value').then(snapshot => {
+          const firebaseData = snapshot.val();
+          if (firebaseData && Array.isArray(firebaseData)) {
+            excludedMembers = firebaseData;
+            localStorage.setItem('msh_excludedMembers', JSON.stringify(excludedMembers));
+          }
+        }).catch(error => {
+          console.error('从Firebase加载不统计人员列表失败:', error);
+        });
+      }
+    } catch (error) {
+      console.error('加载不统计人员列表失败:', error);
+    }
+  }
+
+  // 初始化时加载不统计人员列表
+  loadExcludedMembersFromStorage();
+
+  // 全局函数：获取不统计人员列表
+  window.getExcludedMembers = function() {
+    return excludedMembers;
+  };
 
   // 刷新日志
   refreshLogsButton.addEventListener('click', () => {

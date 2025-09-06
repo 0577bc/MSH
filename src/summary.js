@@ -403,9 +403,22 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (timeSlot === '迟到') lateCountNum++;
     });
 
-    // 统计未签到人数
+    // 统计未签到人数（排除不统计的人员）
+    let excludedMembers = [];
+    try {
+      const localData = localStorage.getItem('msh_excludedMembers');
+      if (localData) {
+        excludedMembers = JSON.parse(localData);
+      }
+    } catch (error) {
+      console.error('加载不统计人员列表失败:', error);
+    }
     const allMembers = Object.keys(groups).flatMap(group => 
       groups[group].map(member => ({ group, name: member.name }))
+    ).filter(member => 
+      !excludedMembers.some(excluded => 
+        excluded.name === member.name && excluded.group === member.group
+      )
     );
     const unsignedCount = allMembers.length - signedNames.size;
 
@@ -436,7 +449,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const groupMembers = groups[group];
       const groupSigned = dayRecords.filter(record => record.group === group);
       const signedNames = groupSigned.map(record => record.name);
-      const unsignedMembers = groupMembers.filter(member => !signedNames.includes(member.name));
+      // 获取不统计人员列表
+      let excludedMembers = [];
+      try {
+        const localData = localStorage.getItem('msh_excludedMembers');
+        if (localData) {
+          excludedMembers = JSON.parse(localData);
+        }
+      } catch (error) {
+        console.error('加载不统计人员列表失败:', error);
+      }
+      
+      // 过滤掉不统计的人员
+      const unsignedMembers = groupMembers.filter(member => 
+        !signedNames.includes(member.name) &&
+        !excludedMembers.some(excluded => 
+          excluded.name === member.name && excluded.group === group
+        )
+      );
       
       const groupEarly = groupSigned.filter(record => {
         const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
@@ -493,23 +523,41 @@ document.addEventListener('DOMContentLoaded', () => {
       return date >= startDate && date <= endDate && date.getDay() === 0; // 只统计周日
     });
 
-    // 统计每个成员的签到情况
+    // 获取不统计人员列表
+    let excludedMembers = [];
+    try {
+      const localData = localStorage.getItem('msh_excludedMembers');
+      if (localData) {
+        excludedMembers = JSON.parse(localData);
+      }
+    } catch (error) {
+      console.error('加载不统计人员列表失败:', error);
+    }
+    
+    // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
     quarterRecords.forEach(record => {
-      const key = `${record.group}-${record.name}`;
-      if (!memberStats[key]) {
-        memberStats[key] = { 
-          group: record.group, 
-          name: record.name, 
-          morning: 0, 
-          afternoon: 0, 
-          evening: 0 
-        };
+      // 检查是否在不统计列表中
+      const isExcluded = excludedMembers.some(excluded => 
+        excluded.name === record.name && excluded.group === record.group
+      );
+      
+      if (!isExcluded) {
+        const key = `${record.group}-${record.name}`;
+        if (!memberStats[key]) {
+          memberStats[key] = { 
+            group: record.group, 
+            name: record.name, 
+            morning: 0, 
+            afternoon: 0, 
+            evening: 0 
+          };
+        }
+        const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
+        if (timeSlot === '上午') memberStats[key].morning++;
+        else if (timeSlot === '下午') memberStats[key].afternoon++;
+        else if (timeSlot === '晚上') memberStats[key].evening++;
       }
-      const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
-      if (timeSlot === '上午') memberStats[key].morning++;
-      else if (timeSlot === '下午') memberStats[key].afternoon++;
-      else if (timeSlot === '晚上') memberStats[key].evening++;
     });
 
     // 计算总周日数
@@ -544,23 +592,41 @@ document.addEventListener('DOMContentLoaded', () => {
       return date >= startDate && date <= endDate && date.getDay() === 0; // 只统计周日
     });
 
-    // 统计每个成员的签到情况
+    // 获取不统计人员列表
+    let excludedMembers = [];
+    try {
+      const localData = localStorage.getItem('msh_excludedMembers');
+      if (localData) {
+        excludedMembers = JSON.parse(localData);
+      }
+    } catch (error) {
+      console.error('加载不统计人员列表失败:', error);
+    }
+    
+    // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
     yearRecords.forEach(record => {
-      const key = `${record.group}-${record.name}`;
-      if (!memberStats[key]) {
-        memberStats[key] = { 
-          group: record.group, 
-          name: record.name, 
-          morning: 0, 
-          afternoon: 0, 
-          evening: 0 
-        };
+      // 检查是否在不统计列表中
+      const isExcluded = excludedMembers.some(excluded => 
+        excluded.name === record.name && excluded.group === record.group
+      );
+      
+      if (!isExcluded) {
+        const key = `${record.group}-${record.name}`;
+        if (!memberStats[key]) {
+          memberStats[key] = { 
+            group: record.group, 
+            name: record.name, 
+            morning: 0, 
+            afternoon: 0, 
+            evening: 0 
+          };
+        }
+        const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
+        if (timeSlot === '上午') memberStats[key].morning++;
+        else if (timeSlot === '下午') memberStats[key].afternoon++;
+        else if (timeSlot === '晚上') memberStats[key].evening++;
       }
-      const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
-      if (timeSlot === '上午') memberStats[key].morning++;
-      else if (timeSlot === '下午') memberStats[key].afternoon++;
-      else if (timeSlot === '晚上') memberStats[key].evening++;
     });
 
     // 计算总周日数

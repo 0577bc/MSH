@@ -5,15 +5,15 @@
 if (typeof window !== 'undefined') {
   
   // 真实Firebase配置 - 请替换为您的项目配置
-  window.firebaseConfig = {
-    apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
-    authDomain: "yjys-4102e.firebaseapp.com",
-    databaseURL: "https://yjys-4102e-default-rtdb.firebaseio.com/",
-    projectId: "yjys-4102e",
-    storageBucket: "yjys-4102e.firebasestorage.app",
-    messagingSenderId: "690578220792",
-    appId: "1:690578220792:web:8e6d537901e2636782fd0d"
-  };
+window.firebaseConfig = {
+  apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
+  authDomain: "yjys-4102e.firebaseapp.com",
+  databaseURL: "https://yjys-4102e-default-rtdb.firebaseio.com/",
+  projectId: "yjys-4102e",
+  storageBucket: "yjys-4102e.firebasestorage.app",
+  messagingSenderId: "690578220792",
+  appId: "1:690578220792:web:8e6d537901e2636782fd0d"
+};
 }
 
 // 注意：管理员密码现在由Firebase Authentication管理
