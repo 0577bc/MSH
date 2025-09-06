@@ -1,20 +1,20 @@
-// 默认配置文件 - 用于GitHub Pages演示
-// 注意：这是演示配置，实际使用时请替换为您的Firebase配置
+// Firebase配置文件
+// 请替换为您的真实Firebase项目配置
 
 // 确保在全局作用域中定义配置
 if (typeof window !== 'undefined') {
-  // 演示模式标志
-  window.isDemoMode = true;
+  // 真实模式标志
+  window.isDemoMode = false;
   
-  // 演示模式下的配置（不会实际连接Firebase）
+  // 真实Firebase配置 - 请替换为您的项目配置
   window.firebaseConfig = {
-    apiKey: "demo-api-key",
-    authDomain: "demo-project.firebaseapp.com",
-    databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
-    projectId: "demo-project",
-    storageBucket: "demo-project.firebasestorage.app",
-    messagingSenderId: "123456789",
-    appId: "demo-app-id"
+    apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
+    authDomain: "yjys-4102e.firebaseapp.com",
+    databaseURL: "https://yjys-4102e-default-rtdb.firebaseio.com/",
+    projectId: "yjys-4102e",
+    storageBucket: "yjys-4102e.firebasestorage.app",
+    messagingSenderId: "690578220792",
+    appId: "1:690578220792:web:8e6d537901e2636782fd0d"
   };
 }
 

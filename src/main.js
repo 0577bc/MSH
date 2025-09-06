@@ -6,31 +6,21 @@
 let app, db;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 初始化Firebase或演示模式
-  if (window.isDemoMode) {
-    // 演示模式：使用模拟Firebase
-    console.log('🎭 使用演示模式');
-    app = window.demoMode.app();
-    db = window.demoMode.database();
-  } else {
-    // 真实模式：使用真实Firebase
-    try {
-      // 检查是否已经有默认应用
-      app = firebase.app();
+  // 初始化Firebase
+  try {
+    // 检查是否已经有默认应用
+    app = firebase.app();
+    db = firebase.database();
+    console.log('使用已存在的Firebase应用');
+  } catch (error) {
+    // 如果没有默认应用，则创建新的
+    if (window.firebaseConfig) {
+      app = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
-      console.log('使用已存在的Firebase应用');
-    } catch (error) {
-      // 如果没有默认应用，则创建新的
-      if (window.firebaseConfig) {
-        app = firebase.initializeApp(window.firebaseConfig);
-        db = firebase.database();
-        console.log('创建新的Firebase应用');
-      } else {
-        console.warn('Firebase配置未找到，切换到演示模式');
-        window.isDemoMode = true;
-        app = window.demoMode.app();
-        db = window.demoMode.database();
-      }
+      console.log('创建新的Firebase应用');
+    } else {
+      console.error('Firebase配置未找到');
+      alert('Firebase配置错误，请检查config.js文件');
     }
   }
   console.log("DOM loaded successfully");

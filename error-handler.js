@@ -33,9 +33,9 @@ function showFirebaseError() {
   `;
   
   errorNotice.innerHTML = `
-    <strong>⚠️ 演示模式</strong><br>
-    当前使用演示配置，数据不会保存到真实数据库。<br>
-    <small>要使用真实数据，请配置您的Firebase项目。</small>
+    <strong>⚠️ Firebase连接错误</strong><br>
+    无法连接到Firebase数据库，请检查网络连接和配置。<br>
+    <small>请确保config.js中的Firebase配置正确。</small>
     <button onclick="this.parentElement.remove()" style="
       float: right;
       background: none;
@@ -59,7 +59,7 @@ function showFirebaseError() {
 
 // 检查Firebase配置
 function checkFirebaseConfig() {
-  if (!window.firebaseConfig || window.firebaseConfig.apiKey === 'demo-api-key') {
+  if (!window.firebaseConfig) {
     showFirebaseError();
   }
 }
