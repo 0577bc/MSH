@@ -405,10 +405,19 @@ button:hover {
   color: #888;
 }
 
-/* 统计表格样式 */
-.statistics-section {
+/* 统计和新增人员并排显示容器 */
+.stats-and-newcomers-container {
+  display: flex;
+  gap: 20px;
   margin-top: 30px;
   margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+/* 统计表格样式 */
+.statistics-section {
+  flex: 1;
+  margin: 0;
 }
 
 .statistics-section h3 {
@@ -484,17 +493,17 @@ button:hover {
 }
 
 /* 新增人员表格样式 */
-.newcomer-section {
-  margin-top: 20px;
-  margin-bottom: 20px;
+.newcomers-section {
+  flex: 1;
+  margin: 0;
 }
 
-.newcomer-section h3 {
+.newcomers-section h3 {
   color: #2c3e50;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 10px;
-  text-align: left;
+  margin-bottom: 15px;
+  text-align: center;
 }
 
 .newcomer-table {
@@ -582,6 +591,17 @@ button:hover {
   }
   
   .tables-container .attendance-table {
+    flex: none;
+    width: 100%;
+  }
+  
+  .stats-and-newcomers-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .statistics-section,
+  .newcomers-section {
     flex: none;
     width: 100%;
   }

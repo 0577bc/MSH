@@ -53,56 +53,62 @@
       </tbody>
     </table>
     
-    <!-- 签到统计表格 -->
-    <section class="statistics-section">
-      <h3>今日签到统计</h3>
-      <table id="statisticsTable" class="statistics-table">
-        <thead>
-          <tr>
-            <th>统计项目</th>
-            <th>人数</th>
-            <th>占比</th>
-          </tr>
-        </thead>
-        <tbody id="statisticsList">
-          <tr>
-            <td>早到人数</td>
-            <td id="earlyCount">0</td>
-            <td id="earlyPercentage">0%</td>
-          </tr>
-          <tr>
-            <td>准时人数</td>
-            <td id="onTimeCount">0</td>
-            <td id="onTimePercentage">0%</td>
-          </tr>
-          <tr>
-            <td>迟到人数</td>
-            <td id="lateCount">0</td>
-            <td id="latePercentage">0%</td>
-          </tr>
-          <tr>
-            <td>总签到人数</td>
-            <td id="totalCount">0</td>
-            <td>100%</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- 统计和新增人员并排显示 -->
+    <section class="stats-and-newcomers-container">
+      <!-- 签到统计表格 -->
+      <div class="statistics-section">
+        <h3>今日签到统计</h3>
+        <table id="statisticsTable" class="statistics-table">
+          <thead>
+            <tr>
+              <th>统计项目</th>
+              <th>人数</th>
+              <th>占比</th>
+            </tr>
+          </thead>
+          <tbody id="statisticsList">
+            <tr>
+              <td>早到人数</td>
+              <td id="earlyCount">0</td>
+              <td id="earlyPercentage">0%</td>
+            </tr>
+            <tr>
+              <td>准时人数</td>
+              <td id="onTimeCount">0</td>
+              <td id="onTimePercentage">0%</td>
+            </tr>
+            <tr>
+              <td>迟到人数</td>
+              <td id="lateCount">0</td>
+              <td id="latePercentage">0%</td>
+            </tr>
+            <tr>
+              <td>总签到人数</td>
+              <td id="totalCount">0</td>
+              <td>100%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- 当日新增人员 -->
+      <div class="newcomers-section">
+        <h3>当日新增人员</h3>
+        <table id="newcomersTable" class="attendance-table" aria-label="当日新增人员表">
+          <caption>当日新增人员表</caption>
+          <thead>
+            <tr>
+              <th>组别</th>
+              <th>姓名</th>
+            </tr>
+          </thead>
+          <tbody id="newcomersList">
+            <!-- 由 daily-report.js 动态填充，建议添加"加载中..."提示 -->
+          </tbody>
+        </table>
+        <p>新增总人数：<span id="totalNewcomers">0</span></p>
+      </div>
     </section>
-    
-    <h2>当日新增人员</h2>
-    <table id="newcomersTable" class="attendance-table" aria-label="当日新增人员表">
-      <caption>当日新增人员表</caption>
-      <thead>
-        <tr>
-          <th>组别</th>
-          <th>姓名</th>
-        </tr>
-      </thead>
-      <tbody id="newcomersList">
-        <!-- 由 daily-report.js 动态填充，建议添加"加载中..."提示 -->
-      </tbody>
-    </table>
-    <p>新增总人数：<span id="totalNewcomers">0</span></p>
   </main>
   <script type="module" src="./src/daily-report.js"></script>
 </body>
