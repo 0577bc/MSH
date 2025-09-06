@@ -17,17 +17,7 @@ function initializeFirebase() {
 
     // 检查配置是否存在
     if (!window.firebaseConfig) {
-      console.warn('Firebase 配置未找到，使用演示模式');
-      // 提供默认配置
-      window.firebaseConfig = {
-        apiKey: "demo-api-key",
-        authDomain: "demo-project.firebaseapp.com",
-        databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
-        projectId: "demo-project",
-        storageBucket: "demo-project.firebasestorage.app",
-        messagingSenderId: "123456789",
-        appId: "demo-app-id"
-      };
+      throw new Error('Firebase 配置未找到，请检查 config.js 文件');
     }
 
     // 检查是否已经有默认应用
@@ -46,12 +36,7 @@ function initializeFirebase() {
     return { app, db };
   } catch (error) {
     console.error('Firebase 初始化失败:', error);
-    // 返回模拟对象，避免应用崩溃
-    return { 
-      app: null, 
-      db: null,
-      isDemo: true 
-    };
+    throw error;
   }
 }
 

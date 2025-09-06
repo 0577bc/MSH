@@ -414,6 +414,14 @@ document.addEventListener('DOMContentLoaded', () => {
         saveData();
         loadMembers(selectedGroup);
         document.body.removeChild(dialog);
+        window.systemLogger.success('新成员已添加', { 
+          group: selectedGroup, 
+          memberName: memberName, 
+          memberPhone: memberPhone,
+          memberGender: memberGender,
+          memberBaptized: memberBaptized,
+          memberAge: memberAge
+        });
         alert('成员添加成功！');
       });
       
@@ -448,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       saveData();
+      window.systemLogger.success('成员信息已保存', { group: group, membersCount: groups[group].length });
       alert('保存成功！');
     });
   }
@@ -546,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       saveData();
       loadGroups();
+      window.systemLogger.success('新小组已创建', { groupName: groupName });
       alert('小组添加成功！');
       
       if (addGroupForm) {
@@ -596,11 +606,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (confirm(`确定删除小组"${groupNames[group]}"吗？这将删除该小组的所有成员！`)) {
+        const groupName = groupNames[group];
+        const memberCount = groups[group] ? groups[group].length : 0;
         delete groups[group];
         delete groupNames[group];
         saveData();
         loadGroups();
         if (memberList) memberList.innerHTML = '';
+        window.systemLogger.warning('小组已删除', { 
+          groupName: groupName, 
+          memberCount: memberCount 
+        });
         alert('小组删除成功！');
       }
     });
@@ -684,6 +700,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       };
       reader.readAsText(file);
+    });
+  }
+
+  // 日志功能
+  const viewLogsButton = document.getElementById('viewLogsButton');
+  const logsView = document.getElementById('logsView');
+  const refreshLogsButton = document.getElementById('refreshLogsButton');
+  const clearLogsButton = document.getElementById('clearLogsButton');
+  const exportLogsButton = document.getElementById('exportLogsButton');
+  const closeLogsButton = document.getElementById('closeLogsButton');
+  const logsList = document.getElementById('logsList');
+
+  // 显示日志界面
+  viewLogsButton.addEventListener('click', () => {
+    logsView.classList.remove('hidden-form');
+    refreshLogs();
+  });
+
+  // 关闭日志界面
+  closeLogsButton.addEventListener('click', () => {
+    logsView.classList.add('hidden-form');
+  });
+
+  // 刷新日志
+  refreshLogsButton.addEventListener('click', () => {
+    refreshLogs();
+  });
+
+  // 清空日志
+  clearLogsButton.addEventListener('click', () => {
+    if (confirm('确定要清空所有日志吗？此操作不可逆！')) {
+      window.systemLogger.clearLogs();
+      refreshLogs();
+    }
+  });
+
+  // 导出日志
+  exportLogsButton.addEventListener('click', () => {
+    const format = confirm('选择导出格式：\n确定 = JSON格式\n取消 = 文本格式') ? 'json' : 'txt';
+    window.systemLogger.exportLogs(format);
+  });
+
+  // 刷新日志显示
+  function refreshLogs() {
+    const logs = window.systemLogger.getAllLogs();
+    logsList.innerHTML = '';
+
+    if (logs.length === 0) {
+      logsList.innerHTML = '<div class="log-entry info"><div class="log-content">暂无日志记录</div></div>';
+      return;
+    }
+
+    logs.forEach(log => {
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${log.type}`;
+      
+      const time = new Date(log.timestamp).toLocaleString('zh-CN');
+      const details = log.details ? ` - ${JSON.stringify(log.details)}` : '';
+      
+      logEntry.innerHTML = `
+        <div class="log-time">${time}</div>
+        <div class="log-content">
+          <span class="log-type ${log.type}">[${log.type.toUpperCase()}]</span>
+          ${log.message}${details}
+        </div>
+      `;
+      
+      logsList.appendChild(logEntry);
     });
   }
 

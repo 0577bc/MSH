@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据管理 - 清空并导入数据</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <script src="./config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+  <main>
+    <h1>数据管理</h1>
+    <div style="margin: 20px 0;">
+      <button id="clearDataBtn" style="background-color: #f44336; margin-right: 10px;">清空所有数据</button>
+      <button id="importDataBtn" style="background-color: #4caf50; margin-right: 10px;">导入小组数据</button>
+      <button id="backBtn" style="background-color: #2196f3;">返回主页</button>
+    </div>
+    
+    <div id="status" style="margin: 20px 0; padding: 10px; border-radius: 5px; display: none;"></div>
+    
+    <div style="margin: 20px 0;">
+      <h3>操作说明：</h3>
+      <ul>
+        <li><strong>清空所有数据</strong>：删除Firebase数据库中的所有签到记录和小组数据</li>
+        <li><strong>导入小组数据</strong>：将config.js中的小组数据导入到Firebase数据库</li>
+        <li><strong>注意</strong>：此操作不可逆，请谨慎操作</li>
+      </ul>
+    </div>
+  </main>
+
+  <script>
+    // 初始化Firebase
+    let app, db;
+    try {
+      app = firebase.app();
+      db = firebase.database();
+      console.log('使用已存在的Firebase应用');
+    } catch (error) {
+      if (window.firebaseConfig) {
+        app = firebase.initializeApp(window.firebaseConfig);
+        db = firebase.database();
+        console.log('创建新的Firebase应用');
+      } else {
+        console.error('Firebase配置未找到');
+        showStatus('Firebase配置错误，请检查config.js文件', 'error');
+      }
+    }
+
+    const clearDataBtn = document.getElementById('clearDataBtn');
+    const importDataBtn = document.getElementById('importDataBtn');
+    const backBtn = document.getElementById('backBtn');
+    const status = document.getElementById('status');
+
+    function showStatus(message, type = 'info') {
+      status.textContent = message;
+      status.style.display = 'block';
+      status.style.backgroundColor = type === 'error' ? '#f8d7da' : type === 'success' ? '#d4edda' : '#d1ecf1';
+      status.style.color = type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#0c5460';
+      status.style.border = type === 'error' ? '1px solid #f5c6cb' : type === 'success' ? '1px solid #c3e6cb' : '1px solid #bee5eb';
+    }
+
+    function hideStatus() {
+      status.style.display = 'none';
+    }
+
+    // 清空所有数据
+    clearDataBtn.addEventListener('click', async () => {
+      if (!confirm('确定要清空所有数据吗？此操作不可逆！')) {
+        return;
+      }
+      
+      try {
+        showStatus('正在清空数据...', 'info');
+        
+        // 清空签到记录
+        await db.ref('attendanceRecords').remove();
+        console.log('签到记录已清空');
+        
+        // 清空小组数据
+        await db.ref('groups').remove();
+        console.log('小组数据已清空');
+        
+        // 清空小组名称
+        await db.ref('groupNames').remove();
+        console.log('小组名称已清空');
+        
+        showStatus('所有数据已成功清空！', 'success');
+      } catch (error) {
+        console.error('清空数据失败:', error);
+        showStatus('清空数据失败: ' + error.message, 'error');
+      }
+    });
+
+    // 导入小组数据
+    importDataBtn.addEventListener('click', async () => {
+      try {
+        showStatus('正在导入小组数据...', 'info');
+        
+        if (!window.sampleData || !window.sampleData.groups) {
+          throw new Error('未找到小组数据，请检查config.js文件');
+        }
+        
+        // 导入小组数据
+        await db.ref('groups').set(window.sampleData.groups);
+        console.log('小组数据已导入');
+        
+        // 导入小组名称
+        await db.ref('groupNames').set(window.sampleData.groupNames);
+        console.log('小组名称已导入');
+        
+        showStatus('小组数据已成功导入！', 'success');
+      } catch (error) {
+        console.error('导入数据失败:', error);
+        showStatus('导入数据失败: ' + error.message, 'error');
+      }
+    });
+
+    // 返回主页
+    backBtn.addEventListener('click', () => {
+      window.location.href = 'index.html';
+    });
+
+    // 页面加载完成
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('数据管理页面已加载');
+    });
+  </script>
+</body>
+</html>

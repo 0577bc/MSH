@@ -301,6 +301,64 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 导出功能
+  const exportTableButton = document.getElementById('exportTableButton');
+  
+  if (exportTableButton) {
+    exportTableButton.addEventListener('click', () => {
+      exportTable();
+    });
+  }
+
+  // 导出表格函数
+  async function exportTable() {
+    try {
+      // 获取要导出的表格
+      const table = document.getElementById('unsignedTable');
+      if (!table) {
+        alert('未找到要导出的表格！');
+        return;
+      }
+
+      // 显示加载提示
+      const originalText = exportTableButton.textContent;
+      exportTableButton.textContent = '导出中...';
+      exportTableButton.disabled = true;
+
+      await exportToImage(table);
+
+      // 恢复按钮状态
+      exportTableButton.textContent = originalText;
+      exportTableButton.disabled = false;
+
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败：' + error.message);
+      
+      // 恢复按钮状态
+      exportTableButton.textContent = '导出表格';
+      exportTableButton.disabled = false;
+    }
+  }
+
+  // 导出为图片
+  async function exportToImage(table) {
+    return new Promise((resolve, reject) => {
+      html2canvas(table, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      }).then(canvas => {
+        // 创建下载链接
+        const link = document.createElement('a');
+        link.download = `MSH日报表-各组签到情况-${new Date().toLocaleDateString('zh-CN')}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+        resolve();
+      }).catch(reject);
+    });
+  }
+
   // 初始加载数据 - 优先使用Firebase
   console.log("日报表正在连接Firebase数据库...");
   loadDataFromFirebase();

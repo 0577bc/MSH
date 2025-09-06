@@ -12,12 +12,15 @@
   <!-- 引入 Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- 引入导出功能库 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
   <main>
     <h1>MSH日报表</h1>
     <section class="button-row">
       <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
+      <button id="exportTableButton" type="button" aria-label="导出表格">导出表格</button>
     </section>
     <!-- 当日签到人员表 - 隐藏但保留 -->
     <h2 class="hidden-form">当日签到人员</h2>
@@ -93,8 +96,7 @@
       
       <!-- 当日新增人员 -->
       <div class="newcomers-section">
-        <h3>当日新增人员</h3>
-        <table id="newcomersTable" class="attendance-table" aria-label="当日新增人员表">
+        <table id="newcomersTable" class="newcomer-table" aria-label="当日新增人员表">
           <caption>当日新增人员表</caption>
           <thead>
             <tr>
