@@ -19,25 +19,22 @@ function initializeFirebase() {
       throw new Error('Firebase 配置未找到，请检查 config.js 文件');
     }
 
-    // 初始化 Firebase
-    app = firebase.app();
-    db = firebase.database();
+    // 检查是否已经有默认应用
+    try {
+      app = firebase.app();
+      db = firebase.database();
+      console.log('使用已存在的Firebase应用');
+    } catch (error) {
+      // 如果没有默认应用，则创建新的
+      app = firebase.initializeApp(window.firebaseConfig);
+      db = firebase.database();
+      console.log('创建新的Firebase应用');
+    }
     
-    console.log('Firebase 初始化成功');
     return { app, db };
   } catch (error) {
     console.error('Firebase 初始化失败:', error);
-    
-    // 尝试重新初始化
-    try {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
-      console.log('Firebase 重新初始化成功');
-      return { app, db };
-    } catch (retryError) {
-      console.error('Firebase 重新初始化也失败:', retryError);
-      throw new Error('无法连接到数据库，请检查网络连接和配置');
-    }
+    throw new Error('无法连接到数据库，请检查网络连接和配置');
   }
 }
 

@@ -41,11 +41,25 @@
 - 数据导入/导出
 - 签到时间编辑
 
+## 快速体验
+
+### 在线演示
+- 🌐 [GitHub Pages 演示](https://0577bc.github.io/MSH/) - 使用演示配置，可以体验所有功能
+- 📱 支持移动端访问
+- 🔄 实时数据同步演示
+
+### 本地运行
+```bash
+git clone https://github.com/0577bc/MSH.git
+cd MSH
+# 直接用浏览器打开 index.html 即可体验
+```
+
 ## 安装和配置
 
 ### 1. 克隆项目
 ```bash
-git clone <repository-url>
+git clone https://github.com/0577bc/MSH.git
 cd MSH
 ```
 

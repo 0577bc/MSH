@@ -1,14 +1,19 @@
 // src/main.js
 // 使用全局 firebase 对象（通过 CDN 引入）和 window.firebaseConfig
 
+// 引入Firebase初始化模块
 // Initialize Firebase
 let app, db;
 try {
   app = firebase.app();
   db = firebase.database();
 } catch (error) {
-  app = firebase.initializeApp(window.firebaseConfig);
-  db = firebase.database();
+  if (window.firebaseConfig) {
+    app = firebase.initializeApp(window.firebaseConfig);
+    db = firebase.database();
+  } else {
+    console.error('Firebase配置未找到');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

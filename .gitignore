@@ -1,5 +1,7 @@
 # 敏感配置文件
-config.js
+# 注意：config.js 包含演示配置，可以提交到GitHub用于演示
+# 实际使用时请替换为您的真实Firebase配置
+# config.js
 
 # 依赖包
 node_modules/

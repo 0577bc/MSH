@@ -7,8 +7,12 @@ try {
   app = firebase.app();
   db = firebase.database();
 } catch (error) {
-  app = firebase.initializeApp(window.firebaseConfig);
-  db = firebase.database();
+  if (window.firebaseConfig) {
+    app = firebase.initializeApp(window.firebaseConfig);
+    db = firebase.database();
+  } else {
+    console.error('Firebase配置未找到');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
