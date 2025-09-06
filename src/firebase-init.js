@@ -2,6 +2,7 @@
 // 统一管理 Firebase 的初始化和错误处理
 
 let app, db;
+let isInitialized = false;
 
 /**
  * 初始化 Firebase 应用
@@ -10,13 +11,23 @@ let app, db;
 function initializeFirebase() {
   try {
     // 检查是否已经初始化
-    if (app && db) {
+    if (isInitialized && app && db) {
       return { app, db };
     }
 
     // 检查配置是否存在
     if (!window.firebaseConfig) {
-      throw new Error('Firebase 配置未找到，请检查 config.js 文件');
+      console.warn('Firebase 配置未找到，使用演示模式');
+      // 提供默认配置
+      window.firebaseConfig = {
+        apiKey: "demo-api-key",
+        authDomain: "demo-project.firebaseapp.com",
+        databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
+        projectId: "demo-project",
+        storageBucket: "demo-project.firebasestorage.app",
+        messagingSenderId: "123456789",
+        appId: "demo-app-id"
+      };
     }
 
     // 检查是否已经有默认应用
@@ -31,10 +42,16 @@ function initializeFirebase() {
       console.log('创建新的Firebase应用');
     }
     
+    isInitialized = true;
     return { app, db };
   } catch (error) {
     console.error('Firebase 初始化失败:', error);
-    throw new Error('无法连接到数据库，请检查网络连接和配置');
+    // 返回模拟对象，避免应用崩溃
+    return { 
+      app: null, 
+      db: null,
+      isDemo: true 
+    };
   }
 }
 

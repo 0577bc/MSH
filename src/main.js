@@ -4,19 +4,36 @@
 // 引入Firebase初始化模块
 // Initialize Firebase
 let app, db;
-try {
-  app = firebase.app();
-  db = firebase.database();
-} catch (error) {
-  if (window.firebaseConfig) {
-    app = firebase.initializeApp(window.firebaseConfig);
-    db = firebase.database();
-  } else {
-    console.error('Firebase配置未找到');
-  }
-}
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 初始化Firebase
+  try {
+    // 检查是否已经有默认应用
+    app = firebase.app();
+    db = firebase.database();
+    console.log('使用已存在的Firebase应用');
+  } catch (error) {
+    // 如果没有默认应用，则创建新的
+    if (window.firebaseConfig) {
+      app = firebase.initializeApp(window.firebaseConfig);
+      db = firebase.database();
+      console.log('创建新的Firebase应用');
+    } else {
+      console.warn('Firebase配置未找到，使用演示模式');
+      // 提供默认配置
+      window.firebaseConfig = {
+        apiKey: "demo-api-key",
+        authDomain: "demo-project.firebaseapp.com",
+        databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
+        projectId: "demo-project",
+        storageBucket: "demo-project.firebasestorage.app",
+        messagingSenderId: "123456789",
+        appId: "demo-app-id"
+      };
+      app = firebase.initializeApp(window.firebaseConfig);
+      db = firebase.database();
+    }
+  }
   console.log("DOM loaded successfully");
   const groupSelect = document.getElementById('groupSelect');
   const memberSelect = document.getElementById('memberSelect');

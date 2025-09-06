@@ -1,15 +1,18 @@
 // 默认配置文件 - 用于GitHub Pages演示
 // 注意：这是演示配置，实际使用时请替换为您的Firebase配置
 
-window.firebaseConfig = {
-  apiKey: "demo-api-key",
-  authDomain: "demo-project.firebaseapp.com",
-  databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
-  projectId: "demo-project",
-  storageBucket: "demo-project.firebasestorage.app",
-  messagingSenderId: "123456789",
-  appId: "demo-app-id"
-};
+// 确保在全局作用域中定义配置
+if (typeof window !== 'undefined') {
+  window.firebaseConfig = {
+    apiKey: "demo-api-key",
+    authDomain: "demo-project.firebaseapp.com",
+    databaseURL: "https://demo-project-default-rtdb.firebaseio.com/",
+    projectId: "demo-project",
+    storageBucket: "demo-project.firebasestorage.app",
+    messagingSenderId: "123456789",
+    appId: "demo-app-id"
+  };
+}
 
 // 演示用管理员密码
 window.adminPassword = "demo123";
