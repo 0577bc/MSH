@@ -3,6 +3,10 @@
 
 // 确保在全局作用域中定义配置
 if (typeof window !== 'undefined') {
+  // 演示模式标志
+  window.isDemoMode = true;
+  
+  // 演示模式下的配置（不会实际连接Firebase）
   window.firebaseConfig = {
     apiKey: "demo-api-key",
     authDomain: "demo-project.firebaseapp.com",

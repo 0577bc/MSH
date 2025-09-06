@@ -3,15 +3,22 @@
 
 // Initialize Firebase
 let app, db;
-try {
-  app = firebase.app();
-  db = firebase.database();
-} catch (error) {
-  if (window.firebaseConfig) {
-    app = firebase.initializeApp(window.firebaseConfig);
+if (window.isDemoMode) {
+  // 演示模式：使用模拟Firebase
+  console.log('🎭 管理页面使用演示模式');
+  app = window.demoMode.app();
+  db = window.demoMode.database();
+} else {
+  try {
+    app = firebase.app();
     db = firebase.database();
-  } else {
-    console.error('Firebase配置未找到');
+  } catch (error) {
+    if (window.firebaseConfig) {
+      app = firebase.initializeApp(window.firebaseConfig);
+      db = firebase.database();
+    } else {
+      console.error('Firebase配置未找到');
+    }
   }
 }
 
