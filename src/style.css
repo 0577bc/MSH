@@ -965,20 +965,6 @@ button:hover {
   margin: 20px 0;
 }
 
-.security-notice {
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  color: #856404;
-}
-
-.security-notice p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.4;
-}
 
 .error-message {
   background-color: #f8d7da;
