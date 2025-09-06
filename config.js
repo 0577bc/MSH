@@ -16,8 +16,8 @@ if (typeof window !== 'undefined') {
   };
 }
 
-// 演示用管理员密码
-window.adminPassword = "demo123";
+// 注意：管理员密码现在由Firebase Authentication管理
+// 不再需要在此文件中存储密码
 
 // 真实小组数据
 window.sampleData = {

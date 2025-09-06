@@ -80,7 +80,8 @@ window.firebaseConfig = {
   appId: "your-app-id"
 };
 
-window.adminPassword = "your-secure-password";
+// 注意：管理员密码现在由Firebase Authentication管理
+// 不再需要在此文件中设置密码
 ```
 
 ### 3. Firebase数据库设置

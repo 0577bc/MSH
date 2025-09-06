@@ -14,18 +14,29 @@
   <!-- 引入 Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <!-- 引入Firebase Authentication模块 -->
+  <script src="./src/firebase-auth.js"></script>
 </head>
 <body>
-  <!-- 密码验证界面 -->
+  <!-- 管理员登录界面 -->
   <div id="passwordDialog" class="password-dialog">
     <div class="dialog-content">
-      <h2>管理员验证</h2>
-      <p>请输入管理员密码：</p>
-      <input type="password" id="adminPasswordInput" placeholder="请输入密码" autocomplete="off">
+      <h2>管理员登录</h2>
+      <p>请使用管理员邮箱和密码登录：</p>
+      <div class="form-group">
+        <label for="adminEmailInput">邮箱：</label>
+        <input type="email" id="adminEmailInput" placeholder="请输入管理员邮箱" autocomplete="email" required>
+      </div>
+      <div class="form-group">
+        <label for="adminPasswordInput">密码：</label>
+        <input type="password" id="adminPasswordInput" placeholder="请输入密码" autocomplete="current-password" required>
+      </div>
       <div class="dialog-buttons">
         <button id="loginBtn" type="button">登录</button>
         <button id="cancelLoginBtn" type="button">取消</button>
       </div>
+      <div id="loginError" class="error-message hidden-form"></div>
     </div>
   </div>
 
@@ -96,28 +107,17 @@
     
     <section class="admin-section">
       <h2>系统管理</h2>
+      <div class="security-notice">
+        <p><strong>安全提示：</strong>已升级到Firebase Authentication，提供企业级安全性。管理员账户由Firebase控制台管理。</p>
+      </div>
       <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
       <button id="summaryButton" type="button" aria-label="查看签到汇总">查看签到汇总</button>
-      <button id="changePasswordButton" type="button" aria-label="修改密码">修改密码</button>
       <button id="exportButton" type="button" aria-label="导出数据">导出数据</button>
       <button id="importButton" type="button" aria-label="导入数据">导入数据</button>
       <button id="viewLogsButton" type="button" aria-label="查看日志">查看日志</button>
+      <button id="logoutButton" type="button" aria-label="登出" class="danger-button">登出</button>
       <input type="file" id="importFile" accept=".json" class="hidden-form" aria-label="选择要导入的JSON文件">
       
-      <!-- 修改密码表单 -->
-      <div id="changePasswordForm" class="form-group hidden-form">
-        <h3>修改密码</h3>
-        <form>
-          <label for="oldPassword">原密码：</label>
-          <input type="password" id="oldPassword" placeholder="请输入原密码" required>
-          <label for="newPassword">新密码：</label>
-          <input type="password" id="newPassword" placeholder="请输入新密码" required>
-          <label for="confirmPassword">确认密码：</label>
-          <input type="password" id="confirmPassword" placeholder="请再次输入新密码" required>
-          <button id="savePasswordButton" type="button">保存</button>
-          <button id="cancelPasswordButton" type="button">取消</button>
-        </form>
-      </div>
       
       <!-- 日志查看界面 -->
       <div id="logsView" class="form-group hidden-form">

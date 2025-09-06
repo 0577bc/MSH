@@ -18,38 +18,122 @@ try {
 document.addEventListener('DOMContentLoaded', () => {
   console.log("Admin page loaded");
   
-  // 密码验证
+  // Firebase Authentication 验证
   const passwordDialog = document.getElementById('passwordDialog');
   const adminContent = document.getElementById('adminContent');
+  const adminEmailInput = document.getElementById('adminEmailInput');
   const adminPasswordInput = document.getElementById('adminPasswordInput');
   const loginBtn = document.getElementById('loginBtn');
   const cancelLoginBtn = document.getElementById('cancelLoginBtn');
+  const loginError = document.getElementById('loginError');
+  const logoutButton = document.getElementById('logoutButton');
   
-  const ADMIN_PASSWORD = window.adminPassword || 'admin123';
-  
-  // 显示密码对话框
+  // 显示登录对话框
   passwordDialog.style.display = 'flex';
   adminContent.classList.add('hidden-form');
   
-  loginBtn.addEventListener('click', () => {
-    const inputPassword = adminPasswordInput.value;
-    if (inputPassword === ADMIN_PASSWORD) {
-      passwordDialog.style.display = 'none';
-      adminContent.classList.remove('hidden-form');
-    } else {
-      alert('密码错误！');
-      adminPasswordInput.value = '';
+  // 登录按钮事件
+  loginBtn.addEventListener('click', async () => {
+    const email = adminEmailInput.value.trim();
+    const password = adminPasswordInput.value;
+    
+    if (!email || !password) {
+      showLoginError('请输入邮箱和密码');
+      return;
+    }
+    
+    // 显示加载状态
+    loginBtn.disabled = true;
+    loginBtn.textContent = '登录中...';
+    hideLoginError();
+    
+    try {
+      const result = await window.firebaseAuth.adminLogin(email, password);
+      
+      if (result.success) {
+        // 登录成功
+        passwordDialog.style.display = 'none';
+        adminContent.classList.remove('hidden-form');
+        console.log('管理员登录成功:', result.user.email);
+      } else {
+        // 登录失败
+        showLoginError(result.error);
+        adminPasswordInput.value = '';
+      }
+    } catch (error) {
+      console.error('登录过程出错:', error);
+      showLoginError('登录过程出错，请重试');
+    } finally {
+      // 恢复按钮状态
+      loginBtn.disabled = false;
+      loginBtn.textContent = '登录';
     }
   });
   
+  // 取消按钮事件
   cancelLoginBtn.addEventListener('click', () => {
     window.location.href = 'index.html';
   });
   
-  // 按回车键登录
+  // 登出按钮事件
+  if (logoutButton) {
+    logoutButton.addEventListener('click', async () => {
+      if (confirm('确定要登出吗？')) {
+        try {
+          await window.firebaseAuth.adminLogout();
+          // 重新显示登录界面
+          passwordDialog.style.display = 'flex';
+          adminContent.classList.add('hidden-form');
+          adminEmailInput.value = '';
+          adminPasswordInput.value = '';
+          hideLoginError();
+        } catch (error) {
+          console.error('登出失败:', error);
+          alert('登出失败，请重试');
+        }
+      }
+    });
+  }
+  
+  // 回车键登录
   adminPasswordInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       loginBtn.click();
+    }
+  });
+  
+  adminEmailInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      adminPasswordInput.focus();
+    }
+  });
+  
+  // 显示登录错误
+  function showLoginError(message) {
+    if (loginError) {
+      loginError.textContent = message;
+      loginError.style.display = 'block';
+    }
+  }
+  
+  // 隐藏登录错误
+  function hideLoginError() {
+    if (loginError) {
+      loginError.style.display = 'none';
+    }
+  }
+  
+  // 监听认证状态变化
+  window.firebaseAuth.onAuthStateChanged((authState) => {
+    if (authState.isAdmin) {
+      // 管理员已登录
+      passwordDialog.style.display = 'none';
+      adminContent.classList.remove('hidden-form');
+      console.log('管理员已登录:', authState.user.email);
+    } else {
+      // 未登录或非管理员
+      passwordDialog.style.display = 'flex';
+      adminContent.classList.add('hidden-form');
     }
   });
   
@@ -59,13 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const addMemberButton = document.getElementById('addMemberButton');
   const backButton = document.getElementById('backButton');
   const summaryButton = document.getElementById('summaryButton');
-  const changePasswordButton = document.getElementById('changePasswordButton');
-  const changePasswordForm = document.getElementById('changePasswordForm');
-  const oldPassword = document.getElementById('oldPassword');
-  const newPassword = document.getElementById('newPassword');
-  const confirmPassword = document.getElementById('confirmPassword');
-  const savePasswordButton = document.getElementById('savePasswordButton');
-  const cancelPasswordButton = document.getElementById('cancelPasswordButton');
   const exportButton = document.getElementById('exportButton');
   const importButton = document.getElementById('importButton');
   const importFile = document.getElementById('importFile');
@@ -210,12 +287,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadGroups() {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      for (let group in groupNames) {
+      // 按字母顺序排序小组
+      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
+        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+      });
+      sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
         option.textContent = groupNames[group];
         groupSelect.appendChild(option);
-      }
+      });
     }
   }
 
@@ -223,26 +304,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (memberList) {
     memberList.innerHTML = '';
       if (groups[group]) {
-      groups[group].forEach((member, index) => {
+        // 按姓名字母顺序排序，但保持原始索引
+        const membersWithIndex = groups[group].map((member, originalIndex) => ({
+          ...member,
+          originalIndex
+        }));
+        const sortedMembers = membersWithIndex.sort((a, b) => {
+          return a.name.localeCompare(b.name, 'zh-CN');
+        });
+        sortedMembers.forEach((member) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${member.id || generateMemberId(group)}</td>
-            <td><input type="text" value="${member.name}" data-field="name" data-index="${index}"></td>
+            <td><input type="text" value="${member.name}" data-field="name" data-index="${member.originalIndex}"></td>
           <td>
-              <select data-field="gender" data-index="${index}">
+              <select data-field="gender" data-index="${member.originalIndex}">
               <option value="男" ${member.gender === '男' ? 'selected' : ''}>男</option>
               <option value="女" ${member.gender === '女' ? 'selected' : ''}>女</option>
             </select>
           </td>
-            <td><input type="text" value="${member.phone}" data-field="phone" data-index="${index}"></td>
+            <td><input type="text" value="${member.phone}" data-field="phone" data-index="${member.originalIndex}"></td>
           <td>
-              <select data-field="baptized" data-index="${index}">
+              <select data-field="baptized" data-index="${member.originalIndex}">
               <option value="是" ${member.baptized === '是' ? 'selected' : ''}>是</option>
               <option value="否" ${member.baptized === '否' ? 'selected' : ''}>否</option>
             </select>
           </td>
           <td>
-              <select data-field="age" data-index="${index}">
+              <select data-field="age" data-index="${member.originalIndex}">
                 <option value="10后" ${member.age === '10后' ? 'selected' : ''}>10后</option>
                 <option value="05后" ${member.age === '05后' ? 'selected' : ''}>05后</option>
                 <option value="00后" ${member.age === '00后' ? 'selected' : ''}>00后</option>
@@ -255,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <option value="50后" ${member.age === '50后' ? 'selected' : ''}>50后</option>
             </select>
           </td>
-            <td><button onclick="deleteMember('${group}', ${index})">删除</button></td>
+            <td><button onclick="deleteMember('${group}', ${member.originalIndex})">删除</button></td>
         `;
         memberList.appendChild(row);
       });
@@ -473,59 +562,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   }
 
-  // 密码修改功能
-  if (changePasswordButton) {
-  changePasswordButton.addEventListener('click', () => {
-      if (changePasswordForm) {
-        changePasswordForm.style.display = changePasswordForm.style.display === 'none' ? 'block' : 'none';
-      }
-  });
-  }
-
-  if (savePasswordButton) {
-  savePasswordButton.addEventListener('click', () => {
-      const oldPwd = oldPassword ? oldPassword.value : '';
-      const newPwd = newPassword ? newPassword.value : '';
-      const confirmPwd = confirmPassword ? confirmPassword.value : '';
-
-      if (oldPwd !== window.adminPassword) {
-        alert('原密码错误！');
-        return;
-      }
-
-      if (newPwd !== confirmPwd) {
-        alert('新密码确认不匹配！');
-        return;
-      }
-
-      if (newPwd.length < 4) {
-        alert('新密码长度至少4位！');
-        return;
-      }
-
-      window.adminPassword = newPwd;
-      localStorage.setItem('msh_adminPassword', newPwd);
-        alert('密码修改成功！');
-      
-      if (changePasswordForm) {
-        changePasswordForm.style.display = 'none';
-      }
-      if (oldPassword) oldPassword.value = '';
-      if (newPassword) newPassword.value = '';
-      if (confirmPassword) confirmPassword.value = '';
-    });
-  }
-
-  if (cancelPasswordButton) {
-  cancelPasswordButton.addEventListener('click', () => {
-      if (changePasswordForm) {
-    changePasswordForm.style.display = 'none';
-      }
-      if (oldPassword) oldPassword.value = '';
-      if (newPassword) newPassword.value = '';
-      if (confirmPassword) confirmPassword.value = '';
-    });
-  }
 
   // 小组管理功能
   if (addGroupButton) {
@@ -591,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cancelGroupButton) {
     cancelGroupButton.addEventListener('click', () => {
       if (addGroupForm) {
-        addGroupForm.style.display = 'none';
+        addGroupForm.classList.add('hidden-form');
       }
       if (newGroupName) newGroupName.value = '';
     });
@@ -644,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('小组名称修改成功！');
       
       if (editGroupForm) {
-        editGroupForm.style.display = 'none';
+        editGroupForm.classList.add('hidden-form');
       }
     });
   }
@@ -652,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cancelEditGroupButton) {
     cancelEditGroupButton.addEventListener('click', () => {
       if (editGroupForm) {
-        editGroupForm.style.display = 'none';
+        editGroupForm.classList.add('hidden-form');
       }
     });
   }
@@ -660,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 数据导出导入功能
   if (exportButton) {
     exportButton.addEventListener('click', () => {
-      const data = { groups, groupNames, attendanceRecords, adminPassword: window.adminPassword };
+      const data = { groups, groupNames, attendanceRecords };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
@@ -689,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (data.groups) groups = data.groups;
           if (data.groupNames) groupNames = data.groupNames;
           if (data.attendanceRecords) attendanceRecords = data.attendanceRecords;
-          if (data.adminPassword) window.adminPassword = data.adminPassword;
+          // 注意：管理员密码现在由Firebase Authentication管理，不再从导入数据中恢复
           
           saveData();
           loadGroups();

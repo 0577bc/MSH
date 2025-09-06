@@ -118,11 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
       new Date(record.time).toLocaleDateString('zh-CN') === today
     );
     
-    console.log('=== 日报表生成调试信息 ===');
-    console.log('今日日期:', today);
-    console.log('今日签到记录:', todayRecords);
-    console.log('所有组别:', Object.keys(groups));
-    console.log('组别数据:', groups);
 
     signedList.innerHTML = '';
     todayRecords.forEach(record => {
@@ -139,12 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (unsignedList) {
       unsignedList.innerHTML = '';
       
-      console.log('开始处理各组签到情况...');
-      console.log('groups对象:', groups);
-      console.log('Object.keys(groups):', Object.keys(groups));
       
-      // 按组别显示签到情况
-      Object.keys(groups).forEach(group => {
+      // 按组别显示签到情况（按字母顺序排序）
+      const sortedGroups = Object.keys(groups).sort((a, b) => {
+        return (groupNames[a] || a).localeCompare(groupNames[b] || b, 'zh-CN');
+      });
+      sortedGroups.forEach(group => {
         const groupMembers = groups[group] || [];
         const groupName = groupNames[group] || group;
         
@@ -153,13 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const signedMembers = groupRecords.map(record => record.name);
         const unsignedMembers = groupMembers.filter(member => !signedMembers.includes(member.name));
         
-        // 调试信息
-        console.log(`组别: ${groupName}`);
-        console.log(`组内成员:`, groupMembers.map(m => m.name));
-        console.log(`已签到成员:`, signedMembers);
-        console.log(`未签到成员:`, unsignedMembers.map(m => m.name));
-        console.log(`未签到成员数量:`, unsignedMembers.length);
-        console.log(`未签到成员姓名字符串:`, unsignedMembers.map(member => member.name).join(', '));
         
         // 按时间段分类签到记录
         const earlyRecords = groupRecords.filter(record => {
@@ -188,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const row = document.createElement('tr');
         const unsignedNames = unsignedMembers.map(member => member.name).join(', ');
-        console.log(`生成HTML - 未签到人员: "${unsignedNames}"`);
         
         row.innerHTML = `
           <td>${groupName}</td>
@@ -204,7 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newcomersList) {
       newcomersList.innerHTML = '';
     let newcomersCount = 0;
-    Object.keys(groups).forEach(group => {
+    // 按字母顺序排序小组
+    const sortedGroups = Object.keys(groups).sort((a, b) => {
+      return (groupNames[a] || a).localeCompare(groupNames[b] || b, 'zh-CN');
+    });
+    sortedGroups.forEach(group => {
       groups[group].forEach(member => {
         if (member.joinDate && new Date(member.joinDate).toLocaleDateString('zh-CN') === today) {
           const row = document.createElement('tr');

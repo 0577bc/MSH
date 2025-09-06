@@ -165,21 +165,29 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadGroupsAndMembers() {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      for (let group in groupNames) {
+      // 按字母顺序排序小组
+      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
+        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+      });
+      sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
         option.textContent = groupNames[group];
         groupSelect.appendChild(option);
-      }
+      });
     }
     if (newGroupSelect) {
       newGroupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      for (let group in groupNames) {
+      // 按字母顺序排序小组
+      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
+        return groupNames[a].localeCompare(groupNames[b], 'zh-CN');
+      });
+      sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
         option.textContent = groupNames[group];
         newGroupSelect.appendChild(option);
-      }
+      });
     }
   }
 
@@ -187,7 +195,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (memberSelect) {
       memberSelect.innerHTML = '<option value="">--请选择成员--</option>';
       if (groups[group]) {
-        groups[group].forEach(member => {
+        // 按姓名字母顺序排序
+        const sortedMembers = groups[group].sort((a, b) => {
+          return a.name.localeCompare(b.name, 'zh-CN');
+        });
+        sortedMembers.forEach(member => {
           const option = document.createElement('option');
           option.value = member.name;
           option.textContent = member.name;
@@ -556,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const age = document.getElementById('newMemberAge') ? document.getElementById('newMemberAge').value : '';
       
       if (!group || !name) {
-        alert('请选择小组并输入新人姓名！');
+        alert('请选择小组并输入新朋友姓名！');
         return;
       }
       
@@ -585,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (addMemberForm) addMemberForm.classList.add('hidden-form');
       loadGroupsAndMembers();
       loadMembers(group);
-      alert('新人已成功添加！');
+      alert('新朋友已成功添加！');
     });
   }
 
