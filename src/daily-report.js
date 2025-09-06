@@ -136,16 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       
       // 按组别显示签到情况（按字母顺序排序），"未分组"永远排在最后
-      const sortedGroups = Object.keys(groups).sort((a, b) => {
-        const nameA = groupNames[a] || a;
-        const nameB = groupNames[b] || b;
-        
-        // "未分组"永远排在最后
-        if (nameA === "未分组") return 1;
-        if (nameB === "未分组") return -1;
-        
-        return nameA.localeCompare(nameB, 'zh-CN');
-      });
+      const sortedGroups = window.utils.sortGroups(groups, groupNames);
       sortedGroups.forEach(group => {
         const groupMembers = groups[group] || [];
         const groupName = groupNames[group] || group;
@@ -155,61 +146,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const signedMembers = groupRecords.map(record => record.name);
         
         // 获取不统计人员列表
-        let excludedMembers = [];
-        try {
-          // 从localStorage加载不统计人员列表
-          const localData = localStorage.getItem('msh_excludedMembers');
-          if (localData) {
-            excludedMembers = JSON.parse(localData);
-          }
-        } catch (error) {
-          console.error('加载不统计人员列表失败:', error);
-        }
+        const excludedMembers = window.utils.loadExcludedMembers();
         
         // 过滤掉不统计的人员
-        const unsignedMembers = groupMembers.filter(member => 
-          !signedMembers.includes(member.name) &&
-          !excludedMembers.some(excluded => 
-            excluded.name === member.name && excluded.group === group
-          )
+        const unsignedMembers = window.utils.filterExcludedMembers(
+          groupMembers.filter(member => !signedMembers.includes(member.name)),
+          group,
+          excludedMembers
         );
         
         
         // 按时间段分类签到记录，并过滤掉不统计的人员
         const earlyRecords = groupRecords.filter(record => {
-          const time = new Date(record.time);
-          const hours = time.getHours();
-          const minutes = time.getMinutes();
-          const timeInMinutes = hours * 60 + minutes;
-          const isEarly = timeInMinutes < 9 * 60 + 20; // 9:20之前
-          const isExcluded = excludedMembers.some(excluded => 
-            excluded.name === record.name && excluded.group === group
-          );
-          return isEarly && !isExcluded;
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === '早到' && !isExcluded;
         });
         
         const onTimeRecords = groupRecords.filter(record => {
-          const time = new Date(record.time);
-          const hours = time.getHours();
-          const minutes = time.getMinutes();
-          const timeInMinutes = hours * 60 + minutes;
-          const isOnTime = timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30; // 9:20-9:30
-          const isExcluded = excludedMembers.some(excluded => 
-            excluded.name === record.name && excluded.group === group
-          );
-          return isOnTime && !isExcluded;
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === '准时' && !isExcluded;
         });
         
         const lateRecords = groupRecords.filter(record => {
-          const time = new Date(record.time);
-          const hours = time.getHours();
-          const minutes = time.getMinutes();
-          const timeInMinutes = hours * 60 + minutes;
-          const isLate = timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 10 * 60 + 40; // 9:30-10:40
-          const isExcluded = excludedMembers.some(excluded => 
-            excluded.name === record.name && excluded.group === group
-          );
-          return isLate && !isExcluded;
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === '迟到' && !isExcluded;
         });
         
         const row = document.createElement('tr');
@@ -230,22 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
       newcomersList.innerHTML = '';
     let newcomersCount = 0;
     // 按字母顺序排序小组，"未分组"永远排在最后
-    const sortedGroups = Object.keys(groups).sort((a, b) => {
-      const nameA = groupNames[a] || a;
-      const nameB = groupNames[b] || b;
-      
-      // "未分组"永远排在最后
-      if (nameA === "未分组") return 1;
-      if (nameB === "未分组") return -1;
-      
-      return nameA.localeCompare(nameB, 'zh-CN');
-    });
+    const sortedGroups = window.utils.sortGroups(groups, groupNames);
     sortedGroups.forEach(group => {
       groups[group].forEach(member => {
         // 只有通过"新朋友"按钮添加的人员才显示在当日新增人员表中
-        if (member.joinDate && 
-            new Date(member.joinDate).toLocaleDateString('zh-CN') === today &&
-            member.addedViaNewcomerButton === true) {
+        if (window.utils.isTodayNewcomer(member)) {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${groupNames[group] || group}</td>

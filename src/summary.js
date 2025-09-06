@@ -404,15 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 统计未签到人数（排除不统计的人员）
-    let excludedMembers = [];
-    try {
-      const localData = localStorage.getItem('msh_excludedMembers');
-      if (localData) {
-        excludedMembers = JSON.parse(localData);
-      }
-    } catch (error) {
-      console.error('加载不统计人员列表失败:', error);
-    }
+    const excludedMembers = window.utils.loadExcludedMembers();
     const allMembers = Object.keys(groups).flatMap(group => 
       groups[group].map(member => ({ group, name: member.name }))
     ).filter(member => 
@@ -450,15 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const groupSigned = dayRecords.filter(record => record.group === group);
       const signedNames = groupSigned.map(record => record.name);
       // 获取不统计人员列表
-      let excludedMembers = [];
-      try {
-        const localData = localStorage.getItem('msh_excludedMembers');
-        if (localData) {
-          excludedMembers = JSON.parse(localData);
-        }
-      } catch (error) {
-        console.error('加载不统计人员列表失败:', error);
-      }
+      const excludedMembers = window.utils.loadExcludedMembers();
       
       // 过滤掉不统计的人员
       const unsignedMembers = groupMembers.filter(member => 
@@ -524,15 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 获取不统计人员列表
-    let excludedMembers = [];
-    try {
-      const localData = localStorage.getItem('msh_excludedMembers');
-      if (localData) {
-        excludedMembers = JSON.parse(localData);
-      }
-    } catch (error) {
-      console.error('加载不统计人员列表失败:', error);
-    }
+    const excludedMembers = window.utils.loadExcludedMembers();
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
@@ -593,15 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 获取不统计人员列表
-    let excludedMembers = [];
-    try {
-      const localData = localStorage.getItem('msh_excludedMembers');
-      if (localData) {
-        excludedMembers = JSON.parse(localData);
-      }
-    } catch (error) {
-      console.error('加载不统计人员列表失败:', error);
-    }
+    const excludedMembers = window.utils.loadExcludedMembers();
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};

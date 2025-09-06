@@ -161,39 +161,90 @@ document.addEventListener('DOMContentLoaded', () => {
   let groups = {};
   let groupNames = {};
   let attendanceRecords = [];
-  let memberIdCounter = 1; // 成员编号计数器
 
-  // 生成成员编号：字母2位+数字3位，同组别使用相同字母前缀
-  function generateMemberId(groupId) {
-    // 为每个组别生成固定的字母前缀
+  // 为每个小组分配唯一的字母前缀
+  function getGroupPrefix(groupId) {
+    // 预定义的小组前缀映射，确保每个小组都有唯一的字母前缀
     const groupPrefixes = {
-      'group1': 'AB',
-      'group2': 'CD', 
-      'group3': 'EF',
-      'group4': 'GH',
-      'group5': 'IJ',
-      'group6': 'KL',
-      'group7': 'MN',
-      'group8': 'OP',
-      'group9': 'QR',
-      'group10': 'ST'
+      '陈薛尚': 'AA',
+      '乐清1组': 'AB', 
+      '乐清2组': 'AC',
+      '乐清3组': 'AD',
+      '乐清4组': 'AE',
+      '乐清5组': 'AF',
+      '乐清6组': 'AG',
+      '乐清7组': 'AH',
+      '乐清8组': 'AI',
+      '乐清9组': 'AJ',
+      '乐清10组': 'AK',
+      '美团组': 'AL',
+      '未分组': 'AM'
     };
     
-    // 如果没有预定义前缀，根据组别ID生成
-    let prefix = groupPrefixes[groupId];
-    if (!prefix) {
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-      const groupNum = parseInt(groupId.replace('group', '')) || 1;
-      const letter1 = letters[(groupNum - 1) % 26];
-      const letter2 = letters[Math.floor((groupNum - 1) / 26) % 26];
-      prefix = letter1 + letter2;
+    // 如果小组名在预定义列表中，使用预定义前缀
+    if (groupPrefixes[groupId]) {
+      return groupPrefixes[groupId];
     }
     
-    // 计算该组别中已有的成员数量
-    const existingMembers = groups[groupId] || [];
-    const nextNumber = existingMembers.length + 1;
+    // 对于新小组，动态生成唯一前缀
+    const usedPrefixes = new Set(Object.values(groupPrefixes));
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     
-    return prefix + String(nextNumber).padStart(3, '0');
+    // 找到第一个未使用的前缀
+    for (let i = 0; i < 26; i++) {
+      for (let j = 0; j < 26; j++) {
+        const prefix = letters[i] + letters[j];
+        if (!usedPrefixes.has(prefix)) {
+          return prefix;
+        }
+      }
+    }
+    
+    // 如果所有前缀都用完了，使用数字后缀
+    return 'ZZ';
+  }
+
+  // 重新生成所有成员的序号（按姓名排序）
+  function regenerateAllMemberIds() {
+    const allGroups = Object.keys(groups);
+    
+    allGroups.forEach(groupId => {
+      if (groups[groupId] && groups[groupId].length > 0) {
+        const prefix = getGroupPrefix(groupId);
+        
+        // 按姓名排序
+        const sortedMembers = window.utils.sortMembersByName([...groups[groupId]]);
+        
+        // 重新分配序号
+        sortedMembers.forEach((member, index) => {
+          const newId = prefix + String(index + 1).padStart(3, '0');
+          member.id = newId;
+        });
+        
+        // 更新原始数组顺序
+        groups[groupId] = sortedMembers;
+      }
+    });
+  }
+
+  // 为单个成员生成序号（在添加新成员时使用）
+  function generateMemberId(groupId, memberName) {
+    const prefix = getGroupPrefix(groupId);
+    const groupMembers = groups[groupId] || [];
+    
+    // 创建包含新成员的临时数组
+    const tempMembers = [...groupMembers];
+    if (memberName) {
+      tempMembers.push({ name: memberName });
+    }
+    
+    // 按姓名排序
+    const sortedMembers = window.utils.sortMembersByName(tempMembers);
+    
+    // 找到新成员在排序后的位置
+    const memberIndex = sortedMembers.findIndex(member => member.name === memberName);
+    
+    return prefix + String(memberIndex + 1).padStart(3, '0');
   }
 
   // 加载数据从 Firebase
@@ -220,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
       }
 
+      // 重新生成所有成员的序号（按姓名排序）
+      regenerateAllMemberIds();
+      
       loadGroups();
       loadMembers(groupSelect ? groupSelect.value : '');
       console.log("Admin data loaded from Firebase");
@@ -288,16 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
       // 按字母顺序排序小组，"未分组"永远排在最后
-      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        const nameA = groupNames[a];
-        const nameB = groupNames[b];
-        
-        // "未分组"永远排在最后
-        if (nameA === "未分组") return 1;
-        if (nameB === "未分组") return -1;
-        
-        return nameA.localeCompare(nameB, 'zh-CN');
-      });
+      const sortedGroups = window.utils.sortGroups(groups, groupNames);
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
@@ -316,13 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
           ...member,
           originalIndex
         }));
-        const sortedMembers = membersWithIndex.sort((a, b) => {
-          return a.name.localeCompare(b.name, 'zh-CN');
-        });
+        const sortedMembers = window.utils.sortMembersByName(membersWithIndex);
         sortedMembers.forEach((member) => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${member.id || generateMemberId(group)}</td>
+            <td>${member.id || getGroupPrefix(group) + '000'}</td>
             <td><input type="text" value="${member.name}" data-field="name" data-index="${member.originalIndex}"></td>
           <td>
               <select data-field="gender" data-index="${member.originalIndex}">
@@ -493,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const newMember = {
-          id: generateMemberId(selectedGroup),
+          id: generateMemberId(selectedGroup, name),
           name,
           phone,
           gender,
@@ -506,6 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
           groups[selectedGroup] = [];
         }
         groups[selectedGroup].push(newMember);
+        
+        // 重新排序并重新分配序号
+        regenerateAllMemberIds();
         
         saveData();
         loadMembers(selectedGroup);
@@ -531,6 +577,27 @@ document.addEventListener('DOMContentLoaded', () => {
           document.body.removeChild(dialog);
         }
       });
+    });
+  }
+
+  // 重新生成序号按钮
+  const regenerateIdsButton = document.getElementById('regenerateIdsButton');
+  if (regenerateIdsButton) {
+    regenerateIdsButton.addEventListener('click', () => {
+      if (confirm('确定要重新生成所有成员的序号吗？这将按姓名重新排序并分配新的序号。')) {
+        regenerateAllMemberIds();
+        saveData();
+        const currentGroup = groupSelect ? groupSelect.value : '';
+        if (currentGroup) {
+          loadMembers(currentGroup);
+        }
+        alert('序号重新生成完成！');
+        
+        // 记录日志
+        if (window.systemLogger) {
+          window.systemLogger.info('重新生成所有成员序号');
+        }
+      }
     });
   }
 

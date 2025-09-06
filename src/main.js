@@ -166,16 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
       // 按字母顺序排序小组，"未分组"永远排在最后
-      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        const nameA = groupNames[a];
-        const nameB = groupNames[b];
-        
-        // "未分组"永远排在最后
-        if (nameA === "未分组") return 1;
-        if (nameB === "未分组") return -1;
-        
-        return nameA.localeCompare(nameB, 'zh-CN');
-      });
+      const sortedGroups = window.utils.sortGroups(groups, groupNames);
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
@@ -186,16 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newGroupSelect) {
       newGroupSelect.innerHTML = '<option value="">--请选择小组--</option>';
       // 按字母顺序排序小组，"未分组"永远排在最后
-      const sortedGroups = Object.keys(groupNames).sort((a, b) => {
-        const nameA = groupNames[a];
-        const nameB = groupNames[b];
-        
-        // "未分组"永远排在最后
-        if (nameA === "未分组") return 1;
-        if (nameB === "未分组") return -1;
-        
-        return nameA.localeCompare(nameB, 'zh-CN');
-      });
+      const sortedGroups = window.utils.sortGroups(groups, groupNames);
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
@@ -210,9 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
       memberSelect.innerHTML = '<option value="">--请选择成员--</option>';
       if (groups[group]) {
         // 按姓名字母顺序排序
-        const sortedMembers = groups[group].sort((a, b) => {
-          return a.name.localeCompare(b.name, 'zh-CN');
-        });
+        const sortedMembers = window.utils.sortMembersByName(groups[group]);
         sortedMembers.forEach(member => {
           const option = document.createElement('option');
           option.value = member.name;
@@ -245,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadAttendanceRecords() {
-    const today = new Date().toLocaleDateString('zh-CN');
+    const today = window.utils.getTodayString();
     // 只显示上午的签到记录（早到、准时、迟到），不显示下午签到
     const todayRecords = attendanceRecords.filter(record => 
       new Date(record.time).toLocaleDateString('zh-CN') === today &&
@@ -376,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newcomerSection = document.querySelector('.newcomer-section');
     if (!newcomerList || !newcomerSection) return;
     
-    const today = new Date().toLocaleDateString('zh-CN');
+    const today = window.utils.getTodayString();
     const todayNewcomers = [];
     
     // 查找当日新增的成员（只有通过"新朋友"按钮添加的人员）
@@ -384,9 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (groups[group]) {
         groups[group].forEach(member => {
           if (member.joinDate) {
-            const joinDate = new Date(member.joinDate).toLocaleDateString('zh-CN');
             // 只有通过"新朋友"按钮添加的人员才显示在当日新增人员表中
-            if (joinDate === today && member.addedViaNewcomerButton === true) {
+            if (window.utils.isTodayNewcomer(member)) {
               todayNewcomers.push({
                 ...member,
                 group: group
@@ -421,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const signinCountElement = document.getElementById('signinCount');
     if (!signinCountElement) return;
     
-    const today = new Date().toLocaleDateString('zh-CN');
+    const today = window.utils.getTodayString();
     // 只统计10:40之前的签到记录
     const morningRecords = attendanceRecords.filter(record => {
       const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
