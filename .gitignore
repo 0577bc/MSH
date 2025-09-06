@@ -1,0 +1,35 @@
+# 敏感配置文件
+config.js
+
+# 依赖包
+node_modules/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# 备份文件
+*.bak
+*.backup
+
+# 环境变量文件
+.env
+.env.local
+.env.production
+
+# 构建输出
+dist/
+build/
