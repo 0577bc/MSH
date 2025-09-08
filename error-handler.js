@@ -1,6 +1,18 @@
-// 全局错误处理
+// 全局错误处理 - 使用新的错误处理系统
 window.addEventListener('error', function(e) {
   console.error('全局错误:', e.error);
+  
+  // 使用新的错误处理系统
+  if (window.errorHandler) {
+    window.errorHandler.handleError({
+      type: 'JavaScript Error',
+      message: e.message,
+      filename: e.filename,
+      lineno: e.lineno,
+      colno: e.colno,
+      error: e.error
+    });
+  }
   
   // 如果是Firebase相关错误，显示友好提示
   if (e.error && e.error.message && e.error.message.includes('Firebase')) {

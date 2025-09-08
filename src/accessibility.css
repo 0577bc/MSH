@@ -1,0 +1,429 @@
+/**
+ * 可访问性样式
+ * 提供高对比度、大字体、减少动画等可访问性功能
+ */
+
+/* 跳过链接 */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #000;
+  color: #fff;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 1000;
+  transition: top 0.3s;
+  border-radius: 4px;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* 屏幕阅读器专用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 焦点样式 */
+*:focus {
+  outline: 2px solid #007cba;
+  outline-offset: 2px;
+}
+
+/* 高对比度模式 */
+.high-contrast {
+  filter: contrast(150%) brightness(120%);
+}
+
+.high-contrast * {
+  background-color: #000 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  background-color: #000 !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;
+}
+
+.high-contrast button:hover,
+.high-contrast input:hover,
+.high-contrast select:hover,
+.high-contrast textarea:hover {
+  background-color: #333 !important;
+}
+
+.high-contrast button:focus,
+.high-contrast input:focus,
+.high-contrast select:focus,
+.high-contrast textarea:focus {
+  outline: 3px solid #ffff00 !important;
+  outline-offset: 2px;
+}
+
+/* 大字体模式 */
+.large-text {
+  font-size: 1.2em;
+}
+
+.large-text h1 {
+  font-size: 2.5em;
+}
+
+.large-text h2 {
+  font-size: 2em;
+}
+
+.large-text h3 {
+  font-size: 1.8em;
+}
+
+.large-text button,
+.large-text input,
+.large-text select,
+.large-text textarea {
+  font-size: 1.1em;
+  padding: 12px;
+}
+
+.large-text table {
+  font-size: 1.1em;
+}
+
+.large-text table th,
+.large-text table td {
+  padding: 12px;
+}
+
+/* 减少动画模式 */
+.reduced-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.reduced-motion .skip-link {
+  transition: none;
+}
+
+/* 可访问性工具栏 */
+.accessibility-toolbar {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  font-family: Arial, sans-serif;
+}
+
+.accessibility-toolbar button {
+  display: block;
+  width: 100%;
+  margin: 5px 0;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.accessibility-toolbar button:hover {
+  background: #e9e9e9;
+}
+
+.accessibility-toolbar button:focus {
+  outline: 2px solid #007cba;
+  outline-offset: 2px;
+}
+
+/* 键盘导航样式 */
+.keyboard-navigation *:focus {
+  outline: 2px solid #007cba;
+  outline-offset: 2px;
+}
+
+.keyboard-navigation button:focus,
+.keyboard-navigation input:focus,
+.keyboard-navigation select:focus,
+.keyboard-navigation textarea:focus {
+  box-shadow: 0 0 0 2px #007cba;
+}
+
+/* 表格可访问性 */
+table[role="table"] {
+  border-collapse: collapse;
+}
+
+table[role="table"] th,
+table[role="table"] td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+table[role="table"] th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+table[role="table"] th:focus,
+table[role="table"] td:focus {
+  background-color: #e6f3ff;
+  outline: 2px solid #007cba;
+}
+
+/* 表单可访问性 */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: 2px solid #007cba;
+  outline-offset: 2px;
+  border-color: #007cba;
+}
+
+.form-group .error-message {
+  color: #d32f2f;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+/* 按钮可访问性 */
+button {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background: #e9e9e9;
+}
+
+button:focus {
+  outline: 2px solid #007cba;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button[aria-pressed="true"] {
+  background: #007cba;
+  color: white;
+}
+
+/* 模态框可访问性 */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: none;
+}
+
+.modal-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.modal-content:focus {
+  outline: none;
+}
+
+/* 对话框可访问性 */
+.dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: none;
+}
+
+.dialog-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.dialog-content:focus {
+  outline: none;
+}
+
+/* 通知可访问性 */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #333;
+  color: white;
+  padding: 15px;
+  border-radius: 4px;
+  z-index: 1000;
+  max-width: 300px;
+}
+
+.notification.success {
+  background: #4caf50;
+}
+
+.notification.error {
+  background: #f44336;
+}
+
+.notification.warning {
+  background: #ff9800;
+}
+
+.notification.info {
+  background: #2196f3;
+}
+
+.notification-close {
+  float: right;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+/* 加载指示器可访问性 */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #007cba;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+/* 减少动画模式下的加载指示器 */
+.reduced-motion .spinner {
+  animation: none;
+  border: 2px solid #007cba;
+}
+
+/* 移动端可访问性 */
+@media (max-width: 768px) {
+  .accessibility-toolbar {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin: 10px;
+    width: calc(100% - 20px);
+  }
+  
+  .skip-link {
+    left: 10px;
+    right: 10px;
+    width: calc(100% - 20px);
+    text-align: center;
+  }
+  
+  .modal-content,
+  .dialog-content {
+    width: 95%;
+    max-width: none;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .accessibility-toolbar,
+  .skip-link,
+  .modal,
+  .dialog {
+    display: none !important;
+  }
+  
+  * {
+    background: white !important;
+    color: black !important;
+  }
+  
+  a[href]:after {
+    content: " (" attr(href) ")";
+  }
+}

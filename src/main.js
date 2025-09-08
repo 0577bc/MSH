@@ -55,8 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // 如果没有数据，则初始化示例数据
       if (!groupsSnapshot.exists() || Object.keys(groupsSnapshot.val() || {}).length === 0) {
         console.log("初始化示例数据...");
-        await groupsRef.set(window.sampleData.groups);
-        await firebase.database().ref('groupNames').set(window.sampleData.groupNames);
+        await window.utils.safeSyncToFirebase(window.sampleData.groups, 'groups');
+        await window.utils.safeSyncToFirebase(window.sampleData.groupNames, 'groupNames');
         console.log("示例数据初始化完成！");
       }
     } catch (error) {
@@ -70,26 +70,24 @@ document.addEventListener('DOMContentLoaded', () => {
       // 首先初始化示例数据（如果需要）
       await initializeSampleData();
 
-      // 加载 groups
-      const groupsRef = firebase.database().ref('groups');
-      const groupsSnapshot = await groupsRef.once('value');
-      if (groupsSnapshot.exists()) {
-        groups = groupsSnapshot.val() || {};
-      }
+      // 使用统一数据管理器加载数据
+      groups = await window.dataManager.loadGroups();
+      groupNames = await window.dataManager.loadGroupNames();
+      attendanceRecords = await window.dataManager.loadAttendanceRecords();
 
-      // 加载 groupNames
-      const groupNamesRef = firebase.database().ref('groupNames');
-      const groupNamesSnapshot = await groupNamesRef.once('value');
-      if (groupNamesSnapshot.exists()) {
-        groupNames = groupNamesSnapshot.val() || {};
-      }
+      // 确保所有成员都有nickname字段
+      Object.keys(groups).forEach(group => {
+        groups[group].forEach(member => {
+          if (!member.hasOwnProperty('nickname')) {
+            member.nickname = '';
+          }
+        });
+      });
 
-      // 加载 attendanceRecords
-      const attendanceRef = firebase.database().ref('attendanceRecords');
-      const attendanceSnapshot = await attendanceRef.once('value');
-      if (attendanceSnapshot.exists()) {
-        attendanceRecords = Object.values(attendanceSnapshot.val() || {});
-      }
+      // 保存到本地存储
+      localStorage.setItem('msh_groups', JSON.stringify(groups));
+      localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+      localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
 
       loadGroupsAndMembers();
       loadMembers(groupSelect ? groupSelect.value : '');
@@ -114,6 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (localGroups) {
         groups = JSON.parse(localGroups);
+        // 确保所有成员都有nickname字段
+        Object.keys(groups).forEach(group => {
+          groups[group].forEach(member => {
+            if (!member.hasOwnProperty('nickname')) {
+              member.nickname = '';
+            }
+          });
+        });
       } else {
         // 如果没有本地数据，使用示例数据
         groups = window.sampleData.groups;
@@ -144,21 +150,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 手动同步数据到Firebase
+  // 安全同步数据到Firebase
   async function syncToFirebase() {
     try {
       if (groups && Object.keys(groups).length > 0) {
-        await firebase.database().ref('groups').set(groups);
+        await window.utils.safeSyncToFirebase(groups, 'groups');
       }
       if (groupNames && Object.keys(groupNames).length > 0) {
-        await firebase.database().ref('groupNames').set(groupNames);
+        await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
       }
       if (attendanceRecords && attendanceRecords.length > 0) {
-        await firebase.database().ref('attendanceRecords').set(attendanceRecords);
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
       }
-      console.log("数据已同步到Firebase");
+      console.log("数据已安全同步到Firebase");
     } catch (error) {
-      console.error("同步到Firebase失败:", error);
+      console.error("安全同步到Firebase失败:", error);
     }
   }
 
@@ -435,7 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       
       const matches = allMembers.filter(member => 
-        member.name.toLowerCase().includes(query)
+        member.name.toLowerCase().includes(query) ||
+        (member.nickname && member.nickname.trim() && member.nickname.toLowerCase().includes(query))
       );
       
       if (matches.length > 0) {
@@ -443,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         matches.forEach(member => {
           const div = document.createElement('div');
           div.innerHTML = `
-            <span class="member-name">${member.name}</span>
+            <span class="member-name">${member.name}${member.nickname ? ` (${member.nickname})` : ''}</span>
             <span class="member-group">(${groupNames[member.group] || member.group})</span>
           `;
           div.className = 'suggestion-item';
@@ -520,6 +527,11 @@ document.addEventListener('DOMContentLoaded', () => {
       attendanceRecords.push(record);
       localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
       
+      // 标记本地数据有更改
+      if (window.utils && window.utils.SyncButtonManager) {
+        window.utils.SyncButtonManager.markLocalChanges();
+      }
+      
       // 立即更新显示
       loadAttendanceRecords();
       
@@ -529,9 +541,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (memberSearch) memberSearch.value = '';
       if (suggestions) suggestions.style.display = 'none';
       
-      // 然后尝试同步到Firebase
+      // 然后尝试安全同步到Firebase
       try {
-        await syncToFirebase();
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
         alert('签到成功！');
       } catch (error) {
         console.log("Firebase同步失败，但本地保存成功");
@@ -541,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (addNewcomerButton) {
-    addNewcomerButton.addEventListener('click', () => {
+    addNewcomerButton.addEventListener('click', async () => {
       if (addMemberForm) {
         if (addMemberForm.classList.contains('hidden-form')) {
           addMemberForm.classList.remove('hidden-form');
@@ -553,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (saveNewMemberButton && newGroupSelect && newMemberName && newMemberPhone) {
-    saveNewMemberButton.addEventListener('click', () => {
+    saveNewMemberButton.addEventListener('click', async () => {
       const group = newGroupSelect.value;
       const name = newMemberName.value.trim();
       const phone = newMemberPhone.value.trim();
@@ -561,28 +573,50 @@ document.addEventListener('DOMContentLoaded', () => {
       const baptized = document.getElementById('newMemberBaptized') ? document.getElementById('newMemberBaptized').value : '';
       const age = document.getElementById('newMemberAge') ? document.getElementById('newMemberAge').value : '';
       
-      if (!group || !name) {
-        alert('请选择小组并输入新朋友姓名！');
-        return;
-      }
-      
-      if (!gender || !baptized || !age) {
-        alert('请填写完整的个人信息！');
-        return;
-      }
-      
-      const newMember = {
-        name,
-        phone: phone || "",
-        gender,
-        baptized,
-        age,
-        joinDate: new Date().toISOString(),
-        addedViaNewcomerButton: true // 标识通过"新朋友"按钮添加
+      // 使用安全验证
+      const memberData = {
+        name: name,
+        phone: phone,
+        gender: gender,
+        baptized: baptized,
+        age: age,
+        nickname: ''
       };
+
+      const validation = window.securityManager.validateMemberData(memberData);
+      if (!validation.valid) {
+        alert('数据验证失败：\n' + validation.errors.join('\n'));
+        return;
+      }
+
+      const groupValidation = window.securityManager.validateGroupName(group);
+      if (!groupValidation.valid) {
+        alert('小组验证失败：' + groupValidation.error);
+        return;
+      }
+      
+      // 检查手机号码重复
+      if (validation.cleanedMember.phone && window.utils.IdentifierManager.checkPhoneExists(validation.cleanedMember.phone, groups)) {
+        alert('手机号码已存在！\n请使用不同的手机号码。');
+        return;
+      }
+      
+      const newMember = validation.cleanedMember;
+      newMember.joinDate = new Date().toISOString();
+      newMember.addedViaNewcomerButton = true;
       if (!groups[group]) groups[group] = [];
       groups[group].push(newMember);
-      firebase.database().ref(`groups/${group}`).set(groups[group]);
+      
+      // 保存到本地存储
+      localStorage.setItem('msh_groups', JSON.stringify(groups));
+      
+      // 标记本地数据有更改
+      if (window.utils && window.utils.SyncButtonManager) {
+        window.utils.SyncButtonManager.markLocalChanges();
+      }
+      
+      // 使用安全同步添加新成员
+      await window.utils.safeSyncToFirebase(groups, 'groups');
       newGroupSelect.value = '';
       newMemberName.value = '';
       newMemberPhone.value = '';
@@ -602,6 +636,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (newGroupSelect) newGroupSelect.value = '';
       if (newMemberName) newMemberName.value = '';
       if (newMemberPhone) newMemberPhone.value = '';
+      if (document.getElementById('newMemberGender')) document.getElementById('newMemberGender').value = '';
+      if (document.getElementById('newMemberBaptized')) document.getElementById('newMemberBaptized').value = '';
+      if (document.getElementById('newMemberAge')) document.getElementById('newMemberAge').value = '';
     });
   }
 
@@ -620,4 +657,84 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始加载数据 - 优先使用Firebase
   console.log("正在连接Firebase数据库...");
   loadDataFromFirebase();
+
+  // 启动实时数据同步
+  if (window.utils && window.utils.dataSyncManager) {
+    window.utils.dataSyncManager.startListening((dataType, data) => {
+      console.log(`收到${dataType}数据更新:`, data);
+      
+      switch (dataType) {
+        case 'attendanceRecords':
+          attendanceRecords = data;
+          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          loadAttendanceRecords();
+          break;
+        case 'groups':
+          groups = data;
+          localStorage.setItem('msh_groups', JSON.stringify(groups));
+          loadGroupsAndMembers();
+          loadMembers(groupSelect ? groupSelect.value : '');
+          break;
+        case 'groupNames':
+          groupNames = data;
+          localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+          loadGroupsAndMembers();
+          break;
+      }
+    });
+
+    // 设置页面可见性监听
+    window.utils.dataSyncManager.setupVisibilityListener(() => {
+      console.log('页面重新可见，检查数据同步...');
+      loadDataFromFirebase();
+    });
+
+    // 页面卸载时确保数据同步
+    window.addEventListener('beforeunload', async (event) => {
+      console.log('页面即将关闭，确保数据同步');
+      try {
+        // 使用新的页面关闭同步机制
+        if (window.utils && window.utils.PageNavigationSync) {
+          const result = await window.utils.PageNavigationSync.syncBeforeClose(event);
+          if (result === '') {
+            // 同步失败，阻止页面关闭
+            return result;
+          }
+        } else {
+          // 备用同步机制
+          if (db) {
+            await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
+            await window.utils.safeSyncToFirebase(groups, 'groups');
+            await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
+            console.log('页面关闭前数据同步完成');
+          }
+        }
+      } catch (error) {
+        console.error('页面关闭前数据同步失败:', error);
+      }
+    });
+
+    // 创建同步按钮
+    if (window.utils && window.utils.SyncButtonManager) {
+      window.utils.SyncButtonManager.createSyncButton();
+    }
+
+    // 拦截页面跳转链接
+    document.addEventListener('click', async (event) => {
+      const link = event.target.closest('a');
+      if (link && link.href && !link.href.startsWith('javascript:') && !link.href.startsWith('#')) {
+        event.preventDefault();
+        
+        // 检查是否需要同步
+        if (window.utils && window.utils.PageNavigationSync) {
+          const syncSuccess = await window.utils.PageNavigationSync.syncBeforeNavigation(link.href);
+          if (syncSuccess) {
+            window.location.href = link.href;
+          }
+        } else {
+          window.location.href = link.href;
+        }
+      }
+    });
+  }
 });

@@ -1,0 +1,58 @@
+{
+  "rules": {
+    // 根节点规则
+    ".read": "auth != null",
+    ".write": "auth != null",
+    
+    // 签到记录规则
+    "attendanceRecords": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$recordId": {
+        ".validate": "newData.hasChildren(['name', 'group', 'time', 'timeSlot']) && newData.child('name').isString() && newData.child('group').isString() && newData.child('time').isString() && newData.child('timeSlot').isString()"
+      }
+    },
+    
+    // 小组数据规则
+    "groups": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$groupId": {
+        ".validate": "newData.hasChildren()",
+        "$memberId": {
+          ".validate": "newData.hasChildren(['name', 'gender', 'baptized', 'age']) && newData.child('name').isString() && newData.child('gender').isString() && newData.child('baptized').isString() && newData.child('age').isString()"
+        }
+      }
+    },
+    
+    // 小组名称规则
+    "groupNames": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    
+    // 管理员配置规则
+    "adminConfig": {
+      ".read": "auth != null && root.child('adminEmails').child(auth.token.email).exists()",
+      ".write": "auth != null && root.child('adminEmails').child(auth.token.email).exists()"
+    },
+    
+    // 管理员邮箱列表规则
+    "adminEmails": {
+      ".read": "auth != null && root.child('adminEmails').child(auth.token.email).exists()",
+      ".write": "auth != null && root.child('adminEmails').child(auth.token.email).exists()"
+    },
+    
+    // 系统日志规则
+    "systemLogs": {
+      ".read": "auth != null && root.child('adminEmails').child(auth.token.email).exists()",
+      ".write": "auth != null"
+    },
+    
+    // 不统计人员规则
+    "excludedMembers": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('adminEmails').child(auth.token.email).exists()"
+    }
+  }
+}

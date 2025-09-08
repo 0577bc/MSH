@@ -320,21 +320,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 同步数据到Firebase
+  // 安全同步数据到Firebase
   async function syncToFirebase() {
     try {
       if (groups && Object.keys(groups).length > 0) {
-        await firebase.database().ref('groups').set(groups);
+        await window.utils.safeSyncToFirebase(groups, 'groups');
       }
       if (groupNames && Object.keys(groupNames).length > 0) {
-        await firebase.database().ref('groupNames').set(groupNames);
+        await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
       }
       if (attendanceRecords && attendanceRecords.length > 0) {
-        await firebase.database().ref('attendanceRecords').set(attendanceRecords);
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
       }
-      console.log("Admin data synced to Firebase");
+      console.log("Admin data safely synced to Firebase");
     } catch (error) {
-      console.error("Sync to Firebase failed:", error);
+      console.error("Safe sync to Firebase failed:", error);
     }
   }
 
@@ -353,9 +353,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadMembers(group) {
+    console.log('loadMembers被调用，group:', group);
     if (memberList) {
     memberList.innerHTML = '';
       if (groups[group]) {
+        console.log('找到小组数据，成员数量:', groups[group].length);
+        
+        // 强制初始化所有成员的nickname字段
+        groups[group].forEach((member, index) => {
+          if (!member.hasOwnProperty('nickname')) {
+            member.nickname = '';
+            console.log('为成员', member.name, '初始化nickname字段');
+          }
+        });
         // 按姓名字母顺序排序，但保持原始索引
         const membersWithIndex = groups[group].map((member, originalIndex) => ({
           ...member,
@@ -363,10 +373,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
         const sortedMembers = window.utils.sortMembersByName(membersWithIndex);
         sortedMembers.forEach((member) => {
+          // 确保成员有nickname字段（同时更新原始数据）
+          if (!member.hasOwnProperty('nickname')) {
+            member.nickname = '';
+            // 同时更新原始数据中的成员
+            if (groups[group] && groups[group][member.originalIndex]) {
+              groups[group][member.originalIndex].nickname = '';
+            }
+          }
+          console.log('成员:', member.name, '花名:', member.nickname);
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${member.id || getGroupPrefix(group) + '000'}</td>
             <td><input type="text" value="${member.name}" data-field="name" data-index="${member.originalIndex}"></td>
+            <td><input type="text" value="${member.nickname || ''}" data-field="nickname" data-index="${member.originalIndex}" placeholder="花名"></td>
           <td>
               <select data-field="gender" data-index="${member.originalIndex}">
               <option value="男" ${member.gender === '男' ? 'selected' : ''}>男</option>
@@ -398,6 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         memberList.appendChild(row);
       });
+      console.log('表格行数:', memberList.querySelectorAll('tr').length);
+      console.log('花名列数:', memberList.querySelectorAll('input[data-field="nickname"]').length);
+    } else {
+      console.log('没有找到小组数据');
     }
   }
   }
@@ -417,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
     localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
     
-    // 然后同步到Firebase
+    // 然后安全同步到Firebase
     syncToFirebase();
   }
 
@@ -609,14 +633,39 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // 收集所有输入的数据并验证
       const inputs = memberList.querySelectorAll('input, select');
+      let hasValidationError = false;
+      
       inputs.forEach(input => {
         const field = input.dataset.field;
         const index = parseInt(input.dataset.index);
         if (field && index >= 0 && groups[group][index]) {
-          groups[group][index][field] = input.value;
+          const value = input.value;
+          
+          // 验证手机号码
+          if (field === 'phone' && value) {
+            if (!window.utils.IdentifierManager.validatePhoneNumber(value)) {
+              alert(`第${index + 1}个成员的手机号码格式不正确！\n请输入正确的11位手机号码。`);
+              hasValidationError = true;
+              return;
+            }
+            
+            // 检查手机号码重复
+            if (window.utils.IdentifierManager.checkPhoneExists(value, groups, groups[group][index])) {
+              alert(`第${index + 1}个成员的手机号码已存在！\n请使用不同的手机号码。`);
+              hasValidationError = true;
+              return;
+            }
+          }
+          
+          groups[group][index][field] = value;
         }
       });
+      
+      if (hasValidationError) {
+        return;
+      }
 
       saveData();
       window.systemLogger.success('成员信息已保存', { group: group, membersCount: groups[group].length });
@@ -825,6 +874,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // 未签到不统计相关元素
   const excludeStatsButton = document.getElementById('excludeStatsButton');
   const excludeStatsView = document.getElementById('excludeStatsView');
+  
+  // 管理员管理相关元素
+  const manageAdminsButton = document.getElementById('manageAdminsButton');
+  const adminManagementView = document.getElementById('adminManagementView');
+  const addAdminEmailInput = document.getElementById('adminEmailInput');
+  const addAdminButton = document.getElementById('addAdminButton');
+  const adminList = document.getElementById('adminList');
   const excludeSearchInput = document.getElementById('excludeSearchInput');
   const excludeSuggestions = document.getElementById('excludeSuggestions');
   const addToExcludeButton = document.getElementById('addToExcludeButton');
@@ -852,6 +908,126 @@ document.addEventListener('DOMContentLoaded', () => {
     excludeStatsView.classList.remove('hidden-form');
     loadExcludedMembers();
   });
+
+  // 管理员管理功能
+  let adminEmails = [];
+
+  // 显示管理员管理界面
+  manageAdminsButton.addEventListener('click', () => {
+    adminManagementView.classList.remove('hidden-form');
+    loadAdminEmails();
+  });
+
+  // 加载管理员邮箱列表
+  async function loadAdminEmails() {
+    try {
+      const db = firebase.database();
+      const adminEmailsRef = db.ref('adminEmails');
+      const snapshot = await adminEmailsRef.once('value');
+      
+      if (snapshot.exists()) {
+        const adminEmailsData = snapshot.val();
+        adminEmails = Object.keys(adminEmailsData).filter(email => adminEmailsData[email] === true);
+      } else {
+        adminEmails = [];
+      }
+      
+      displayAdminEmails();
+    } catch (error) {
+      console.error('加载管理员邮箱失败:', error);
+      alert('加载管理员邮箱失败: ' + error.message);
+    }
+  }
+
+  // 显示管理员邮箱列表
+  function displayAdminEmails() {
+    if (!adminList) return;
+    
+    adminList.innerHTML = '';
+    
+    if (adminEmails.length === 0) {
+      adminList.innerHTML = '<div class="empty-list">暂无管理员</div>';
+      return;
+    }
+    
+    adminEmails.forEach(email => {
+      const adminItem = document.createElement('div');
+      adminItem.className = 'admin-item';
+      adminItem.innerHTML = `
+        <span class="admin-email">${email}</span>
+        <button class="remove-admin-btn" onclick="removeAdmin('${email}')">移除</button>
+      `;
+      adminList.appendChild(adminItem);
+    });
+  }
+
+  // 添加管理员
+  addAdminButton.addEventListener('click', async () => {
+    const email = addAdminEmailInput.value.trim();
+    
+    if (!email) {
+      alert('请输入管理员邮箱');
+      return;
+    }
+    
+    // 验证邮箱格式
+    const emailValidation = window.securityManager.validateEmail(email);
+    if (!emailValidation.valid) {
+      alert(emailValidation.error);
+      return;
+    }
+    
+    if (adminEmails.includes(email)) {
+      alert('该邮箱已经是管理员');
+      return;
+    }
+    
+    try {
+      const db = firebase.database();
+      const adminEmailsRef = db.ref('adminEmails');
+      await adminEmailsRef.child(email).set(true);
+      
+      adminEmails.push(email);
+      displayAdminEmails();
+      addAdminEmailInput.value = '';
+      
+      alert('管理员添加成功');
+      
+      // 记录日志
+      if (window.systemLogger) {
+        window.systemLogger.info(`添加管理员: ${email}`);
+      }
+    } catch (error) {
+      console.error('添加管理员失败:', error);
+      alert('添加管理员失败: ' + error.message);
+    }
+  });
+
+  // 移除管理员
+  window.removeAdmin = async function(email) {
+    if (!confirm(`确定要移除管理员 ${email} 吗？`)) {
+      return;
+    }
+    
+    try {
+      const db = firebase.database();
+      const adminEmailsRef = db.ref('adminEmails');
+      await adminEmailsRef.child(email).remove();
+      
+      adminEmails = adminEmails.filter(e => e !== email);
+      displayAdminEmails();
+      
+      alert('管理员移除成功');
+      
+      // 记录日志
+      if (window.systemLogger) {
+        window.systemLogger.info(`移除管理员: ${email}`);
+      }
+    } catch (error) {
+      console.error('移除管理员失败:', error);
+      alert('移除管理员失败: ' + error.message);
+    }
+  };
 
   // 关闭未签到不统计界面
   closeExcludeButton.addEventListener('click', () => {
@@ -886,7 +1062,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 过滤匹配的人员（排除已在不统计列表中的人员）
     const matches = allMembers.filter(member => 
-      member.name.toLowerCase().includes(query) &&
+      (member.name.toLowerCase().includes(query) ||
+       (member.nickname && member.nickname.trim() && member.nickname.toLowerCase().includes(query))) &&
       !excludedMembers.some(excluded => excluded.name === member.name && excluded.group === member.group)
     );
     
@@ -895,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
       matches.forEach(member => {
         const div = document.createElement('div');
         div.innerHTML = `
-          <span class="member-name">${member.name}</span>
+          <span class="member-name">${member.name}${member.nickname ? ` (${member.nickname})` : ''}</span>
           <span class="member-group">(${groupNames[member.group] || member.group})</span>
         `;
         div.className = 'suggestion-item';
@@ -1019,10 +1196,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveExcludedMembers() {
     try {
       localStorage.setItem('msh_excludedMembers', JSON.stringify(excludedMembers));
-      // 同步到Firebase
+      // 安全同步到Firebase
       if (db) {
-        db.ref('excludedMembers').set(excludedMembers).catch(error => {
-          console.error('同步不统计人员列表到Firebase失败:', error);
+        window.utils.safeSyncToFirebase(excludedMembers, 'excludedMembers').catch(error => {
+          console.error('安全同步不统计人员列表到Firebase失败:', error);
         });
       }
     } catch (error) {
@@ -1115,4 +1292,51 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始加载数据 - 优先使用Firebase
   console.log("管理页面正在连接Firebase数据库...");
   loadDataFromFirebase();
+
+  // 启动实时数据同步
+  if (window.utils && window.utils.dataSyncManager) {
+    window.utils.dataSyncManager.startListening((dataType, data) => {
+      console.log(`管理页面收到${dataType}数据更新:`, data);
+      
+      switch (dataType) {
+        case 'attendanceRecords':
+          attendanceRecords = data;
+          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          break;
+        case 'groups':
+          groups = data;
+          localStorage.setItem('msh_groups', JSON.stringify(groups));
+          loadGroups();
+          loadMembers(groupSelect ? groupSelect.value : '');
+          break;
+        case 'groupNames':
+          groupNames = data;
+          localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+          loadGroups();
+          break;
+      }
+    });
+
+    // 设置页面可见性监听
+    window.utils.dataSyncManager.setupVisibilityListener(() => {
+      console.log('管理页面重新可见，检查数据同步...');
+      loadDataFromFirebase();
+    });
+
+    // 页面卸载时确保数据同步
+    window.addEventListener('beforeunload', async (event) => {
+      console.log('页面即将关闭，确保数据同步');
+      try {
+        // 同步所有数据到Firebase
+        if (db) {
+          await window.utils.safeSyncToFirebase(groups, 'groups');
+          await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
+          await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
+          console.log('页面关闭前数据同步完成');
+        }
+      } catch (error) {
+        console.error('页面关闭前数据同步失败:', error);
+      }
+    });
+  }
 });

@@ -5,10 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理员页面</title>
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/accessibility.css">
+  <link rel="stylesheet" href="./src/virtual-scroll.css">
   <!-- 引入配置文件 -->
   <script src="./config.js"></script>
   <!-- 引入错误处理器 -->
   <script src="./error-handler.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入UI组件系统 -->
+  <script src="./src/ui-components.js"></script>
+  <script src="./src/ui-templates.js"></script>
+  <!-- 引入可访问性管理器 -->
+  <script src="./src/accessibility.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入备份管理器 -->
+  <script src="./src/backup-manager.js"></script>
+  <!-- 引入虚拟滚动组件 -->
+  <script src="./src/virtual-scroll.js"></script>
+  <!-- 引入Worker管理器 -->
+  <script src="./src/worker-manager.js"></script>
   <!-- 引入日志模块 -->
   <script src="./src/logger.js"></script>
   <!-- 引入 Firebase SDK -->
@@ -59,6 +80,7 @@
             <tr>
               <th>序号</th>
               <th>姓名</th>
+              <th>花名</th>
               <th>性别</th>
               <th>联系方式</th>
               <th>是否受洗</th>
@@ -114,10 +136,29 @@
       <button id="importButton" type="button" aria-label="导入数据">导入数据</button>
       <button id="viewLogsButton" type="button" aria-label="查看日志">查看日志</button>
       <button id="excludeStatsButton" type="button" aria-label="未签到不统计">未签到不统计</button>
+      <button id="manageAdminsButton" type="button" aria-label="管理员管理">管理员管理</button>
       <button id="logoutButton" type="button" aria-label="登出" class="danger-button">登出</button>
       <input type="file" id="importFile" accept=".json" class="hidden-form" aria-label="选择要导入的JSON文件">
       
       
+      <!-- 管理员管理界面 -->
+      <div id="adminManagementView" class="form-group hidden-form">
+        <h3>管理员管理</h3>
+        <div class="admin-controls">
+          <div class="search-section">
+            <label for="adminEmailInput">添加管理员邮箱：</label>
+            <input type="email" id="adminEmailInput" placeholder="输入管理员邮箱" aria-label="管理员邮箱">
+            <button id="addAdminButton" type="button" class="primary-button">添加管理员</button>
+          </div>
+          <div class="admin-list-section">
+            <h4>当前管理员列表：</h4>
+            <div id="adminList" class="admin-list">
+              <!-- 管理员列表将在这里显示 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 未签到不统计管理界面 -->
       <div id="excludeStatsView" class="form-group hidden-form">
         <h3>未签到不统计人员管理</h3>

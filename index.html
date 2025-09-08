@@ -6,14 +6,40 @@
   <title>MSH签到系统</title>
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/accessibility.css">
+  <link rel="stylesheet" href="./src/virtual-scroll.css">
   <link rel="manifest" href="manifest.json">
   <!-- 引入配置文件 -->
   <script src="./config.js"></script>
   <!-- 引入错误处理器 -->
   <script src="./error-handler.js"></script>
-  <!-- 引入 Firebase SDK -->
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入UI组件系统 -->
+  <script src="./src/ui-components.js"></script>
+  <script src="./src/ui-templates.js"></script>
+  <!-- 引入可访问性管理器 -->
+  <script src="./src/accessibility.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入备份管理器 -->
+  <script src="./src/backup-manager.js"></script>
+  <!-- 引入虚拟滚动组件 -->
+  <script src="./src/virtual-scroll.js"></script>
+  <!-- 引入Worker管理器 -->
+  <script src="./src/worker-manager.js"></script>
+  <!-- 引入安全模块 -->
+  <script src="./src/security.js"></script>
+  <!-- 引入数据管理器 -->
+  <script src="./src/data-manager.js"></script>
+  <!-- 引入 Firebase SDK v8 (兼容模式) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 </head>
 <body>
   <main>
@@ -164,6 +190,6 @@
     <button id="adminButton" type="button" aria-label="进入管理页面">管理</button>
   </main>
   <script src="./src/utils.js"></script>
-  <script type="module" src="./src/main.js"></script>
+  <script src="./src/main.js"></script>
 </body>
 </html>

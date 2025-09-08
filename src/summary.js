@@ -23,6 +23,90 @@ document.addEventListener('DOMContentLoaded', () => {
   const backToSigninButton = document.getElementById('backToSigninButton');
   const exportButton = document.getElementById('exportButton');
   
+  // 性能优化：虚拟滚动管理器
+  let virtualScrollManager = null;
+  let useVirtualScroll = true;
+  
+  // 优化表格渲染函数
+  function renderOptimizedTable(container, data, columns, options = {}) {
+    if (!container || !data) return;
+    
+    const { useVirtualScroll: useVirtual = useVirtualScroll, pageSize = 50 } = options;
+    
+    // 如果数据量小，直接渲染
+    if (data.length <= 100) {
+      renderTableDirectly(container, data, columns);
+      return;
+    }
+    
+    if (useVirtual && window.VirtualScrollManager) {
+      // 使用虚拟滚动
+      if (virtualScrollManager) {
+        virtualScrollManager.destroy();
+      }
+      
+      virtualScrollManager = new VirtualScrollManager({
+        container: container,
+        data: data,
+        itemHeight: 40,
+        visibleCount: Math.ceil(container.clientHeight / 40) || 20,
+        renderItem: (item, index) => renderTableRow(item, index, columns)
+      });
+    } else if (window.PaginationManager) {
+      // 使用分页
+      if (virtualScrollManager) {
+        virtualScrollManager.destroy();
+      }
+      
+      virtualScrollManager = new PaginationManager({
+        container: container,
+        data: data,
+        pageSize: pageSize,
+        renderItem: (item, index) => renderTableRow(item, index, columns)
+      });
+    } else {
+      // 回退到直接渲染
+      renderTableDirectly(container, data, columns);
+    }
+  }
+  
+  // 直接渲染表格
+  function renderTableDirectly(container, data, columns) {
+    container.innerHTML = '';
+    
+    data.forEach((item, index) => {
+      const row = renderTableRow(item, index, columns);
+      container.appendChild(row);
+    });
+  }
+  
+  // 渲染表格行
+  function renderTableRow(item, index, columns) {
+    const row = document.createElement('tr');
+    row.className = index % 2 === 0 ? 'even' : 'odd';
+    
+    columns.forEach(column => {
+      const cell = document.createElement('td');
+      const value = getCellValue(item, column);
+      cell.textContent = value;
+      cell.className = column.className || '';
+      row.appendChild(cell);
+    });
+    
+    return row;
+  }
+  
+  // 获取单元格值
+  function getCellValue(item, column) {
+    if (typeof column.dataKey === 'function') {
+      return column.dataKey(item);
+    } else if (typeof column.dataKey === 'string') {
+      return item[column.dataKey] || '';
+    } else {
+      return '';
+    }
+  }
+  
   // 导航按钮
   const showAttendanceData = document.getElementById('showAttendanceData');
   const showDailyReport = document.getElementById('showDailyReport');
@@ -39,13 +123,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const dailyReportSection = document.getElementById('dailyReportSection');
   const dailyDateSelect = document.getElementById('dailyDateSelect');
   const viewDailyReport = document.getElementById('viewDailyReport');
+  const dailyReportList = document.getElementById('dailyReportList');
   const earlyCount = document.getElementById('earlyCount');
   const onTimeCount = document.getElementById('onTimeCount');
   const lateCount = document.getElementById('lateCount');
   const unsignedCount = document.getElementById('unsignedCount');
   const newcomerCount = document.getElementById('newcomerCount');
   const attendanceRate = document.getElementById('attendanceRate');
-  const dailyReportList = document.getElementById('dailyReportList');
   
   // 季度报表相关
   const quarterlyReportSection = document.getElementById('quarterlyReportSection');
@@ -168,10 +252,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showSection(sectionName) {
+    console.log('showSection被调用，sectionName:', sectionName);
     // 隐藏所有section
     const sections = [attendanceDataSection, dailyReportSection, quarterlyReportSection, yearlyReportSection];
     sections.forEach(section => {
-      if (section) section.style.display = 'none';
+      if (section) {
+        section.style.display = 'none';
+        section.classList.add('hidden-form');
+      }
     });
 
     // 移除所有导航按钮的active类
@@ -183,19 +271,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // 显示选中的section
     switch (sectionName) {
       case 'attendanceData':
-        if (attendanceDataSection) attendanceDataSection.style.display = 'block';
+        if (attendanceDataSection) {
+          attendanceDataSection.style.display = 'block';
+          attendanceDataSection.classList.remove('hidden-form');
+        }
         if (showAttendanceData) showAttendanceData.classList.add('active');
         break;
       case 'dailyReport':
-        if (dailyReportSection) dailyReportSection.style.display = 'block';
+        console.log('显示日报表section');
+        if (dailyReportSection) {
+          console.log('dailyReportSection元素存在，设置显示');
+          dailyReportSection.style.display = 'block';
+          dailyReportSection.classList.remove('hidden-form');
+          console.log('dailyReportSection display:', dailyReportSection.style.display);
+          console.log('dailyReportSection classList:', dailyReportSection.classList.toString());
+        } else {
+          console.error('dailyReportSection元素不存在！');
+        }
         if (showDailyReport) showDailyReport.classList.add('active');
         break;
       case 'quarterlyReport':
-        if (quarterlyReportSection) quarterlyReportSection.style.display = 'block';
+        if (quarterlyReportSection) {
+          quarterlyReportSection.style.display = 'block';
+          quarterlyReportSection.classList.remove('hidden-form');
+        }
         if (showQuarterlyReport) showQuarterlyReport.classList.add('active');
         break;
       case 'yearlyReport':
-        if (yearlyReportSection) yearlyReportSection.style.display = 'block';
+        if (yearlyReportSection) {
+          yearlyReportSection.style.display = 'block';
+          yearlyReportSection.classList.remove('hidden-form');
+        }
         if (showYearlyReport) showYearlyReport.classList.add('active');
         break;
     }
@@ -228,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
     );
 
     attendanceDataList.innerHTML = '';
+    console.log('加载签到数据，记录数量:', dayRecords.length);
+    console.log('attendanceDataList元素:', attendanceDataList);
     dayRecords.forEach((record, index) => {
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -237,9 +345,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <td class="timeSlot-cell">${record.timeSlot || getAttendanceType(new Date(record.time))}</td>
         <td>
           <button class="edit-time-btn" data-index="${index}" data-record-id="${record.id || index}">编辑时间</button>
+          <button class="delete-attendance-btn" data-index="${index}" data-record-id="${record.id || index}">删除</button>
         </td>
       `;
       attendanceDataList.appendChild(row);
+      console.log('添加行:', record.name, '按钮数量:', row.querySelectorAll('button').length);
     });
 
     // 添加编辑时间按钮的事件监听器
@@ -250,6 +360,69 @@ document.addEventListener('DOMContentLoaded', () => {
         editAttendanceTime(record, recordIndex);
       });
     });
+
+    // 添加删除按钮的事件监听器
+    document.querySelectorAll('.delete-attendance-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const recordIndex = parseInt(e.target.dataset.index);
+        const record = dayRecords[recordIndex];
+        deleteAttendanceRecord(record, recordIndex);
+      });
+    });
+  }
+
+  async function deleteAttendanceRecord(record, recordIndex) {
+    // 确认删除
+    if (!confirm(`确定要删除 ${record.name} 的签到记录吗？\n时间: ${record.time}\n组别: ${groupNames[record.group] || record.group}`)) {
+      return;
+    }
+
+    try {
+      // 设置删除标记，防止实时同步干扰
+      isDeleting = true;
+      
+      // 从attendanceRecords中删除记录
+      const recordToDelete = attendanceRecords.find(r => 
+        r.name === record.name && 
+        r.time === record.time && 
+        r.group === record.group
+      );
+      
+      if (recordToDelete) {
+        const index = attendanceRecords.indexOf(recordToDelete);
+        attendanceRecords.splice(index, 1);
+        
+        console.log('删除记录:', recordToDelete);
+        console.log('剩余记录数量:', attendanceRecords.length);
+        
+        // 保存到本地存储
+        localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+        
+        // 安全同步到Firebase，等待同步完成
+        await syncToFirebase();
+        console.log('Firebase同步完成');
+        
+        // 等待一小段时间确保Firebase更新完成
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 重新加载数据
+        const currentDate = document.getElementById('dateSelect').value;
+        loadAttendanceData(currentDate);
+        
+        alert('签到记录已删除！');
+      } else {
+        alert('未找到要删除的记录！');
+      }
+    } catch (error) {
+      console.error('删除签到记录失败:', error);
+      alert('删除签到记录失败！');
+    } finally {
+      // 延迟重置删除标记，确保同步完成
+      setTimeout(() => {
+        isDeleting = false;
+        console.log('删除操作完成，恢复实时同步');
+      }, 3000); // 增加延迟时间
+    }
   }
 
   function editAttendanceTime(record, recordIndex) {
@@ -329,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 保存到本地存储
         localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
         
-        // 同步到Firebase
+        // 安全同步到Firebase
         syncToFirebase();
         
         // 重新加载数据
@@ -375,11 +548,11 @@ document.addEventListener('DOMContentLoaded', () => {
   async function syncToFirebase() {
     try {
       if (db) {
-        await firebase.database().ref('attendanceRecords').set(attendanceRecords);
-        console.log('签到记录已同步到Firebase');
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
+        console.log('签到记录已安全同步到Firebase');
       }
     } catch (error) {
-      console.error('同步到Firebase失败:', error);
+      console.error('安全同步到Firebase失败:', error);
     }
   }
 
@@ -397,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     dayRecords.forEach(record => {
       signedNames.add(record.name);
-      const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
+      const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
       if (timeSlot === '早到') earlyCountNum++;
       else if (timeSlot === '准时') onTimeCountNum++;
       else if (timeSlot === '迟到') lateCountNum++;
@@ -412,14 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
         excluded.name === member.name && excluded.group === member.group
       )
     );
-    const unsignedCount = allMembers.length - signedNames.size;
+    const unsignedCountNum = allMembers.length - signedNames.size;
 
-    // 统计新人
-    let newcomerCount = 0;
+    // 统计新人（只有通过"新朋友"按钮添加的人员）
+    let newcomerCountNum = 0;
     Object.keys(groups).forEach(group => {
       groups[group].forEach(member => {
-        if (member.joinDate && new Date(member.joinDate).toLocaleDateString('zh-CN') === targetDate) {
-          newcomerCount++;
+        if (window.utils.isTodayNewcomer(member)) {
+          newcomerCountNum++;
         }
       });
     });
@@ -428,12 +601,68 @@ document.addEventListener('DOMContentLoaded', () => {
     if (earlyCount) earlyCount.textContent = earlyCountNum;
     if (onTimeCount) onTimeCount.textContent = onTimeCountNum;
     if (lateCount) lateCount.textContent = lateCountNum;
-    if (unsignedCount) unsignedCount.textContent = unsignedCount;
-    if (newcomerCount) newcomerCount.textContent = newcomerCount;
+    if (unsignedCount) unsignedCount.textContent = unsignedCountNum;
+    if (newcomerCount) newcomerCount.textContent = newcomerCountNum;
     
     const totalMembers = allMembers.length;
     const attendanceRateNum = totalMembers > 0 ? Math.round((signedNames.size / totalMembers) * 100) : 0;
     if (attendanceRate) attendanceRate.textContent = attendanceRateNum + '%';
+
+    // 生成详细的日报表内容
+    dailyReportList.innerHTML = '';
+    
+    // 按组别显示签到情况（按字母顺序排序），"未分组"永远排在最后
+    const sortedGroups = window.utils.sortGroups(groups, groupNames);
+    sortedGroups.forEach(group => {
+      const groupMembers = groups[group] || [];
+      const groupName = groupNames[group] || group;
+      
+      // 统计该组的签到情况
+      const groupRecords = dayRecords.filter(record => record.group === group);
+      const signedMembers = groupRecords.map(record => record.name);
+      
+      // 过滤掉不统计的人员
+      const unsignedMembers = window.utils.filterExcludedMembers(
+        groupMembers.filter(member => !signedMembers.includes(member.name)),
+        group,
+        excludedMembers
+      );
+      
+      // 按时间段分类签到记录，并过滤掉不统计的人员
+      const earlyRecords = groupRecords.filter(record => {
+        const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+        const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+        return timeSlot === '早到' && !isExcluded;
+      });
+      
+      const onTimeRecords = groupRecords.filter(record => {
+        const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+        const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+        return timeSlot === '准时' && !isExcluded;
+      });
+      
+      const lateRecords = groupRecords.filter(record => {
+        const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+        const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+        return timeSlot === '迟到' && !isExcluded;
+      });
+      
+      const row = document.createElement('tr');
+      const unsignedNames = unsignedMembers.map(member => member.name).join(', ');
+      const totalGroupMembers = groupMembers.length;
+      const signedGroupMembers = groupRecords.length;
+      const attendanceRate = totalGroupMembers > 0 ? Math.round((signedGroupMembers / totalGroupMembers) * 100) : 0;
+      
+      row.innerHTML = `
+        <td>${groupName}</td>
+        <td>${earlyRecords.map(record => record.name).join(', ')}</td>
+        <td>${onTimeRecords.map(record => record.name).join(', ')}</td>
+        <td>${lateRecords.map(record => record.name).join(', ')}</td>
+        <td>${unsignedNames || '无'}</td>
+        <td>${attendanceRate}%</td>
+      `;
+      dailyReportList.appendChild(row);
+    });
 
     // 按组统计
     const groupStats = {};
@@ -660,9 +889,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (showDailyReport) {
+    console.log('showDailyReport按钮已找到，绑定事件监听器');
     showDailyReport.addEventListener('click', () => {
+      console.log('showDailyReport按钮被点击，切换到日报表');
       showSection('dailyReport');
     });
+  } else {
+    console.error('showDailyReport按钮未找到！');
   }
 
   if (showQuarterlyReport) {
@@ -687,10 +920,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 日报表相关事件
   if (viewDailyReport) {
+    console.log('viewDailyReport按钮已找到，绑定事件监听器');
     viewDailyReport.addEventListener('click', () => {
+      console.log('viewDailyReport按钮被点击');
       const date = dailyDateSelect ? dailyDateSelect.value : new Date().toISOString().split('T')[0];
+      console.log('选择的日期:', date);
       loadDailyReport(date);
     });
+  } else {
+    console.error('viewDailyReport按钮未找到！');
   }
 
   // 季度报表相关事件
@@ -720,4 +958,68 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始加载数据 - 优先使用Firebase
   console.log("汇总页面正在连接Firebase数据库...");
   loadDataFromFirebase();
+
+  // 启动实时数据同步
+  let isDeleting = false; // 标记是否正在删除操作
+  if (window.utils && window.utils.dataSyncManager) {
+    window.utils.dataSyncManager.startListening((dataType, data) => {
+      console.log(`汇总页面收到${dataType}数据更新:`, data);
+      
+      // 如果正在删除操作，忽略同步更新
+      if (isDeleting) {
+        console.log('正在删除操作中，忽略同步更新');
+        return;
+      }
+      
+      switch (dataType) {
+        case 'attendanceRecords':
+          attendanceRecords = data;
+          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          // 如果当前显示的是日报表，重新加载日报表
+          if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
+            const date = dailyDateSelect ? dailyDateSelect.value : new Date().toISOString().split('T')[0];
+            loadDailyReport(date);
+          }
+          break;
+        case 'groups':
+          groups = data;
+          localStorage.setItem('msh_groups', JSON.stringify(groups));
+          // 如果当前显示的是日报表，重新加载日报表
+          if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
+            const date = dailyDateSelect ? dailyDateSelect.value : new Date().toISOString().split('T')[0];
+            loadDailyReport(date);
+          }
+          break;
+        case 'groupNames':
+          groupNames = data;
+          localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+          // 如果当前显示的是日报表，重新加载日报表
+          if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
+            const date = dailyDateSelect ? dailyDateSelect.value : new Date().toISOString().split('T')[0];
+            loadDailyReport(date);
+          }
+          break;
+      }
+    });
+
+    // 设置页面可见性监听
+    window.utils.dataSyncManager.setupVisibilityListener(() => {
+      console.log('汇总页面重新可见，检查数据同步...');
+      loadDataFromFirebase();
+    });
+  }
+
+  // 页面卸载时确保数据同步
+  window.addEventListener('beforeunload', async (event) => {
+    console.log('页面即将关闭，确保数据同步');
+    try {
+      // 同步所有数据到Firebase
+      if (db) {
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
+        console.log('页面关闭前数据同步完成');
+      }
+    } catch (error) {
+      console.error('页面关闭前数据同步失败:', error);
+    }
+  });
 });

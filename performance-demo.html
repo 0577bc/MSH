@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH性能优化演示</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/accessibility.css">
+  <link rel="stylesheet" href="./src/virtual-scroll.css">
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+  <!-- 引入错误处理器 -->
+  <script src="./error-handler.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入UI组件系统 -->
+  <script src="./src/ui-components.js"></script>
+  <script src="./src/ui-templates.js"></script>
+  <!-- 引入可访问性管理器 -->
+  <script src="./src/accessibility.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入备份管理器 -->
+  <script src="./src/backup-manager.js"></script>
+  <!-- 引入虚拟滚动组件 -->
+  <script src="./src/virtual-scroll.js"></script>
+  <!-- 引入Worker管理器 -->
+  <script src="./src/worker-manager.js"></script>
+  <!-- 引入工具函数 -->
+  <script src="./src/utils.js"></script>
+</head>
+<body>
+  <main>
+    <h1>MSH性能优化演示</h1>
+    
+    <!-- 性能指标显示 -->
+    <section class="performance-metrics">
+      <h2>性能指标</h2>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <h3>DOM操作优化</h3>
+          <div id="domMetrics">加载中...</div>
+        </div>
+        <div class="metric-card">
+          <h3>异步处理</h3>
+          <div id="asyncMetrics">加载中...</div>
+        </div>
+        <div class="metric-card">
+          <h3>缓存命中率</h3>
+          <div id="cacheMetrics">加载中...</div>
+        </div>
+        <div class="metric-card">
+          <h3>Worker状态</h3>
+          <div id="workerMetrics">加载中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 虚拟滚动演示 -->
+    <section class="virtual-scroll-demo">
+      <h2>虚拟滚动演示</h2>
+      <div class="demo-controls">
+        <button id="generateDataBtn">生成测试数据</button>
+        <button id="toggleVirtualScroll">切换虚拟滚动</button>
+        <span id="dataCount">数据量: 0</span>
+      </div>
+      <div id="virtualScrollContainer" class="virtual-scroll-container" style="height: 400px;">
+        <!-- 虚拟滚动内容将在这里渲染 -->
+      </div>
+    </section>
+
+    <!-- 分页演示 -->
+    <section class="pagination-demo">
+      <h2>分页演示</h2>
+      <div class="demo-controls">
+        <label for="pageSizeSelect">每页显示:</label>
+        <select id="pageSizeSelect">
+          <option value="10">10条</option>
+          <option value="25">25条</option>
+          <option value="50" selected>50条</option>
+          <option value="100">100条</option>
+        </select>
+      </div>
+      <div id="paginationContainer" class="pagination-container">
+        <!-- 分页内容将在这里渲染 -->
+      </div>
+    </section>
+
+    <!-- 异步处理演示 -->
+    <section class="async-demo">
+      <h2>异步处理演示</h2>
+      <div class="demo-controls">
+        <button id="syncDataBtn">异步数据同步</button>
+        <button id="processLargeDataBtn">处理大数据集</button>
+        <button id="validateDataBtn">数据验证</button>
+      </div>
+      <div id="asyncResults" class="async-results">
+        <!-- 异步处理结果将在这里显示 -->
+      </div>
+    </section>
+
+    <!-- 性能对比 -->
+    <section class="performance-comparison">
+      <h2>性能对比</h2>
+      <div class="comparison-grid">
+        <div class="comparison-card">
+          <h3>传统DOM操作</h3>
+          <div id="traditionalPerformance">测试中...</div>
+        </div>
+        <div class="comparison-card">
+          <h3>优化后操作</h3>
+          <div id="optimizedPerformance">测试中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 返回按钮 -->
+    <section class="button-row">
+      <button id="backButton" type="button">返回主页</button>
+    </section>
+  </main>
+
+  <script>
+    // 性能演示脚本
+    class PerformanceDemo {
+      constructor() {
+        this.testData = [];
+        this.virtualScroll = null;
+        this.pagination = null;
+        this.isVirtualScrollEnabled = true;
+        
+        this.init();
+      }
+      
+      init() {
+        this.setupEventListeners();
+        this.startPerformanceMonitoring();
+        this.updateMetrics();
+      }
+      
+      setupEventListeners() {
+        // 生成测试数据
+        document.getElementById('generateDataBtn').addEventListener('click', () => {
+          this.generateTestData();
+        });
+        
+        // 切换虚拟滚动
+        document.getElementById('toggleVirtualScroll').addEventListener('click', () => {
+          this.toggleVirtualScroll();
+        });
+        
+        // 分页大小变化
+        document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+          this.updatePagination(parseInt(e.target.value));
+        });
+        
+        // 异步处理按钮
+        document.getElementById('syncDataBtn').addEventListener('click', () => {
+          this.demonstrateAsyncSync();
+        });
+        
+        document.getElementById('processLargeDataBtn').addEventListener('click', () => {
+          this.demonstrateLargeDataProcessing();
+        });
+        
+        document.getElementById('validateDataBtn').addEventListener('click', () => {
+          this.demonstrateDataValidation();
+        });
+        
+        // 返回按钮
+        document.getElementById('backButton').addEventListener('click', () => {
+          window.location.href = 'index.html';
+        });
+      }
+      
+      generateTestData() {
+        const startTime = performance.now();
+        
+        // 生成大量测试数据
+        this.testData = [];
+        for (let i = 0; i < 10000; i++) {
+          this.testData.push({
+            id: i + 1,
+            name: `测试用户${i + 1}`,
+            group: `测试组${Math.floor(i / 100) + 1}`,
+            phone: `138${String(i).padStart(8, '0')}`,
+            email: `user${i + 1}@test.com`,
+            joinDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000)
+          });
+        }
+        
+        const endTime = performance.now();
+        const generationTime = endTime - startTime;
+        
+        document.getElementById('dataCount').textContent = `数据量: ${this.testData.length}`;
+        
+        // 更新虚拟滚动
+        this.updateVirtualScroll();
+        
+        // 更新分页
+        const pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+        this.updatePagination(pageSize);
+        
+        console.log(`生成${this.testData.length}条测试数据耗时: ${generationTime.toFixed(2)}ms`);
+      }
+      
+      updateVirtualScroll() {
+        const container = document.getElementById('virtualScrollContainer');
+        
+        if (this.virtualScroll) {
+          this.virtualScroll.destroy();
+        }
+        
+        if (this.isVirtualScrollEnabled && this.testData.length > 0) {
+          this.virtualScroll = new VirtualScrollManager({
+            container: container,
+            data: this.testData,
+            itemHeight: 40,
+            visibleCount: 10,
+            renderItem: (item, index) => this.renderVirtualScrollItem(item, index)
+          });
+        } else {
+          // 传统渲染
+          container.innerHTML = '';
+          this.testData.slice(0, 100).forEach((item, index) => {
+            const element = this.renderVirtualScrollItem(item, index);
+            container.appendChild(element);
+          });
+        }
+      }
+      
+      renderVirtualScrollItem(item, index) {
+        const div = document.createElement('div');
+        div.className = 'virtual-scroll-item';
+        div.innerHTML = `
+          <span class="item-id">${item.id}</span>
+          <span class="item-name">${item.name}</span>
+          <span class="item-group">${item.group}</span>
+          <span class="item-phone">${item.phone}</span>
+        `;
+        return div;
+      }
+      
+      toggleVirtualScroll() {
+        this.isVirtualScrollEnabled = !this.isVirtualScrollEnabled;
+        const btn = document.getElementById('toggleVirtualScroll');
+        btn.textContent = this.isVirtualScrollEnabled ? '禁用虚拟滚动' : '启用虚拟滚动';
+        
+        this.updateVirtualScroll();
+        this.updateMetrics();
+      }
+      
+      updatePagination(pageSize) {
+        const container = document.getElementById('paginationContainer');
+        
+        if (this.pagination) {
+          this.pagination.destroy();
+        }
+        
+        if (this.testData.length > 0) {
+          this.pagination = new PaginationManager({
+            container: container,
+            data: this.testData,
+            pageSize: pageSize,
+            renderItem: (item, index) => this.renderPaginationItem(item, index)
+          });
+        }
+      }
+      
+      renderPaginationItem(item, index) {
+        const div = document.createElement('div');
+        div.className = 'pagination-item';
+        div.innerHTML = `
+          <span class="item-id">${item.id}</span>
+          <span class="item-name">${item.name}</span>
+          <span class="item-group">${item.group}</span>
+          <span class="item-phone">${item.phone}</span>
+        `;
+        return div;
+      }
+      
+      async demonstrateAsyncSync() {
+        const resultsDiv = document.getElementById('asyncResults');
+        resultsDiv.innerHTML = '<div class="loading">正在执行异步数据同步...</div>';
+        
+        try {
+          const startTime = performance.now();
+          
+          // 模拟本地和远程数据
+          const localData = {
+            attendanceRecords: this.testData.slice(0, 1000).map(item => ({
+              id: item.id,
+              name: item.name,
+              date: new Date().toISOString(),
+              time: new Date().toISOString()
+            }))
+          };
+          
+          const remoteData = {
+            attendanceRecords: this.testData.slice(500, 1500).map(item => ({
+              id: item.id,
+              name: item.name,
+              date: new Date().toISOString(),
+              time: new Date().toISOString()
+            }))
+          };
+          
+          // 使用异步同步
+          if (window.utils && window.utils.asyncDataSync) {
+            const result = await window.utils.asyncDataSync.syncDataAsync(localData, remoteData, 'newest');
+            
+            const endTime = performance.now();
+            const totalTime = endTime - startTime;
+            
+            resultsDiv.innerHTML = `
+              <div class="success">
+                <h4>异步同步完成</h4>
+                <p>处理时间: ${result.processingTime.toFixed(2)}ms</p>
+                <p>总时间: ${totalTime.toFixed(2)}ms</p>
+                <p>冲突数量: ${result.conflicts.length}</p>
+                <p>合并记录数: ${result.mergedData.attendanceRecords.length}</p>
+              </div>
+            `;
+          } else {
+            throw new Error('异步同步功能不可用');
+          }
+        } catch (error) {
+          resultsDiv.innerHTML = `<div class="error">异步同步失败: ${error.message}</div>`;
+        }
+      }
+      
+      async demonstrateLargeDataProcessing() {
+        const resultsDiv = document.getElementById('asyncResults');
+        resultsDiv.innerHTML = '<div class="loading">正在处理大数据集...</div>';
+        
+        try {
+          const startTime = performance.now();
+          
+          if (window.utils && window.utils.asyncDataSync) {
+            const result = await window.utils.asyncDataSync.processLargeDatasetAsync(
+              this.testData,
+              'SORT',
+              { key: 'name', order: 'asc' }
+            );
+            
+            const endTime = performance.now();
+            const totalTime = endTime - startTime;
+            
+            resultsDiv.innerHTML = `
+              <div class="success">
+                <h4>大数据集处理完成</h4>
+                <p>处理时间: ${result.processingTime.toFixed(2)}ms</p>
+                <p>总时间: ${totalTime.toFixed(2)}ms</p>
+                <p>处理记录数: ${result.result.length}</p>
+                <p>操作类型: ${result.operation}</p>
+              </div>
+            `;
+          } else {
+            throw new Error('异步处理功能不可用');
+          }
+        } catch (error) {
+          resultsDiv.innerHTML = `<div class="error">大数据集处理失败: ${error.message}</div>`;
+        }
+      }
+      
+      async demonstrateDataValidation() {
+        const resultsDiv = document.getElementById('asyncResults');
+        resultsDiv.innerHTML = '<div class="loading">正在验证数据...</div>';
+        
+        try {
+          const startTime = performance.now();
+          
+          if (window.workerManager) {
+            const result = await window.workerManager.addTask({
+              type: 'VALIDATE_DATA',
+              data: {
+                dataset: this.testData.slice(0, 1000),
+                validationRules: {
+                  requiredFields: ['id', 'name', 'group'],
+                  phoneFormat: true,
+                  emailFormat: true
+                }
+              }
+            });
+            
+            const endTime = performance.now();
+            const totalTime = endTime - startTime;
+            
+            resultsDiv.innerHTML = `
+              <div class="success">
+                <h4>数据验证完成</h4>
+                <p>处理时间: ${result.data.processingTime.toFixed(2)}ms</p>
+                <p>总时间: ${totalTime.toFixed(2)}ms</p>
+                <p>验证结果: ${result.data.results.valid ? '通过' : '失败'}</p>
+                <p>错误数量: ${result.data.results.errors.length}</p>
+                <p>警告数量: ${result.data.results.warnings.length}</p>
+              </div>
+            `;
+          } else {
+            throw new Error('Worker管理器不可用');
+          }
+        } catch (error) {
+          resultsDiv.innerHTML = `<div class="error">数据验证失败: ${error.message}</div>`;
+        }
+      }
+      
+      startPerformanceMonitoring() {
+        // 启动性能监控
+        if (window.performanceMonitor) {
+          window.performanceMonitor.start();
+        }
+        
+        // 定期更新指标
+        setInterval(() => {
+          this.updateMetrics();
+        }, 2000);
+      }
+      
+      updateMetrics() {
+        // 更新DOM操作指标
+        const domMetrics = document.getElementById('domMetrics');
+        if (this.isVirtualScrollEnabled) {
+          domMetrics.innerHTML = `
+            <p>✅ 虚拟滚动已启用</p>
+            <p>渲染项目: ${this.virtualScroll ? this.virtualScroll.visibleItems.length : 0}</p>
+            <p>总数据量: ${this.testData.length}</p>
+          `;
+        } else {
+          domMetrics.innerHTML = `
+            <p>❌ 传统DOM渲染</p>
+            <p>渲染项目: ${Math.min(this.testData.length, 100)}</p>
+            <p>总数据量: ${this.testData.length}</p>
+          `;
+        }
+        
+        // 更新异步处理指标
+        const asyncMetrics = document.getElementById('asyncMetrics');
+        if (window.workerManager) {
+          const metrics = window.performanceMonitor ? window.performanceMonitor.getMetrics() : {};
+          asyncMetrics.innerHTML = `
+            <p>✅ Worker可用</p>
+            <p>活跃Worker: ${window.workerManager.activeWorkers}</p>
+            <p>任务队列: ${window.workerManager.taskQueue.length}</p>
+          `;
+        } else {
+          asyncMetrics.innerHTML = `
+            <p>❌ Worker不可用</p>
+            <p>使用主线程处理</p>
+          `;
+        }
+        
+        // 更新缓存指标
+        const cacheMetrics = document.getElementById('cacheMetrics');
+        if (window.cacheManager) {
+          const stats = window.cacheManager.getStats();
+          cacheMetrics.innerHTML = `
+            <p>缓存命中率: ${(stats.hitRate * 100).toFixed(1)}%</p>
+            <p>缓存大小: ${stats.size}</p>
+            <p>内存使用: ${(stats.memoryUsage / 1024 / 1024).toFixed(2)}MB</p>
+          `;
+        } else {
+          cacheMetrics.innerHTML = '<p>缓存管理器不可用</p>';
+        }
+        
+        // 更新Worker指标
+        const workerMetrics = document.getElementById('workerMetrics');
+        if (window.workerManager) {
+          workerMetrics.innerHTML = `
+            <p>最大Worker数: ${window.workerManager.maxWorkers}</p>
+            <p>当前活跃: ${window.workerManager.activeWorkers}</p>
+            <p>队列长度: ${window.workerManager.taskQueue.length}</p>
+          `;
+        } else {
+          workerMetrics.innerHTML = '<p>Worker管理器不可用</p>';
+        }
+      }
+    }
+    
+    // 页面加载完成后初始化演示
+    document.addEventListener('DOMContentLoaded', () => {
+      new PerformanceDemo();
+    });
+  </script>
+</body>
+</html>

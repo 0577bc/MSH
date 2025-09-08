@@ -1,16 +1,53 @@
 // Firebase Authentication 模块
 // 用于替换原有的简单密码验证
 
-// 管理员邮箱列表（可以配置多个管理员）
-const ADMIN_EMAILS = [
-  '0577bc@gmail.com',  // 主管理员邮箱
-  '123@qq.com'         // 管理员邮箱
-  // 如需添加更多管理员，请在此数组中添加邮箱地址
-];
+// 管理员邮箱缓存
+let adminEmailsCache = [];
+let cacheExpiry = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+
+// 从Firebase数据库加载管理员邮箱列表
+async function loadAdminEmails() {
+  try {
+    const now = Date.now();
+    
+    // 检查缓存是否有效
+    if (adminEmailsCache.length > 0 && now < cacheExpiry) {
+      return adminEmailsCache;
+    }
+
+    const db = firebase.database();
+    const adminEmailsRef = db.ref('adminEmails');
+    const snapshot = await adminEmailsRef.once('value');
+    
+    if (snapshot.exists()) {
+      const adminEmailsData = snapshot.val();
+      adminEmailsCache = Object.keys(adminEmailsData).filter(email => adminEmailsData[email] === true);
+    } else {
+      // 如果没有管理员配置，使用默认管理员
+      adminEmailsCache = ['0577bc@gmail.com', '123@qq.com'];
+      console.warn('未找到管理员配置，使用默认管理员邮箱');
+    }
+    
+    // 更新缓存过期时间
+    cacheExpiry = now + CACHE_DURATION;
+    
+    return adminEmailsCache;
+  } catch (error) {
+    console.error('加载管理员邮箱失败:', error);
+    // 发生错误时使用默认管理员
+    return ['0577bc@gmail.com', '123@qq.com'];
+  }
+}
 
 // 检查是否为管理员邮箱
-function isAdminEmail(email) {
-  return ADMIN_EMAILS.includes(email);
+async function isAdminEmail(email) {
+  if (!email) {
+    return false;
+  }
+  
+  const adminEmails = await loadAdminEmails();
+  return adminEmails.includes(email);
 }
 
 // 管理员登录
@@ -25,7 +62,8 @@ async function adminLogin(email, password) {
     console.log('Firebase登录成功:', user.email);
     
     // 检查是否为管理员邮箱
-    if (isAdminEmail(user.email)) {
+    const isAdmin = await isAdminEmail(user.email);
+    if (isAdmin) {
       console.log('管理员权限验证通过');
       
       // 记录登录日志

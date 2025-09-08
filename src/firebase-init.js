@@ -73,10 +73,16 @@ async function readData(path) {
  */
 async function writeData(path, data) {
   try {
-    const ref = getDatabaseRef(path);
-    return await ref.set(data);
+    // 使用安全同步而不是直接覆盖
+    if (window.utils && window.utils.safeSyncToFirebase) {
+      return await window.utils.safeSyncToFirebase(data, path);
+    } else {
+      // 如果安全同步不可用，回退到直接写入
+      const ref = getDatabaseRef(path);
+      return await ref.set(data);
+    }
   } catch (error) {
-    console.error(`写入数据失败 (${path}):`, error);
+    console.error(`安全写入数据失败 (${path}):`, error);
     throw error;
   }
 }

@@ -353,4 +353,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始加载数据 - 优先使用Firebase
   console.log("日报表正在连接Firebase数据库...");
   loadDataFromFirebase();
+
+  // 启动实时数据同步
+  if (window.utils && window.utils.dataSyncManager) {
+    window.utils.dataSyncManager.startListening((dataType, data) => {
+      console.log(`日报表收到${dataType}数据更新:`, data);
+      
+      switch (dataType) {
+        case 'attendanceRecords':
+          attendanceRecords = data;
+          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          generateDailyReport();
+          break;
+        case 'groups':
+          groups = data;
+          localStorage.setItem('msh_groups', JSON.stringify(groups));
+          generateDailyReport();
+          break;
+        case 'groupNames':
+          groupNames = data;
+          localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+          generateDailyReport();
+          break;
+      }
+    });
+
+    // 设置页面可见性监听
+    window.utils.dataSyncManager.setupVisibilityListener(() => {
+      console.log('日报表页面重新可见，检查数据同步...');
+      loadDataFromFirebase();
+    });
+  }
 });

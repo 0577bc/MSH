@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH签到系统 - 测试套件</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .test-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #4CAF50;
+    }
+    
+    .test-stats {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .stat-item {
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 2em;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    
+    .stat-label {
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+    }
+    
+    .test-section h3 {
+      color: #333;
+      border-left: 4px solid #4CAF50;
+      padding-left: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .test-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 15px;
+      margin-bottom: 5px;
+      border-radius: 5px;
+      background: #f8f9fa;
+    }
+    
+    .test-item.passed {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+    }
+    
+    .test-item.failed {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+    }
+    
+    .test-item.running {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+    }
+    
+    .test-name {
+      font-weight: 500;
+    }
+    
+    .test-status {
+      font-weight: bold;
+    }
+    
+    .test-status.passed {
+      color: #28a745;
+    }
+    
+    .test-status.failed {
+      color: #dc3545;
+    }
+    
+    .test-status.running {
+      color: #ffc107;
+    }
+    
+    .test-controls {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .test-button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 0 10px;
+    }
+    
+    .test-button:hover {
+      background: #45a049;
+    }
+    
+    .test-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .test-results {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      display: none;
+    }
+    
+    .error-details {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <div class="test-header">
+      <h1>🧪 MSH签到系统测试套件</h1>
+      <p>自动化测试和验证系统功能</p>
+    </div>
+    
+    <div class="test-stats">
+      <div class="stat-item">
+        <div class="stat-number" id="totalTests">0</div>
+        <div class="stat-label">总测试数</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" id="passedTests">0</div>
+        <div class="stat-label">通过</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" id="failedTests">0</div>
+        <div class="stat-label">失败</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" id="runningTests">0</div>
+        <div class="stat-label">运行中</div>
+      </div>
+    </div>
+    
+    <div class="test-controls">
+      <button class="test-button" id="runAllTests">运行所有测试</button>
+      <button class="test-button" id="runSecurityTests">安全测试</button>
+      <button class="test-button" id="runDataTests">数据测试</button>
+      <button class="test-button" id="runUITests">UI测试</button>
+      <button class="test-button" id="clearResults">清除结果</button>
+    </div>
+    
+    <div class="test-section">
+      <h3>🔒 安全测试</h3>
+      <div id="securityTests"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>📊 数据管理测试</h3>
+      <div id="dataTests"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>🎨 UI组件测试</h3>
+      <div id="uiTests"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>🔄 同步功能测试</h3>
+      <div id="syncTests"></div>
+    </div>
+    
+    <div class="test-results" id="testResults">
+      <h4>测试结果详情</h4>
+      <div id="testDetails"></div>
+    </div>
+  </div>
+
+  <!-- 引入测试模块 -->
+  <script src="./test-security.js"></script>
+  <script src="./test-data.js"></script>
+  <script src="./test-ui.js"></script>
+  <script src="./test-sync.js"></script>
+  <script src="./test-runner.js"></script>
+</body>
+</html>
