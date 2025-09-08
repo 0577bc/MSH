@@ -288,6 +288,10 @@
     background: #ffffff;
 }
 
+.virtual-scroll-demo-container {
+    height: 400px;
+}
+
 .virtual-scroll-item,
 .pagination-item {
     display: flex;

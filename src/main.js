@@ -176,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
-        option.textContent = groupNames[group];
+        // 如果groupNames中没有对应的名称，使用group作为显示名称
+        option.textContent = groupNames[group] || group;
         groupSelect.appendChild(option);
       });
     }
@@ -187,7 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
-        option.textContent = groupNames[group];
+        // 如果groupNames中没有对应的名称，使用group作为显示名称
+        option.textContent = groupNames[group] || group;
         newGroupSelect.appendChild(option);
       });
     }

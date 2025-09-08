@@ -18,10 +18,9 @@ try {
 document.addEventListener('DOMContentLoaded', () => {
   console.log("Admin page loaded");
   
-  // Firebase Authentication 验证
+  // 简单密码验证
   const passwordDialog = document.getElementById('passwordDialog');
   const adminContent = document.getElementById('adminContent');
-  const adminEmailInput = document.getElementById('adminEmailInput');
   const adminPasswordInput = document.getElementById('adminPasswordInput');
   const loginBtn = document.getElementById('loginBtn');
   const cancelLoginBtn = document.getElementById('cancelLoginBtn');
@@ -34,11 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 登录按钮事件
   loginBtn.addEventListener('click', async () => {
-    const email = adminEmailInput.value.trim();
     const password = adminPasswordInput.value;
     
-    if (!email || !password) {
-      showLoginError('请输入邮箱和密码');
+    if (!password) {
+      showLoginError('请输入密码');
       return;
     }
     
@@ -48,17 +46,22 @@ document.addEventListener('DOMContentLoaded', () => {
     hideLoginError();
     
     try {
-      const result = await window.firebaseAuth.adminLogin(email, password);
-      
-      if (result.success) {
-        // 登录成功
-        passwordDialog.style.display = 'none';
-        adminContent.classList.remove('hidden-form');
-        console.log('管理员登录成功:', result.user.email);
+      // 使用简单密码验证
+      if (window.firebaseAuth && window.firebaseAuth.verifyAdminPassword) {
+        const isValid = window.firebaseAuth.verifyAdminPassword(password);
+        
+        if (isValid) {
+          // 登录成功
+          passwordDialog.style.display = 'none';
+          adminContent.classList.remove('hidden-form');
+          console.log('管理员登录成功');
+        } else {
+          // 登录失败
+          showLoginError('密码错误');
+          adminPasswordInput.value = '';
+        }
       } else {
-        // 登录失败
-        showLoginError(result.error);
-        adminPasswordInput.value = '';
+        showLoginError('认证系统未加载，请刷新页面重试');
       }
     } catch (error) {
       console.error('登录过程出错:', error);
@@ -79,18 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (logoutButton) {
     logoutButton.addEventListener('click', async () => {
       if (confirm('确定要登出吗？')) {
-        try {
-          await window.firebaseAuth.adminLogout();
-          // 重新显示登录界面
-          passwordDialog.style.display = 'flex';
-          adminContent.classList.add('hidden-form');
-          adminEmailInput.value = '';
-          adminPasswordInput.value = '';
-          hideLoginError();
-        } catch (error) {
-          console.error('登出失败:', error);
-          alert('登出失败，请重试');
-        }
+        // 重新显示登录界面
+        passwordDialog.style.display = 'flex';
+        adminContent.classList.add('hidden-form');
+        adminPasswordInput.value = '';
+        hideLoginError();
       }
     });
   }
@@ -346,7 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
         option.value = group;
-        option.textContent = groupNames[group];
+        // 如果groupNames中没有对应的名称，使用group作为显示名称
+        option.textContent = groupNames[group] || group;
         groupSelect.appendChild(option);
       });
     }
@@ -708,7 +705,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const groupId = 'group' + (Object.keys(groups).length + 1);
+      // 使用组名作为ID，确保唯一性
+      const groupId = groupName;
       groups[groupId] = []; // 创建空的小组
       groupNames[groupId] = groupName;
 

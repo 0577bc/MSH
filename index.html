@@ -6,7 +6,7 @@
   <title>MSH签到系统</title>
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="./src/style.css">
-  <link rel="stylesheet" href="./src/accessibility.css">
+  <!-- 移除可访问性CSS，使用简化版 -->
   <link rel="stylesheet" href="./src/virtual-scroll.css">
   <link rel="manifest" href="manifest.json">
   <!-- 引入配置文件 -->
@@ -22,8 +22,8 @@
   <!-- 引入UI组件系统 -->
   <script src="./src/ui-components.js"></script>
   <script src="./src/ui-templates.js"></script>
-  <!-- 引入可访问性管理器 -->
-  <script src="./src/accessibility.js"></script>
+  <!-- 引入简化版可访问性管理器 -->
+  <script src="./src/accessibility-simple.js"></script>
   <!-- 引入性能监控 -->
   <script src="./src/performance-monitor.js"></script>
   <!-- 引入备份管理器 -->
@@ -64,9 +64,9 @@
       </form>
     </section>
     <section class="button-row">
-      <button id="signinButton" type="button" aria-label="签到">签到</button>
-      <button id="addNewcomerButton" type="button" aria-label="新朋友">新朋友</button>
-      <button id="dailyReportButton" type="button" aria-label="查看日报表">日报表</button>
+      <button id="signinButton" type="button" class="main-button signin-button" aria-label="签到">签到</button>
+      <button id="addNewcomerButton" type="button" class="main-button new-member-button" aria-label="新朋友">新朋友</button>
+      <button id="dailyReportButton" type="button" class="main-button" aria-label="查看日报表">日报表</button>
     </section>
     <section id="addMemberForm" class="form-group hidden-form">
       <h3>新朋友登记</h3>
@@ -118,8 +118,8 @@
           </select>
         </div>
         <div class="form-buttons">
-          <button id="saveNewMemberButton" type="submit" aria-label="保存新朋友信息">保存</button>
-          <button id="cancelNewMemberButton" type="button" aria-label="取消新朋友登记">取消</button>
+          <button id="saveNewMemberButton" type="submit" class="primary-button" aria-label="保存新朋友信息">保存</button>
+          <button id="cancelNewMemberButton" type="button" class="primary-button" aria-label="取消新朋友登记">取消</button>
         </div>
       </form>
     </section>

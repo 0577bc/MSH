@@ -515,9 +515,26 @@ const DataMergeStrategy = {
   
   // 合并小组名称
   mergeGroupNames(localNames, remoteNames) {
-    const merged = [...(remoteNames || [])];
+    // 处理对象类型的小组名称数据
+    let localArray = [];
+    let remoteArray = [];
     
-    (localNames || []).forEach(localName => {
+    // 如果是对象，提取键名作为数组
+    if (typeof localNames === 'object' && localNames !== null && !Array.isArray(localNames)) {
+      localArray = Object.keys(localNames);
+    } else if (Array.isArray(localNames)) {
+      localArray = localNames;
+    }
+    
+    if (typeof remoteNames === 'object' && remoteNames !== null && !Array.isArray(remoteNames)) {
+      remoteArray = Object.keys(remoteNames);
+    } else if (Array.isArray(remoteNames)) {
+      remoteArray = remoteNames;
+    }
+    
+    const merged = [...remoteArray];
+    
+    localArray.forEach(localName => {
       if (!merged.includes(localName)) {
         merged.push(localName);
       }

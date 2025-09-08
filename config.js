@@ -156,7 +156,8 @@ window.sampleData = {
       { name: "诗楠", phone: "", gender: "女", baptized: "是", age: "90后", joinDate: "2024-01-01" },
       { name: "于方", phone: "", gender: "男", baptized: "是", age: "90后", joinDate: "2024-01-01" },
       { name: "陈可欣", phone: "", gender: "女", baptized: "是", age: "90后", joinDate: "2024-01-01" }
-    ]
+    ],
+    "未分组": []
   },
   groupNames: {
     "陈薛尚": "陈薛尚",
@@ -166,6 +167,7 @@ window.sampleData = {
     "木山后": "木山后",
     "七里港": "七里港",
     "琼娜组": "琼娜组",
-    "美团组": "美团组"
+    "美团组": "美团组",
+    "未分组": "未分组"
   }
 };
