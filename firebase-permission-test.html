@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase权限测试工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #1976D2;
+    }
+    button.success {
+      background-color: #4caf50;
+    }
+    button.success:hover {
+      background-color: #45a049;
+    }
+    button.danger {
+      background-color: #f44336;
+    }
+    button.danger:hover {
+      background-color: #d32f2f;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+      background-color: #e8f5e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      background-color: #ffe8e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .info {
+      color: blue;
+      font-weight: bold;
+      background-color: #e8f0ff;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .warning {
+      color: orange;
+      font-weight: bold;
+      background-color: #fff3e0;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .code {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      margin: 10px 0;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+  <!-- 引入Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Firebase权限测试工具</h1>
+    <p>此工具将详细测试Firebase的各种权限操作。</p>
+    
+    <div class="warning">
+      <h3>⚠️ 权限问题诊断</h3>
+      <p>如果遇到权限问题，请检查以下设置：</p>
+      <ol>
+        <li><strong>Firebase控制台</strong> → <strong>Realtime Database</strong> → <strong>规则</strong></li>
+        <li>确保规则为：<code>{ "rules": { ".read": true, ".write": true } }</code></li>
+        <li>点击<strong>发布</strong>按钮</li>
+        <li>检查<strong>Authentication</strong>设置（如果启用了认证）</li>
+      </ol>
+    </div>
+    
+    <div class="section">
+      <h2>🔍 权限测试</h2>
+      <button onclick="testBasicPermissions()">测试基本权限</button>
+      <button onclick="testWritePermissions()">测试写入权限</button>
+      <button onclick="testUpdatePermissions()">测试更新权限</button>
+      <button onclick="testSetPermissions()">测试设置权限</button>
+      <div id="permissionResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🔧 权限修复</h2>
+      <button onclick="tryMultipleMethods()" class="success">尝试多种方法添加未分组组</button>
+      <button onclick="resetDatabaseRules()" class="danger">重置数据库规则</button>
+      <div id="fixResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>📋 当前规则检查</h2>
+      <button onclick="checkCurrentRules()">检查当前规则</button>
+      <div id="rulesResult"></div>
+    </div>
+  </div>
+
+  <script>
+    let firebaseApp = null;
+    let database = null;
+
+    // 初始化Firebase
+    function initFirebase() {
+      try {
+        if (!firebaseApp) {
+          firebaseApp = firebase.initializeApp(window.firebaseConfig);
+          database = firebase.database();
+        }
+        return true;
+      } catch (error) {
+        if (error.code === 'app/duplicate-app') {
+          firebaseApp = firebase.app();
+          database = firebase.database();
+          return true;
+        }
+        console.error('Firebase初始化失败:', error);
+        return false;
+      }
+    }
+
+    // 测试基本权限
+    async function testBasicPermissions() {
+      const resultDiv = document.getElementById('permissionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试基本权限...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>🔍 基本权限测试</h3>';
+        
+        // 测试读取权限
+        try {
+          const snapshot = await database.ref('test').once('value');
+          report += '<div class="success">✅ 读取权限正常</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 读取权限失败: ${error.message}</div>`;
+        }
+        
+        // 测试写入权限
+        try {
+          await database.ref('test').set({ timestamp: Date.now() });
+          report += '<div class="success">✅ 写入权限正常</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 写入权限失败: ${error.message}</div>`;
+        }
+        
+        // 测试更新权限
+        try {
+          await database.ref('test').update({ updated: true });
+          report += '<div class="success">✅ 更新权限正常</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 更新权限失败: ${error.message}</div>`;
+        }
+        
+        // 测试删除权限
+        try {
+          await database.ref('test').remove();
+          report += '<div class="success">✅ 删除权限正常</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 删除权限失败: ${error.message}</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 权限测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 测试写入权限
+    async function testWritePermissions() {
+      const resultDiv = document.getElementById('permissionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试写入权限...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>✏️ 写入权限详细测试</h3>';
+        
+        // 测试不同路径的写入
+        const testPaths = [
+          'test',
+          'groups/test',
+          'groupNames/test',
+          'groups/未分组',
+          'groupNames/未分组'
+        ];
+        
+        for (const path of testPaths) {
+          try {
+            await database.ref(path).set({ test: true, timestamp: Date.now() });
+            report += `<div class="success">✅ 写入 ${path} 成功</div>`;
+            
+            // 清理测试数据
+            await database.ref(path).remove();
+          } catch (error) {
+            report += `<div class="error">❌ 写入 ${path} 失败: ${error.message}</div>`;
+          }
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 写入权限测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 测试更新权限
+    async function testUpdatePermissions() {
+      const resultDiv = document.getElementById('permissionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试更新权限...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>🔄 更新权限详细测试</h3>';
+        
+        // 先创建测试数据
+        await database.ref('test').set({ initial: true });
+        
+        // 测试不同的更新方法
+        const updateMethods = [
+          { method: 'update', data: { updated: true } },
+          { method: 'set', data: { set: true } },
+          { method: 'push', data: { pushed: true } }
+        ];
+        
+        for (const updateMethod of updateMethods) {
+          try {
+            if (updateMethod.method === 'update') {
+              await database.ref('test').update(updateMethod.data);
+            } else if (updateMethod.method === 'set') {
+              await database.ref('test').set(updateMethod.data);
+            } else if (updateMethod.method === 'push') {
+              await database.ref('test').push(updateMethod.data);
+            }
+            report += `<div class="success">✅ ${updateMethod.method} 方法成功</div>`;
+          } catch (error) {
+            report += `<div class="error">❌ ${updateMethod.method} 方法失败: ${error.message}</div>`;
+          }
+        }
+        
+        // 清理测试数据
+        await database.ref('test').remove();
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 更新权限测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 测试设置权限
+    async function testSetPermissions() {
+      const resultDiv = document.getElementById('permissionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试设置权限...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>⚙️ 设置权限详细测试</h3>';
+        
+        // 测试设置未分组组
+        try {
+          await database.ref('groups/未分组').set([]);
+          report += '<div class="success">✅ 设置 groups/未分组 成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 设置 groups/未分组 失败: ${error.message}</div>`;
+        }
+        
+        // 测试设置未分组映射
+        try {
+          await database.ref('groupNames/未分组').set("未分组");
+          report += '<div class="success">✅ 设置 groupNames/未分组 成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 设置 groupNames/未分组 失败: ${error.message}</div>`;
+        }
+        
+        // 验证设置结果
+        try {
+          const groupsSnapshot = await database.ref('groups').once('value');
+          const groupNamesSnapshot = await database.ref('groupNames').once('value');
+          
+          const groups = groupsSnapshot.val();
+          const groupNames = groupNamesSnapshot.val();
+          
+          if (groups && groups["未分组"]) {
+            report += '<div class="success">✅ 验证：未分组组存在</div>';
+          } else {
+            report += '<div class="error">❌ 验证：未分组组不存在</div>';
+          }
+          
+          if (groupNames && groupNames["未分组"]) {
+            report += '<div class="success">✅ 验证：未分组映射存在</div>';
+          } else {
+            report += '<div class="error">❌ 验证：未分组映射不存在</div>';
+          }
+          
+        } catch (error) {
+          report += `<div class="error">❌ 验证失败: ${error.message}</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 设置权限测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 尝试多种方法添加未分组组
+    async function tryMultipleMethods() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在尝试多种方法添加未分组组...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>🔧 多种方法尝试</h3>';
+        
+        // 方法1: 直接设置
+        try {
+          await database.ref('groups/未分组').set([]);
+          report += '<div class="success">✅ 方法1: 直接设置成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 方法1: 直接设置失败: ${error.message}</div>`;
+        }
+        
+        // 方法2: 使用update
+        try {
+          await database.ref('groups').update({ "未分组": [] });
+          report += '<div class="success">✅ 方法2: 使用update成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 方法2: 使用update失败: ${error.message}</div>`;
+        }
+        
+        // 方法3: 使用push
+        try {
+          const newRef = database.ref('groups').push([]);
+          await newRef.set({ name: "未分组", members: [] });
+          report += '<div class="success">✅ 方法3: 使用push成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 方法3: 使用push失败: ${error.message}</div>`;
+        }
+        
+        // 方法4: 使用transaction
+        try {
+          await database.ref('groups').transaction((current) => {
+            if (current === null) {
+              return { "未分组": [] };
+            }
+            current["未分组"] = [];
+            return current;
+          });
+          report += '<div class="success">✅ 方法4: 使用transaction成功</div>';
+        } catch (error) {
+          report += `<div class="error">❌ 方法4: 使用transaction失败: ${error.message}</div>`;
+        }
+        
+        // 验证最终结果
+        try {
+          const groupsSnapshot = await database.ref('groups').once('value');
+          const groups = groupsSnapshot.val();
+          
+          if (groups && groups["未分组"]) {
+            report += '<div class="success">✅ 最终验证：未分组组已存在</div>';
+            report += `<div class="info">总小组数: ${Object.keys(groups).length}</div>`;
+            report += `<div class="info">所有小组: ${Object.keys(groups).join(', ')}</div>`;
+          } else {
+            report += '<div class="error">❌ 最终验证：未分组组不存在</div>';
+          }
+        } catch (error) {
+          report += `<div class="error">❌ 最终验证失败: ${error.message}</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 多种方法尝试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 重置数据库规则
+    function resetDatabaseRules() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = `
+        <div class="warning">
+          <h3>⚠️ 重置数据库规则</h3>
+          <p>请按照以下步骤重置Firebase数据库规则：</p>
+          <ol>
+            <li>访问 <a href="https://console.firebase.google.com/" target="_blank">Firebase控制台</a></li>
+            <li>选择项目：<strong>yjys-4102e</strong></li>
+            <li>进入 <strong>Realtime Database</strong> → <strong>规则</strong></li>
+            <li>将规则完全替换为：</li>
+          </ol>
+          <div class="code">{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}</div>
+          <p>然后点击 <strong>发布</strong> 按钮</p>
+          <p>如果问题仍然存在，可能需要检查：</p>
+          <ul>
+            <li>Firebase项目状态</li>
+            <li>网络连接</li>
+            <li>API密钥是否有效</li>
+            <li>数据库URL是否正确</li>
+          </ul>
+        </div>
+      `;
+    }
+
+    // 检查当前规则
+    async function checkCurrentRules() {
+      const resultDiv = document.getElementById('rulesResult');
+      resultDiv.innerHTML = '<div class="info">正在检查当前规则...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        let report = '<h3>📋 当前规则检查</h3>';
+        
+        // 通过测试操作来推断规则
+        const testOperations = [
+          { name: '读取根节点', operation: () => database.ref().once('value') },
+          { name: '写入测试节点', operation: () => database.ref('test').set({ test: true }) },
+          { name: '更新测试节点', operation: () => database.ref('test').update({ updated: true }) },
+          { name: '删除测试节点', operation: () => database.ref('test').remove() }
+        ];
+        
+        for (const test of testOperations) {
+          try {
+            await test.operation();
+            report += `<div class="success">✅ ${test.name}: 允许</div>`;
+          } catch (error) {
+            report += `<div class="error">❌ ${test.name}: 拒绝 (${error.message})</div>`;
+          }
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 规则检查失败: ${error.message}</div>`;
+      }
+    }
+
+    // 页面加载时自动测试
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('Firebase权限测试工具已加载');
+      testBasicPermissions();
+    });
+  </script>
+</body>
+</html>

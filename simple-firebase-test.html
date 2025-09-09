@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简单Firebase测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    button { padding: 15px 30px; margin: 10px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .result { margin: 10px 0; padding: 15px; border-radius: 4px; }
+    .success { background: #e8f5e8; color: green; }
+    .error { background: #ffe8e8; color: red; }
+    .info { background: #e8f0ff; color: blue; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="./config.js"></script>
+</head>
+<body>
+  <h1>简单Firebase测试</h1>
+  <button onclick="testFirebase()">测试Firebase</button>
+  <button onclick="addUngrouped()">添加未分组组</button>
+  <div id="result"></div>
+
+  <script>
+    let db = null;
+
+    async function testFirebase() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在测试Firebase...</div>';
+      
+      try {
+        // 初始化Firebase
+        const app = firebase.initializeApp(window.firebaseConfig);
+        db = firebase.database();
+        
+        // 测试基本操作
+        await db.ref('test').set({ timestamp: Date.now() });
+        const snapshot = await db.ref('test').once('value');
+        await db.ref('test').remove();
+        
+        resultDiv.innerHTML = '<div class="success">✅ Firebase测试成功！可以正常读写数据。</div>';
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ Firebase测试失败: ${error.message}</div>`;
+      }
+    }
+
+    async function addUngrouped() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在添加未分组组...</div>';
+      
+      try {
+        if (!db) {
+          const app = firebase.initializeApp(window.firebaseConfig);
+          db = firebase.database();
+        }
+        
+        // 尝试添加未分组组
+        await db.ref('groups/未分组').set([]);
+        await db.ref('groupNames/未分组').set("未分组");
+        
+        // 验证添加结果
+        const groupsSnapshot = await db.ref('groups').once('value');
+        const groups = groupsSnapshot.val();
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            ✅ 未分组组添加成功！<br>
+            总小组数: ${Object.keys(groups).length}<br>
+            所有小组: ${Object.keys(groups).join(', ')}
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 添加失败: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
