@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>修复Firebase验证问题</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #1976D2;
+    }
+    button.success {
+      background-color: #4caf50;
+    }
+    button.success:hover {
+      background-color: #45a049;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+      background-color: #e8f5e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      background-color: #ffe8e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .info {
+      color: blue;
+      font-weight: bold;
+      background-color: #e8f0ff;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .warning {
+      color: orange;
+      font-weight: bold;
+      background-color: #fff3e0;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .code {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      margin: 10px 0;
+    }
+  </style>
+  <!-- 引入Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 修复Firebase验证问题</h1>
+    <p>此工具专门解决Firebase验证失败的问题。</p>
+    
+    <div class="warning">
+      <h3>⚠️ 重要提示</h3>
+      <p>如果遇到"Firebase验证失败"错误，通常是由于Firebase数据库安全规则限制导致的。</p>
+      <p>请按照以下步骤操作：</p>
+      <ol>
+        <li>访问 <a href="https://console.firebase.google.com/" target="_blank">Firebase控制台</a></li>
+        <li>选择项目：<strong>yjys-4102e</strong></li>
+        <li>进入 <strong>Realtime Database</strong> → <strong>规则</strong></li>
+        <li>将规则设置为：<code>{ "rules": { ".read": true, ".write": true } }</code></li>
+        <li>点击 <strong>发布</strong></li>
+      </ol>
+    </div>
+    
+    <button onclick="testFirebaseConnection()">测试Firebase连接</button>
+    <button onclick="fixUngroupedGroup()" class="success">修复未分组组</button>
+    <button onclick="goToFirebaseConsole()">前往Firebase控制台</button>
+    
+    <div id="result"></div>
+  </div>
+
+  <script>
+    let firebaseApp = null;
+    let database = null;
+
+    // 测试Firebase连接
+    async function testFirebaseConnection() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在测试Firebase连接...</div>';
+      
+      try {
+        // 检查配置
+        if (!window.firebaseConfig) {
+          throw new Error('Firebase配置未加载');
+        }
+        
+        // 初始化Firebase
+        try {
+          firebaseApp = firebase.initializeApp(window.firebaseConfig);
+          database = firebase.database();
+        } catch (initError) {
+          if (initError.code === 'app/duplicate-app') {
+            firebaseApp = firebase.app();
+            database = firebase.database();
+          } else {
+            throw initError;
+          }
+        }
+        
+        // 测试读取权限
+        const groupsSnapshot = await database.ref('groups').once('value');
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h3>✅ Firebase连接成功</h3>
+            <p>可以正常访问Firebase数据库</p>
+            <p>现有小组数量: ${groupsSnapshot.exists() ? Object.keys(groupsSnapshot.val()).length : 0}</p>
+          </div>
+        `;
+        
+      } catch (error) {
+        let errorMessage = error.message;
+        let solution = '';
+        
+        if (error.code === 'PERMISSION_DENIED') {
+          solution = `
+            <div class="error">
+              <h3>❌ 权限被拒绝</h3>
+              <p>这是Firebase安全规则问题，请按以下步骤解决：</p>
+              <ol>
+                <li>访问 <a href="https://console.firebase.google.com/" target="_blank">Firebase控制台</a></li>
+                <li>选择项目：<strong>yjys-4102e</strong></li>
+                <li>进入 <strong>Realtime Database</strong> → <strong>规则</strong></li>
+                <li>将规则替换为：</li>
+              </ol>
+              <div class="code">{ "rules": { ".read": true, ".write": true } }</div>
+              <p>然后点击 <strong>发布</strong> 按钮</p>
+            </div>
+          `;
+        } else if (error.code === 'NETWORK_ERROR') {
+          solution = `
+            <div class="error">
+              <h3>❌ 网络错误</h3>
+              <p>请检查网络连接和Firebase配置</p>
+            </div>
+          `;
+        } else {
+          solution = `
+            <div class="error">
+              <h3>❌ 连接失败</h3>
+              <p>错误信息: ${errorMessage}</p>
+            </div>
+          `;
+        }
+        
+        resultDiv.innerHTML = solution;
+      }
+    }
+
+    // 修复未分组组
+    async function fixUngroupedGroup() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在修复未分组组...</div>';
+      
+      try {
+        if (!database) {
+          throw new Error('请先测试Firebase连接');
+        }
+        
+        // 确保有"未分组"组
+        await database.ref('groups').update({ "未分组": [] });
+        
+        // 确保有"未分组"映射
+        await database.ref('groupNames').update({ "未分组": "未分组" });
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h3>✅ 未分组组修复完成</h3>
+            <p>已成功在Firebase中添加"未分组"组和映射</p>
+            <p>现在可以正常使用签到系统了</p>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="error">
+            <h3>❌ 修复失败</h3>
+            <p>错误信息: ${error.message}</p>
+            <p>请先解决Firebase连接问题</p>
+          </div>
+        `;
+      }
+    }
+
+    // 前往Firebase控制台
+    function goToFirebaseConsole() {
+      window.open('https://console.firebase.google.com/', '_blank');
+    }
+
+    // 页面加载时自动测试连接
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('Firebase验证修复工具已加载');
+      testFirebaseConnection();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase连接测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #1976D2;
+    }
+    button.danger {
+      background-color: #f44336;
+    }
+    button.danger:hover {
+      background-color: #d32f2f;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+      background-color: #e8f5e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      background-color: #ffe8e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .info {
+      color: blue;
+      font-weight: bold;
+      background-color: #e8f0ff;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .warning {
+      color: orange;
+      font-weight: bold;
+      background-color: #fff3e0;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .code {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      margin: 10px 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+  <!-- 引入Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🔥 Firebase连接测试工具</h1>
+    <p>此工具将测试Firebase连接、权限和数据访问。</p>
+    
+    <div class="section">
+      <h2>📋 配置检查</h2>
+      <button onclick="checkConfig()">检查Firebase配置</button>
+      <div id="configResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🔌 连接测试</h2>
+      <button onclick="testConnection()">测试Firebase连接</button>
+      <button onclick="testDatabaseAccess()">测试数据库访问</button>
+      <div id="connectionResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>📊 数据测试</h2>
+      <button onclick="testReadData()">测试读取数据</button>
+      <button onclick="testWriteData()">测试写入数据</button>
+      <button onclick="testUpdateData()">测试更新数据</button>
+      <div id="dataResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🔧 修复操作</h2>
+      <button onclick="fixUngroupedGroup()">修复未分组组</button>
+      <button onclick="resetAllData()" class="danger">重置所有数据</button>
+      <div id="fixResult"></div>
+    </div>
+  </div>
+
+  <script>
+    let firebaseApp = null;
+    let database = null;
+
+    // 检查Firebase配置
+    function checkConfig() {
+      const resultDiv = document.getElementById('configResult');
+      resultDiv.innerHTML = '<div class="info">正在检查Firebase配置...</div>';
+      
+      let report = '<h3>📋 Firebase配置检查</h3>';
+      
+      try {
+        if (window.firebaseConfig) {
+          report += '<div class="success">✅ Firebase配置已加载</div>';
+          report += `<div class="info">项目ID: ${window.firebaseConfig.projectId}</div>`;
+          report += `<div class="info">数据库URL: ${window.firebaseConfig.databaseURL}</div>`;
+          report += `<div class="info">API Key: ${window.firebaseConfig.apiKey.substring(0, 20)}...</div>`;
+          
+          // 检查配置完整性
+          const requiredFields = ['apiKey', 'authDomain', 'databaseURL', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+          let missingFields = [];
+          
+          requiredFields.forEach(field => {
+            if (!window.firebaseConfig[field]) {
+              missingFields.push(field);
+            }
+          });
+          
+          if (missingFields.length === 0) {
+            report += '<div class="success">✅ 所有必需配置字段都存在</div>';
+          } else {
+            report += `<div class="error">❌ 缺少配置字段: ${missingFields.join(', ')}</div>`;
+          }
+          
+        } else {
+          report += '<div class="error">❌ Firebase配置未加载</div>';
+        }
+      } catch (error) {
+        report += `<div class="error">❌ 配置检查失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 测试Firebase连接
+    async function testConnection() {
+      const resultDiv = document.getElementById('connectionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试Firebase连接...</div>';
+      
+      let report = '<h3>🔌 Firebase连接测试</h3>';
+      
+      try {
+        // 检查Firebase SDK是否加载
+        if (typeof firebase === 'undefined') {
+          report += '<div class="error">❌ Firebase SDK未加载</div>';
+          resultDiv.innerHTML = report;
+          return;
+        }
+        
+        report += '<div class="success">✅ Firebase SDK已加载</div>';
+        
+        // 尝试初始化Firebase
+        try {
+          firebaseApp = firebase.initializeApp(window.firebaseConfig);
+          database = firebase.database();
+          report += '<div class="success">✅ Firebase应用初始化成功</div>';
+        } catch (initError) {
+          if (initError.code === 'app/duplicate-app') {
+            // 应用已存在，获取现有应用
+            firebaseApp = firebase.app();
+            database = firebase.database();
+            report += '<div class="success">✅ 使用现有Firebase应用</div>';
+          } else {
+            throw initError;
+          }
+        }
+        
+        // 测试数据库连接
+        try {
+          const testRef = database.ref('.info/connected');
+          const connected = await testRef.once('value');
+          if (connected.val() === true) {
+            report += '<div class="success">✅ 数据库连接成功</div>';
+          } else {
+            report += '<div class="warning">⚠️ 数据库连接状态未知</div>';
+          }
+        } catch (dbError) {
+          report += `<div class="error">❌ 数据库连接失败: ${dbError.message}</div>`;
+        }
+        
+      } catch (error) {
+        report += `<div class="error">❌ 连接测试失败: ${error.message}</div>`;
+        report += `<div class="code">错误详情: ${error.stack}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 测试数据库访问
+    async function testDatabaseAccess() {
+      const resultDiv = document.getElementById('connectionResult');
+      resultDiv.innerHTML = '<div class="info">正在测试数据库访问...</div>';
+      
+      let report = '<h3>📊 数据库访问测试</h3>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 测试读取权限
+        try {
+          const groupsRef = database.ref('groups');
+          const snapshot = await groupsRef.once('value');
+          report += '<div class="success">✅ 读取权限正常</div>';
+          
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            report += `<div class="info">现有数据: ${Object.keys(data).length}个小组</div>`;
+          } else {
+            report += '<div class="info">数据库为空</div>';
+          }
+        } catch (readError) {
+          report += `<div class="error">❌ 读取权限失败: ${readError.message}</div>`;
+        }
+        
+        // 测试写入权限
+        try {
+          const testRef = database.ref('test');
+          await testRef.set({ timestamp: Date.now() });
+          await testRef.remove();
+          report += '<div class="success">✅ 写入权限正常</div>';
+        } catch (writeError) {
+          report += `<div class="error">❌ 写入权限失败: ${writeError.message}</div>`;
+        }
+        
+      } catch (error) {
+        report += `<div class="error">❌ 数据库访问测试失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 测试读取数据
+    async function testReadData() {
+      const resultDiv = document.getElementById('dataResult');
+      resultDiv.innerHTML = '<div class="info">正在测试读取数据...</div>';
+      
+      let report = '<h3>📖 数据读取测试</h3>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 读取groups数据
+        const groupsSnapshot = await database.ref('groups').once('value');
+        if (groupsSnapshot.exists()) {
+          const groups = groupsSnapshot.val();
+          report += '<div class="success">✅ 成功读取groups数据</div>';
+          report += `<div class="info">小组数量: ${Object.keys(groups).length}</div>`;
+          
+          if (groups["未分组"]) {
+            report += '<div class="success">✅ 找到"未分组"组</div>';
+            report += `<div class="info">未分组成员数量: ${groups["未分组"].length}</div>`;
+          } else {
+            report += '<div class="error">❌ 未找到"未分组"组</div>';
+          }
+          
+          report += `<div class="code">所有小组: ${Object.keys(groups).join(', ')}</div>`;
+        } else {
+          report += '<div class="warning">⚠️ groups数据不存在</div>';
+        }
+        
+        // 读取groupNames数据
+        const groupNamesSnapshot = await database.ref('groupNames').once('value');
+        if (groupNamesSnapshot.exists()) {
+          const groupNames = groupNamesSnapshot.val();
+          report += '<div class="success">✅ 成功读取groupNames数据</div>';
+          report += `<div class="info">小组名称映射数量: ${Object.keys(groupNames).length}</div>`;
+          
+          if (groupNames["未分组"]) {
+            report += `<div class="success">✅ 找到"未分组"映射: "${groupNames["未分组"]}"</div>`;
+          } else {
+            report += '<div class="error">❌ 未找到"未分组"映射</div>';
+          }
+        } else {
+          report += '<div class="warning">⚠️ groupNames数据不存在</div>';
+        }
+        
+      } catch (error) {
+        report += `<div class="error">❌ 数据读取测试失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 测试写入数据
+    async function testWriteData() {
+      const resultDiv = document.getElementById('dataResult');
+      resultDiv.innerHTML = '<div class="info">正在测试写入数据...</div>';
+      
+      let report = '<h3>✏️ 数据写入测试</h3>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 测试写入测试数据
+        const testData = {
+          test: true,
+          timestamp: Date.now(),
+          message: "Firebase连接测试"
+        };
+        
+        await database.ref('test').set(testData);
+        report += '<div class="success">✅ 数据写入成功</div>';
+        
+        // 验证写入的数据
+        const snapshot = await database.ref('test').once('value');
+        if (snapshot.exists()) {
+          report += '<div class="success">✅ 数据写入验证成功</div>';
+        } else {
+          report += '<div class="error">❌ 数据写入验证失败</div>';
+        }
+        
+        // 清理测试数据
+        await database.ref('test').remove();
+        report += '<div class="success">✅ 测试数据清理完成</div>';
+        
+      } catch (error) {
+        report += `<div class="error">❌ 数据写入测试失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 测试更新数据
+    async function testUpdateData() {
+      const resultDiv = document.getElementById('dataResult');
+      resultDiv.innerHTML = '<div class="info">正在测试更新数据...</div>';
+      
+      let report = '<h3>🔄 数据更新测试</h3>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 测试更新操作
+        const updateData = {
+          "未分组": [],
+          "testGroup": ["testMember"]
+        };
+        
+        await database.ref('groups').update(updateData);
+        report += '<div class="success">✅ 数据更新成功</div>';
+        
+        // 验证更新
+        const snapshot = await database.ref('groups').once('value');
+        if (snapshot.exists()) {
+          const groups = snapshot.val();
+          if (groups["未分组"]) {
+            report += '<div class="success">✅ "未分组"组更新成功</div>';
+          }
+          if (groups["testGroup"]) {
+            report += '<div class="success">✅ 测试组更新成功</div>';
+          }
+        }
+        
+        // 清理测试数据
+        await database.ref('groups/testGroup').remove();
+        report += '<div class="success">✅ 测试数据清理完成</div>';
+        
+      } catch (error) {
+        report += `<div class="error">❌ 数据更新测试失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 修复未分组组
+    async function fixUngroupedGroup() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在修复未分组组...</div>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 确保有"未分组"组
+        await database.ref('groups').update({ "未分组": [] });
+        
+        // 确保有"未分组"映射
+        await database.ref('groupNames').update({ "未分组": "未分组" });
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h3>✅ 未分组组修复完成</h3>
+            <p>已成功在Firebase中添加"未分组"组和映射</p>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 修复失败: ${error.message}</div>`;
+      }
+    }
+
+    // 重置所有数据
+    async function resetAllData() {
+      if (!confirm('确定要重置所有数据吗？这将删除所有现有数据！')) {
+        return;
+      }
+      
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在重置所有数据...</div>';
+      
+      try {
+        if (!database) {
+          throw new Error('数据库未初始化');
+        }
+        
+        // 重置为示例数据
+        if (window.sampleData) {
+          await database.ref('groups').set(window.sampleData.groups);
+          await database.ref('groupNames').set(window.sampleData.groupNames);
+          await database.ref('attendanceRecords').set([]);
+          
+          resultDiv.innerHTML = `
+            <div class="success">
+              <h3>✅ 数据重置完成</h3>
+              <p>已成功重置为示例数据</p>
+            </div>
+          `;
+        } else {
+          throw new Error('示例数据未加载');
+        }
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 重置失败: ${error.message}</div>`;
+      }
+    }
+
+    // 页面加载时自动检查配置
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('Firebase连接测试工具已加载');
+      checkConfig();
+    });
+  </script>
+</body>
+</html>
