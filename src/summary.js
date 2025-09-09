@@ -168,6 +168,31 @@ document.addEventListener('DOMContentLoaded', () => {
         groupNames = groupNamesSnapshot.val() || {};
       }
 
+      // 确保未分组组别和名称映射存在
+      let needsSync = false;
+      if (!groups['未分组']) {
+        groups['未分组'] = [];
+        console.log("汇总页面：已添加未分组组别");
+        needsSync = true;
+      }
+      if (!groupNames['未分组']) {
+        groupNames['未分组'] = '未分组';
+        console.log("汇总页面：已添加未分组名称映射");
+        needsSync = true;
+      }
+      
+      // 如果需要同步，立即同步到Firebase
+      if (needsSync) {
+        try {
+          const db = firebase.database();
+          await db.ref('groups').set(groups);
+          await db.ref('groupNames').set(groupNames);
+          console.log("未分组组别已同步到Firebase");
+        } catch (error) {
+          console.error("同步未分组组别到Firebase失败:", error);
+        }
+      }
+
       initializePage();
       console.log("Summary data loaded from Firebase");
     } catch (error) {
@@ -307,22 +332,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function getAttendanceType(date) {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const timeInMinutes = hours * 60 + minutes;
-    
-    // 早到：9:20之前 (0:00 - 9:20)
-    if (timeInMinutes < 9 * 60 + 20) return '早到';
-    
-    // 准时：9:30之前 (9:20 - 9:30)
-    if (timeInMinutes < 9 * 60 + 30) return '准时';
-    
-    // 迟到：10:40之前 (9:30 - 10:40)
-    if (timeInMinutes < 10 * 60 + 40) return '迟到';
-    
-    // 10:40之后不再统计在日报表中
-    return '无效';
+  // 获取签到时间段类型的中文显示
+  function getAttendanceTypeChinese(date) {
+    const type = window.utils.getAttendanceType(date);
+    switch (type) {
+      case 'early': return '早到';
+      case 'onTime': return '准时';
+      case 'late': return '迟到';
+      case 'afternoon': return '下午';
+      case 'invalid': return '无效';
+      default: return '未知';
+    }
   }
 
   function loadAttendanceData(date) {
@@ -379,39 +399,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       // 设置删除标记，防止实时同步干扰
-      isDeleting = true;
+      if (window.setSummaryIsDeleting) {
+        window.setSummaryIsDeleting(true);
+        console.log('已设置删除状态为true');
+      }
       
-      // 从attendanceRecords中删除记录
-      const recordToDelete = attendanceRecords.find(r => 
-        r.name === record.name && 
-        r.time === record.time && 
-        r.group === record.group
+      // 使用更可靠的查找方法：通过索引直接定位
+      const targetDate = new Date(document.getElementById('dateSelect').value).toLocaleDateString('zh-CN');
+      const dayRecords = attendanceRecords.filter(r => 
+        new Date(r.time).toLocaleDateString('zh-CN') === targetDate
       );
       
-      if (recordToDelete) {
-        const index = attendanceRecords.indexOf(recordToDelete);
-        attendanceRecords.splice(index, 1);
+      console.log('当日记录数量:', dayRecords.length);
+      console.log('要删除的记录索引:', recordIndex);
+      
+      if (recordIndex >= 0 && recordIndex < dayRecords.length) {
+        const dayRecord = dayRecords[recordIndex];
+        console.log('当日记录:', dayRecord);
         
-        console.log('删除记录:', recordToDelete);
-        console.log('剩余记录数量:', attendanceRecords.length);
+        // 在attendanceRecords中找到对应的记录
+        const recordToDelete = attendanceRecords.find(r => 
+          r.name === dayRecord.name && 
+          r.group === dayRecord.group && 
+          r.time === dayRecord.time
+        );
         
-        // 保存到本地存储
-        localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
-        
-        // 安全同步到Firebase，等待同步完成
-        await syncToFirebase();
-        console.log('Firebase同步完成');
-        
-        // 等待一小段时间确保Firebase更新完成
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // 重新加载数据
-        const currentDate = document.getElementById('dateSelect').value;
-        loadAttendanceData(currentDate);
-        
-        alert('签到记录已删除！');
+        if (recordToDelete) {
+          const index = attendanceRecords.indexOf(recordToDelete);
+          attendanceRecords.splice(index, 1);
+          
+          console.log('删除记录:', recordToDelete);
+          console.log('剩余记录数量:', attendanceRecords.length);
+          
+          // 保存到本地存储
+          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          
+          // 直接覆盖Firebase中的数据，确保删除操作生效
+          await directSyncToFirebase();
+          console.log('Firebase同步完成');
+          
+          // 等待一小段时间确保Firebase更新完成
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // 重新加载数据
+          const currentDate = document.getElementById('dateSelect').value;
+          loadAttendanceData(currentDate);
+          
+          alert('签到记录已删除！');
+        } else {
+          console.error('在attendanceRecords中未找到对应的记录');
+          alert('未找到要删除的记录！');
+        }
       } else {
-        alert('未找到要删除的记录！');
+        console.error('记录索引无效:', recordIndex);
+        alert('记录索引无效！');
       }
     } catch (error) {
       console.error('删除签到记录失败:', error);
@@ -419,8 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       // 延迟重置删除标记，确保同步完成
       setTimeout(() => {
-        isDeleting = false;
-        console.log('删除操作完成，恢复实时同步');
+        if (window.setSummaryIsDeleting) {
+          window.setSummaryIsDeleting(false);
+          console.log('删除操作完成，恢复实时同步');
+        }
       }, 3000); // 增加延迟时间
     }
   }
@@ -476,48 +519,105 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = dialog.querySelector('#cancelTimeBtn');
     const newTimeInput = dialog.querySelector('#newTime');
     
-    saveBtn.addEventListener('click', () => {
+    saveBtn.addEventListener('click', async () => {
       const newTime = newTimeInput.value;
       if (!newTime) {
         alert('请输入新的签到时间！');
         return;
       }
       
-      // 更新记录
-      const newDateTime = new Date(newTime);
-      const newTimeString = newDateTime.toLocaleString('zh-CN');
-      const newTimeSlot = getAttendanceType(newDateTime);
-      
-      // 找到并更新attendanceRecords中的记录
-      const recordToUpdate = attendanceRecords.find(r => 
-        r.name === record.name && 
-        r.group === record.group && 
-        r.time === record.time
-      );
-      
-      if (recordToUpdate) {
-        recordToUpdate.time = newTimeString;
-        recordToUpdate.timeSlot = newTimeSlot;
-        
-        // 保存到本地存储
-        localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
-        
-        // 安全同步到Firebase
-        syncToFirebase();
-        
-        // 重新加载数据
-        const currentDate = document.getElementById('dateSelect').value;
-        loadAttendanceData(currentDate);
-        
-        // 如果当前显示的是日报表，也重新加载日报表
-        if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
-          loadDailyReport(currentDate);
+      try {
+        // 设置编辑标记，防止实时同步干扰
+        if (window.setSummaryIsEditing) {
+          window.setSummaryIsEditing(true);
+          console.log('已设置编辑状态为true');
         }
         
-        // 关闭对话框
-        document.body.removeChild(dialog);
+        // 更新记录
+        const newDateTime = new Date(newTime);
+        const newTimeString = newDateTime.toLocaleString('zh-CN');
+        const newTimeSlot = getAttendanceType(newDateTime);
         
-        alert('签到时间已更新！所有相关统计已重新计算。');
+        // 找到并更新attendanceRecords中的记录
+        console.log('正在查找要更新的记录:', {
+          name: record.name,
+          group: record.group,
+          time: record.time,
+          recordIndex: recordIndex
+        });
+        
+        // 使用更可靠的查找方法：通过索引直接定位
+        const targetDate = new Date(document.getElementById('dateSelect').value).toLocaleDateString('zh-CN');
+        const dayRecords = attendanceRecords.filter(r => 
+          new Date(r.time).toLocaleDateString('zh-CN') === targetDate
+        );
+        
+        console.log('当日记录数量:', dayRecords.length);
+        console.log('要更新的记录索引:', recordIndex);
+        
+        if (recordIndex >= 0 && recordIndex < dayRecords.length) {
+          const dayRecord = dayRecords[recordIndex];
+          console.log('当日记录:', dayRecord);
+          
+          // 在attendanceRecords中找到对应的记录
+          const recordToUpdate = attendanceRecords.find(r => 
+            r.name === dayRecord.name && 
+            r.group === dayRecord.group && 
+            r.time === dayRecord.time
+          );
+          
+          if (recordToUpdate) {
+            console.log('找到要更新的记录，更新前:', recordToUpdate);
+            
+            // 直接更新记录的时间信息
+            const originalTime = recordToUpdate.time;
+            recordToUpdate.time = newTimeString;
+            recordToUpdate.timeSlot = newTimeSlot;
+            
+            console.log('记录已更新，更新后:', recordToUpdate);
+            console.log('原始时间:', originalTime, '-> 新时间:', newTimeString);
+            
+            // 保存到本地存储
+            localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+            
+            // 直接同步到Firebase，确保编辑操作生效
+            await directSyncToFirebase();
+            
+            // 等待一小段时间确保Firebase更新完成
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 重新加载数据
+            const currentDate = document.getElementById('dateSelect').value;
+            loadAttendanceData(currentDate);
+            
+            // 如果当前显示的是日报表，也重新加载日报表
+            if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
+              loadDailyReport(currentDate);
+            }
+            
+            // 关闭对话框
+            document.body.removeChild(dialog);
+            
+            alert('签到时间已更新！所有相关统计已重新计算。');
+          } else {
+            console.error('在attendanceRecords中未找到对应的记录');
+            alert('未找到要更新的记录！');
+          }
+        } else {
+          console.error('记录索引无效:', recordIndex);
+          alert('记录索引无效！');
+        }
+      } catch (error) {
+        console.error('编辑时间时出错:', error);
+        alert('编辑时间时出错，请重试！');
+      } finally {
+        // 延迟重置编辑标记，确保同步完成
+        setTimeout(() => {
+          if (window.setSummaryIsEditing) {
+            window.setSummaryIsEditing(false);
+            console.log('编辑操作完成，恢复实时同步');
+          }
+        }, 3000);
       }
     });
     
@@ -556,8 +656,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // 直接同步到Firebase，覆盖远程数据（用于删除操作）
+  async function directSyncToFirebase() {
+    try {
+      if (db) {
+        const attendanceRef = db.ref('attendanceRecords');
+        await attendanceRef.set(attendanceRecords);
+        console.log('签到记录已直接同步到Firebase（覆盖模式）');
+      }
+    } catch (error) {
+      console.error('直接同步到Firebase失败:', error);
+      throw error;
+    }
+  }
+
   function loadDailyReport(date) {
     if (!dailyReportList) return;
+    
+    console.log('日报表 - 开始加载，日期:', date);
+    console.log('日报表 - groups数据:', groups);
+    console.log('日报表 - 未分组是否存在:', groups['未分组']);
+    console.log('日报表 - 未分组成员数量:', groups['未分组'] ? groups['未分组'].length : '不存在');
     
     const targetDate = new Date(date).toLocaleDateString('zh-CN');
     const dayRecords = attendanceRecords.filter(record => 
@@ -571,9 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
     dayRecords.forEach(record => {
       signedNames.add(record.name);
       const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
-      if (timeSlot === '早到') earlyCountNum++;
-      else if (timeSlot === '准时') onTimeCountNum++;
-      else if (timeSlot === '迟到') lateCountNum++;
+      if (timeSlot === 'early') earlyCountNum++;
+      else if (timeSlot === 'onTime') onTimeCountNum++;
+      else if (timeSlot === 'late') lateCountNum++;
     });
 
     // 统计未签到人数（排除不统计的人员）
@@ -613,9 +732,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 按组别显示签到情况（按字母顺序排序），"未分组"永远排在最后
     const sortedGroups = window.utils.sortGroups(groups, groupNames);
+    console.log('日报表 - 所有组别:', sortedGroups);
+    console.log('日报表 - groups数据:', groups);
     sortedGroups.forEach(group => {
       const groupMembers = groups[group] || [];
       const groupName = groupNames[group] || group;
+      console.log(`日报表 - 处理组别: ${group}, 成员数量: ${groupMembers.length}`);
       
       // 统计该组的签到情况
       const groupRecords = dayRecords.filter(record => record.group === group);
@@ -632,19 +754,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const earlyRecords = groupRecords.filter(record => {
         const timeSlot = window.utils.getAttendanceType(new Date(record.time));
         const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-        return timeSlot === '早到' && !isExcluded;
+        return timeSlot === 'early' && !isExcluded;
       });
       
       const onTimeRecords = groupRecords.filter(record => {
         const timeSlot = window.utils.getAttendanceType(new Date(record.time));
         const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-        return timeSlot === '准时' && !isExcluded;
+        return timeSlot === 'onTime' && !isExcluded;
       });
       
       const lateRecords = groupRecords.filter(record => {
         const timeSlot = window.utils.getAttendanceType(new Date(record.time));
         const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-        return timeSlot === '迟到' && !isExcluded;
+        return timeSlot === 'late' && !isExcluded;
       });
       
       const row = document.createElement('tr');
@@ -682,16 +804,16 @@ document.addEventListener('DOMContentLoaded', () => {
       );
       
       const groupEarly = groupSigned.filter(record => {
-        const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
-        return timeSlot === '早到';
+        const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
+        return timeSlot === 'early';
       }).length;
       const groupOnTime = groupSigned.filter(record => {
-        const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
-        return timeSlot === '准时';
+        const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
+        return timeSlot === 'onTime';
       }).length;
       const groupLate = groupSigned.filter(record => {
-        const timeSlot = record.timeSlot || getAttendanceType(new Date(record.time));
-        return timeSlot === '迟到';
+        const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
+        return timeSlot === 'late';
       }).length;
       const groupUnsigned = groupMembers.length - groupSigned.length;
       const groupRate = groupMembers.length > 0 ? Math.round((groupSigned.length / groupMembers.length) * 100) : 0;
@@ -706,21 +828,8 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     });
 
-    // 显示组统计
-    dailyReportList.innerHTML = '';
-    Object.keys(groupStats).forEach(group => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${groupNames[group] || group}</td>
-        <td>${groupStats[group].early}</td>
-        <td>${groupStats[group].onTime}</td>
-        <td>${groupStats[group].late}</td>
-        <td>${groupStats[group].unsigned}</td>
-        <td>${groupStats[group].unsignedNames || '无'}</td>
-        <td>${groupStats[group].rate}%</td>
-      `;
-      dailyReportList.appendChild(row);
-    });
+    // 注意：这里不应该清空表格，因为上面已经生成了详细的签到情况
+    // 如果需要显示汇总统计，应该使用单独的表格或区域
   }
 
   function loadQuarterlyReport(quarter) {
@@ -961,13 +1070,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 启动实时数据同步
   let isDeleting = false; // 标记是否正在删除操作
+  let isEditing = false; // 标记是否正在编辑操作
+  
+  // 将编辑和删除状态暴露到全局，供相关函数使用
+  window.summaryIsEditing = () => isEditing;
+  window.setSummaryIsEditing = (value) => { isEditing = value; };
+  window.summaryIsDeleting = () => isDeleting;
+  window.setSummaryIsDeleting = (value) => { isDeleting = value; };
   if (window.utils && window.utils.dataSyncManager) {
     window.utils.dataSyncManager.startListening((dataType, data) => {
       console.log(`汇总页面收到${dataType}数据更新:`, data);
       
-      // 如果正在删除操作，忽略同步更新
-      if (isDeleting) {
+      // 如果正在删除或编辑操作，忽略同步更新
+      if (window.summaryIsDeleting && window.summaryIsDeleting()) {
         console.log('正在删除操作中，忽略同步更新');
+        return;
+      }
+      
+      if (window.summaryIsEditing && window.summaryIsEditing()) {
+        console.log('正在编辑操作中，忽略同步更新');
         return;
       }
       
@@ -983,6 +1104,16 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'groups':
           groups = data;
+          // 确保未分组组别存在
+          if (!groups['未分组']) {
+            groups['未分组'] = [];
+            console.log("汇总页面同步：已添加未分组组别");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groups').set(groups).catch(error => {
+              console.error("同步未分组组别到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groups', JSON.stringify(groups));
           // 如果当前显示的是日报表，重新加载日报表
           if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
@@ -992,6 +1123,16 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'groupNames':
           groupNames = data;
+          // 确保未分组名称映射存在
+          if (!groupNames['未分组']) {
+            groupNames['未分组'] = '未分组';
+            console.log("汇总页面同步：已添加未分组名称映射");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groupNames').set(groupNames).catch(error => {
+              console.error("同步未分组名称映射到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
           // 如果当前显示的是日报表，重新加载日报表
           if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {

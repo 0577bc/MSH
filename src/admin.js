@@ -18,124 +18,17 @@ try {
 document.addEventListener('DOMContentLoaded', () => {
   console.log("Admin page loaded");
   
-  // 简单密码验证
+  // 直接显示管理内容，无需密码验证
   const passwordDialog = document.getElementById('passwordDialog');
   const adminContent = document.getElementById('adminContent');
-  const adminPasswordInput = document.getElementById('adminPasswordInput');
-  const loginBtn = document.getElementById('loginBtn');
-  const cancelLoginBtn = document.getElementById('cancelLoginBtn');
-  const loginError = document.getElementById('loginError');
-  const logoutButton = document.getElementById('logoutButton');
   
-  // 显示登录对话框
-  passwordDialog.style.display = 'flex';
-  adminContent.classList.add('hidden-form');
+  if (passwordDialog) passwordDialog.style.display = 'none';
+  if (adminContent) adminContent.classList.remove('hidden-form');
   
-  // 登录按钮事件
-  loginBtn.addEventListener('click', async () => {
-    const password = adminPasswordInput.value;
-    
-    if (!password) {
-      showLoginError('请输入密码');
-      return;
-    }
-    
-    // 显示加载状态
-    loginBtn.disabled = true;
-    loginBtn.textContent = '登录中...';
-    hideLoginError();
-    
-    try {
-      // 使用简单密码验证
-      if (window.firebaseAuth && window.firebaseAuth.verifyAdminPassword) {
-        const isValid = window.firebaseAuth.verifyAdminPassword(password);
-        
-        if (isValid) {
-          // 登录成功
-          passwordDialog.style.display = 'none';
-          adminContent.classList.remove('hidden-form');
-          console.log('管理员登录成功');
-        } else {
-          // 登录失败
-          showLoginError('密码错误');
-          adminPasswordInput.value = '';
-        }
-      } else {
-        showLoginError('认证系统未加载，请刷新页面重试');
-      }
-    } catch (error) {
-      console.error('登录过程出错:', error);
-      showLoginError('登录过程出错，请重试');
-    } finally {
-      // 恢复按钮状态
-      loginBtn.disabled = false;
-      loginBtn.textContent = '登录';
-    }
-  });
-  
-  // 取消按钮事件
-  cancelLoginBtn.addEventListener('click', () => {
-    window.location.href = 'index.html';
-  });
-  
-  // 登出按钮事件
-  if (logoutButton) {
-    logoutButton.addEventListener('click', async () => {
-      if (confirm('确定要登出吗？')) {
-        // 重新显示登录界面
-        passwordDialog.style.display = 'flex';
-        adminContent.classList.add('hidden-form');
-        adminPasswordInput.value = '';
-        hideLoginError();
-      }
-    });
-  }
-  
-  // 回车键登录
-  adminPasswordInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      loginBtn.click();
-    }
-  });
-  
-  adminEmailInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      adminPasswordInput.focus();
-    }
-  });
-  
-  // 显示登录错误
-  function showLoginError(message) {
-    if (loginError) {
-      loginError.textContent = message;
-      loginError.style.display = 'block';
-    }
-  }
-  
-  // 隐藏登录错误
-  function hideLoginError() {
-    if (loginError) {
-      loginError.style.display = 'none';
-    }
-  }
-  
-  // 监听认证状态变化
-  window.firebaseAuth.onAuthStateChanged((authState) => {
-    if (authState.isAdmin) {
-      // 管理员已登录
-      passwordDialog.style.display = 'none';
-      adminContent.classList.remove('hidden-form');
-      console.log('管理员已登录:', authState.user.email);
-    } else {
-      // 未登录或非管理员
-      passwordDialog.style.display = 'flex';
-      adminContent.classList.add('hidden-form');
-    }
-  });
+  console.log('管理员页面已直接加载，无需密码验证');
   
   const groupSelect = document.getElementById('groupSelect');
   const memberList = document.getElementById('memberList');
-  const saveButton = document.getElementById('saveButton');
   const addMemberButton = document.getElementById('addMemberButton');
   const backButton = document.getElementById('backButton');
   const summaryButton = document.getElementById('summaryButton');
@@ -157,6 +50,42 @@ document.addEventListener('DOMContentLoaded', () => {
   let groups = {};
   let groupNames = {};
   let attendanceRecords = [];
+  
+  // 页面状态管理
+  let currentPageState = {
+    selectedGroup: '',
+    isGroupValid: false
+  };
+
+  // 更新页面状态
+  function updatePageState() {
+    if (groupSelect) {
+      currentPageState.selectedGroup = groupSelect.value;
+      currentPageState.isGroupValid = currentPageState.selectedGroup && groups[currentPageState.selectedGroup];
+    }
+  }
+
+  // 恢复页面状态
+  function restorePageState() {
+    if (currentPageState.isGroupValid && groups[currentPageState.selectedGroup]) {
+      // 如果之前选择的小组仍然存在，恢复到该小组
+      if (groupSelect) {
+        groupSelect.value = currentPageState.selectedGroup;
+      }
+      loadMembers(currentPageState.selectedGroup);
+      console.log(`已恢复到小组: ${currentPageState.selectedGroup}`);
+    } else {
+      // 如果之前选择的小组不存在，重新加载小组列表
+      loadGroups();
+      if (groupSelect) {
+        groupSelect.value = '';
+      }
+      if (memberList) {
+        memberList.innerHTML = '';
+      }
+      console.log('之前选择的小组不存在，已重新加载小组列表');
+    }
+  }
 
   // 为每个小组分配唯一的字母前缀
   function getGroupPrefix(groupId) {
@@ -198,6 +127,75 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 如果所有前缀都用完了，使用数字后缀
     return 'ZZ';
+  }
+
+  // 处理字段修改
+  function handleFieldChange(input, group, memberIndex) {
+    const field = input.dataset.field;
+    const originalValue = input.dataset.original;
+    const newValue = input.value;
+    
+    // 如果值没有变化，不需要处理
+    if (newValue === originalValue) {
+      return;
+    }
+    
+    // 获取成员信息用于显示
+    const member = groups[group][memberIndex];
+    const memberName = member.name;
+    const fieldNames = {
+      'name': '姓名',
+      'nickname': '花名',
+      'gender': '性别',
+      'phone': '联系方式',
+      'baptized': '是否受洗',
+      'age': '年龄段'
+    };
+    const fieldName = fieldNames[field] || field;
+    
+    // 验证手机号码
+    if (field === 'phone' && newValue) {
+      if (!window.utils.IdentifierManager.validatePhoneNumber(newValue)) {
+        alert(`手机号码格式不正确！\n请输入正确的11位手机号码。`);
+        input.value = originalValue; // 恢复原值
+        return;
+      }
+      
+      // 检查手机号码重复
+      if (window.utils.IdentifierManager.checkPhoneExists(newValue, groups, member)) {
+        alert(`手机号码已存在！\n请使用不同的手机号码。`);
+        input.value = originalValue; // 恢复原值
+        return;
+      }
+    }
+    
+    // 弹出确认对话框
+    const confirmMessage = `确定要修改 ${memberName} 的${fieldName}吗？\n\n原值：${originalValue}\n新值：${newValue}`;
+    
+    if (confirm(confirmMessage)) {
+      // 确认修改
+      groups[group][memberIndex][field] = newValue;
+      input.dataset.original = newValue; // 更新原始值
+      
+      // 保存数据
+      saveData();
+      
+      // 记录日志
+      if (window.systemLogger) {
+        window.systemLogger.info(`修改成员信息: ${memberName} - ${fieldName}`, {
+          group: group,
+          member: memberName,
+          field: fieldName,
+          oldValue: originalValue,
+          newValue: newValue
+        });
+      }
+      
+      console.log(`已修改 ${memberName} 的${fieldName}: ${originalValue} -> ${newValue}`);
+    } else {
+      // 取消修改，恢复原值
+      input.value = originalValue;
+    }
   }
 
   // 重新生成所有成员的序号（按姓名排序）
@@ -260,18 +258,19 @@ document.addEventListener('DOMContentLoaded', () => {
         groupNames = groupNamesSnapshot.val() || {};
       }
 
-      // 确保有"未分组"组和映射
-      if (!groups["未分组"]) {
-        groups["未分组"] = [];
-        await firebase.database().ref('groups').update({ "未分组": [] });
-        console.log("管理页面：已添加未分组组");
+      // 确保未分组组别存在
+      if (!groups['未分组']) {
+        groups['未分组'] = [];
+        await firebase.database().ref('groups').update({ '未分组': [] });
+        console.log("管理页面：已添加未分组组别");
       }
       
-      if (!groupNames["未分组"]) {
-        groupNames["未分组"] = "未分组";
-        await firebase.database().ref('groupNames').update({ "未分组": "未分组" });
-        console.log("管理页面：已添加未分组映射");
+      if (!groupNames['未分组']) {
+        groupNames['未分组'] = '未分组';
+        await firebase.database().ref('groupNames').update({ '未分组': '未分组' });
+        console.log("管理页面：已添加未分组名称映射");
       }
+
 
       // 加载 attendanceRecords
       const attendanceRef = firebase.database().ref('attendanceRecords');
@@ -332,11 +331,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 安全同步数据到Firebase
   async function syncToFirebase() {
     try {
+      const db = firebase.database();
       if (groups && Object.keys(groups).length > 0) {
-        await window.utils.safeSyncToFirebase(groups, 'groups');
+        await db.ref('groups').set(groups);
+        console.log("✅ groups数据已直接同步到Firebase");
       }
       if (groupNames && Object.keys(groupNames).length > 0) {
-        await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
+        await db.ref('groupNames').set(groupNames);
+        console.log("✅ groupNames数据已直接同步到Firebase");
       }
       if (attendanceRecords && attendanceRecords.length > 0) {
         await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
@@ -363,17 +365,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadMembers(group) {
-    console.log('loadMembers被调用，group:', group);
     if (memberList) {
     memberList.innerHTML = '';
       if (groups[group]) {
-        console.log('找到小组数据，成员数量:', groups[group].length);
         
         // 强制初始化所有成员的nickname字段
         groups[group].forEach((member, index) => {
           if (!member.hasOwnProperty('nickname')) {
             member.nickname = '';
-            console.log('为成员', member.name, '初始化nickname字段');
           }
         });
         // 按姓名字母顺序排序，但保持原始索引
@@ -391,27 +390,26 @@ document.addEventListener('DOMContentLoaded', () => {
               groups[group][member.originalIndex].nickname = '';
             }
           }
-          console.log('成员:', member.name, '花名:', member.nickname);
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${member.id || getGroupPrefix(group) + '000'}</td>
-            <td><input type="text" value="${member.name}" data-field="name" data-index="${member.originalIndex}"></td>
-            <td><input type="text" value="${member.nickname || ''}" data-field="nickname" data-index="${member.originalIndex}" placeholder="花名"></td>
+            <td><input type="text" value="${member.name}" data-field="name" data-index="${member.originalIndex}" data-original="${member.name}"></td>
+            <td><input type="text" value="${member.nickname || ''}" data-field="nickname" data-index="${member.originalIndex}" data-original="${member.nickname || ''}" placeholder="花名"></td>
           <td>
-              <select data-field="gender" data-index="${member.originalIndex}">
+              <select data-field="gender" data-index="${member.originalIndex}" data-original="${member.gender}">
               <option value="男" ${member.gender === '男' ? 'selected' : ''}>男</option>
               <option value="女" ${member.gender === '女' ? 'selected' : ''}>女</option>
             </select>
           </td>
-            <td><input type="text" value="${member.phone}" data-field="phone" data-index="${member.originalIndex}"></td>
+            <td><input type="text" value="${member.phone}" data-field="phone" data-index="${member.originalIndex}" data-original="${member.phone}"></td>
           <td>
-              <select data-field="baptized" data-index="${member.originalIndex}">
+              <select data-field="baptized" data-index="${member.originalIndex}" data-original="${member.baptized}">
               <option value="是" ${member.baptized === '是' ? 'selected' : ''}>是</option>
               <option value="否" ${member.baptized === '否' ? 'selected' : ''}>否</option>
             </select>
           </td>
           <td>
-              <select data-field="age" data-index="${member.originalIndex}">
+              <select data-field="age" data-index="${member.originalIndex}" data-original="${member.age}">
                 <option value="10后" ${member.age === '10后' ? 'selected' : ''}>10后</option>
                 <option value="05后" ${member.age === '05后' ? 'selected' : ''}>05后</option>
                 <option value="00后" ${member.age === '00后' ? 'selected' : ''}>00后</option>
@@ -424,14 +422,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 <option value="50后" ${member.age === '50后' ? 'selected' : ''}>50后</option>
             </select>
           </td>
-            <td><button onclick="deleteMember('${group}', ${member.originalIndex})">删除</button></td>
+            <td>
+              <button onclick="moveMember('${group}', ${member.originalIndex})">移动</button>
+              <button onclick="deleteMember('${group}', ${member.originalIndex})">删除</button>
+            </td>
         `;
+        
+        // 为所有输入框和选择框添加change事件监听器
+        const inputs = row.querySelectorAll('input, select');
+        inputs.forEach(input => {
+          input.addEventListener('change', (e) => {
+            handleFieldChange(e.target, group, member.originalIndex);
+          });
+        });
+        
         memberList.appendChild(row);
       });
-      console.log('表格行数:', memberList.querySelectorAll('tr').length);
-      console.log('花名列数:', memberList.querySelectorAll('input[data-field="nickname"]').length);
     } else {
-      console.log('没有找到小组数据');
     }
   }
   }
@@ -439,11 +446,147 @@ document.addEventListener('DOMContentLoaded', () => {
   // 全局函数供HTML调用
   window.deleteMember = function(group, index) {
     if (confirm('确定删除这个成员吗？')) {
+      // 保存当前页面状态
+      updatePageState();
+      
       groups[group].splice(index, 1);
-      loadMembers(group);
+      
+      // 恢复页面状态
+      restorePageState();
+      
       saveData();
     }
   };
+
+  // 移动成员到其他小组
+  window.moveMember = function(currentGroup, memberIndex) {
+    const member = groups[currentGroup][memberIndex];
+    if (!member) {
+      alert('找不到要移动的成员！');
+      return;
+    }
+
+    // 获取所有可用的小组（排除当前小组）
+    const availableGroups = Object.keys(groups).filter(group => group !== currentGroup);
+    
+    if (availableGroups.length === 0) {
+      alert('没有其他小组可以移动！');
+      return;
+    }
+
+    // 创建小组选择对话框
+    let groupOptions = '';
+    availableGroups.forEach(group => {
+      const groupDisplayName = groupNames[group] || group;
+      groupOptions += `<option value="${group}">${groupDisplayName}</option>`;
+    });
+
+    const dialogHTML = `
+      <div id="moveMemberDialog" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%;">
+          <h3>移动成员</h3>
+          <p><strong>成员：</strong>${member.name}</p>
+          <p><strong>当前小组：</strong>${groupNames[currentGroup] || currentGroup}</p>
+          <p><strong>目标小组：</strong></p>
+          <select id="targetGroupSelect" style="width: 100%; padding: 8px; margin: 10px 0;">
+            ${groupOptions}
+          </select>
+          <div style="text-align: right; margin-top: 20px;">
+            <button id="cancelMove" style="margin-right: 10px; padding: 8px 16px;">取消</button>
+            <button id="confirmMove" style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px;">确认移动</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 添加对话框到页面
+    document.body.insertAdjacentHTML('beforeend', dialogHTML);
+    
+    const dialog = document.getElementById('moveMemberDialog');
+    const targetGroupSelect = document.getElementById('targetGroupSelect');
+    const cancelBtn = document.getElementById('cancelMove');
+    const confirmBtn = document.getElementById('confirmMove');
+
+    // 取消按钮事件
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(dialog);
+    });
+
+    // 确认按钮事件
+    confirmBtn.addEventListener('click', () => {
+      const targetGroup = targetGroupSelect.value;
+      if (!targetGroup) {
+        alert('请选择目标小组！');
+        return;
+      }
+
+      // 确认移动操作
+      const confirmMessage = `确定要将 ${member.name} 从"${groupNames[currentGroup] || currentGroup}"移动到"${groupNames[targetGroup] || targetGroup}"吗？`;
+      
+      if (confirm(confirmMessage)) {
+        // 执行移动操作
+        performMemberMove(currentGroup, memberIndex, targetGroup);
+        document.body.removeChild(dialog);
+      }
+    });
+
+    // 点击背景关闭对话框
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        document.body.removeChild(dialog);
+      }
+    });
+  };
+
+  // 执行成员移动操作
+  function performMemberMove(currentGroup, memberIndex, targetGroup) {
+    const member = groups[currentGroup][memberIndex];
+    
+    // 保存当前页面状态
+    updatePageState();
+    
+    // 从当前小组移除成员
+    groups[currentGroup].splice(memberIndex, 1);
+    
+    // 添加到目标小组
+    if (!groups[targetGroup]) {
+      groups[targetGroup] = [];
+    }
+    groups[targetGroup].push(member);
+    
+    // 更新成员的签到记录中的小组信息
+    updateAttendanceRecordsForMovedMember(member, currentGroup, targetGroup);
+    
+    // 重新生成所有成员的ID（因为移动后需要重新排序）
+    regenerateAllMemberIds();
+    
+    // 保存数据
+    saveData();
+    
+    // 恢复页面状态
+    restorePageState();
+    
+    // 记录日志
+    if (window.systemLogger) {
+      window.systemLogger.info(`移动成员: ${member.name}`, {
+        fromGroup: currentGroup,
+        toGroup: targetGroup,
+        memberName: member.name
+      });
+    }
+    
+    console.log(`已移动成员 ${member.name} 从 ${currentGroup} 到 ${targetGroup}`);
+    alert(`成员 ${member.name} 已成功移动到"${groupNames[targetGroup] || targetGroup}"！`);
+  }
+
+  // 更新移动成员的签到记录
+  function updateAttendanceRecordsForMovedMember(member, oldGroup, newGroup) {
+    attendanceRecords.forEach(record => {
+      if (record.name === member.name && record.group === oldGroup) {
+        record.group = newGroup;
+      }
+    });
+  }
 
   function saveData() {
     // 先保存到本地存储
@@ -457,6 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (groupSelect) {
   groupSelect.addEventListener('change', () => {
+      updatePageState();
       loadMembers(groupSelect.value);
     });
   }
@@ -579,6 +723,9 @@ document.addEventListener('DOMContentLoaded', () => {
           joinDate: new Date().toISOString()
         };
         
+        // 保存当前页面状态
+        updatePageState();
+        
         if (!groups[selectedGroup]) {
           groups[selectedGroup] = [];
         }
@@ -588,7 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
         regenerateAllMemberIds();
         
         saveData();
-        loadMembers(selectedGroup);
+        
+        // 恢复页面状态
+        restorePageState();
+        
         document.body.removeChild(dialog);
         window.systemLogger.success('新成员已添加', { 
           group: selectedGroup, 
@@ -619,12 +769,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (regenerateIdsButton) {
     regenerateIdsButton.addEventListener('click', () => {
       if (confirm('确定要重新生成所有成员的序号吗？这将按姓名重新排序并分配新的序号。')) {
+        // 保存当前页面状态
+        updatePageState();
+        
         regenerateAllMemberIds();
         saveData();
-        const currentGroup = groupSelect ? groupSelect.value : '';
-        if (currentGroup) {
-          loadMembers(currentGroup);
-        }
+        
+        // 恢复页面状态
+        restorePageState();
+        
         alert('序号重新生成完成！');
         
         // 记录日志
@@ -635,53 +788,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (saveButton) {
-    saveButton.addEventListener('click', () => {
-      const group = groupSelect ? groupSelect.value : '';
-      if (!group) {
-        alert('请选择小组！');
-        return;
-      }
-
-      // 收集所有输入的数据并验证
-      const inputs = memberList.querySelectorAll('input, select');
-      let hasValidationError = false;
-      
-      inputs.forEach(input => {
-        const field = input.dataset.field;
-        const index = parseInt(input.dataset.index);
-        if (field && index >= 0 && groups[group][index]) {
-          const value = input.value;
-          
-          // 验证手机号码
-          if (field === 'phone' && value) {
-            if (!window.utils.IdentifierManager.validatePhoneNumber(value)) {
-              alert(`第${index + 1}个成员的手机号码格式不正确！\n请输入正确的11位手机号码。`);
-              hasValidationError = true;
-              return;
-            }
-            
-            // 检查手机号码重复
-            if (window.utils.IdentifierManager.checkPhoneExists(value, groups, groups[group][index])) {
-              alert(`第${index + 1}个成员的手机号码已存在！\n请使用不同的手机号码。`);
-              hasValidationError = true;
-              return;
-            }
-          }
-          
-          groups[group][index][field] = value;
-        }
-      });
-      
-      if (hasValidationError) {
-        return;
-      }
-
-      saveData();
-      window.systemLogger.success('成员信息已保存', { group: group, membersCount: groups[group].length });
-      alert('保存成功！');
-    });
-  }
 
   if (backButton) {
   backButton.addEventListener('click', () => {
@@ -718,13 +824,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // 保存当前页面状态
+      updatePageState();
+      
       // 使用组名作为ID，确保唯一性
       const groupId = groupName;
       groups[groupId] = []; // 创建空的小组
       groupNames[groupId] = groupName;
 
       saveData();
-      loadGroups();
+      
+      // 恢复页面状态
+      restorePageState();
+      
       window.systemLogger.success('新小组已创建', { groupName: groupName });
       alert('小组添加成功！');
       
@@ -776,13 +888,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (confirm(`确定删除小组"${groupNames[group]}"吗？这将删除该小组的所有成员！`)) {
+        // 保存当前页面状态
+        updatePageState();
+        
         const groupName = groupNames[group];
         const memberCount = groups[group] ? groups[group].length : 0;
         delete groups[group];
         delete groupNames[group];
         saveData();
-        loadGroups();
-        if (memberList) memberList.innerHTML = '';
+        
+        // 恢复页面状态
+        restorePageState();
         window.systemLogger.warning('小组已删除', { 
           groupName: groupName, 
           memberCount: memberCount 
@@ -808,9 +924,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // 保存当前页面状态
+      updatePageState();
+      
       groupNames[group] = newName;
       saveData();
-      loadGroups();
+      
+      // 恢复页面状态
+      restorePageState();
+      
       alert('小组名称修改成功！');
       
       if (editGroupForm) {
@@ -862,8 +984,10 @@ document.addEventListener('DOMContentLoaded', () => {
           // 注意：管理员密码现在由Firebase Authentication管理，不再从导入数据中恢复
           
           saveData();
-          loadGroups();
-          loadMembers(groupSelect ? groupSelect.value : '');
+          
+          // 恢复页面状态
+          restorePageState();
+          
           alert('数据导入成功！');
         } catch (error) {
           alert('导入失败：文件格式错误或数据无效。' + error.message);
@@ -1317,13 +1441,14 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'groups':
           groups = data;
           localStorage.setItem('msh_groups', JSON.stringify(groups));
-          loadGroups();
-          loadMembers(groupSelect ? groupSelect.value : '');
+          // 恢复页面状态
+          restorePageState();
           break;
         case 'groupNames':
           groupNames = data;
           localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
-          loadGroups();
+          // 恢复页面状态
+          restorePageState();
           break;
       }
     });
@@ -1340,8 +1465,8 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // 同步所有数据到Firebase
         if (db) {
-          await window.utils.safeSyncToFirebase(groups, 'groups');
-          await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
+          await db.ref('groups').set(groups);
+          await db.ref('groupNames').set(groupNames);
           await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
           console.log('页面关闭前数据同步完成');
         }

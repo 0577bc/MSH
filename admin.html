@@ -9,34 +9,24 @@
   <!-- 引入配置文件 -->
   <script src="./config.js"></script>
   <!-- 引入错误处理器 -->
-  <script src="./error-handler.js"></script>
   <!-- 引入配置管理器 -->
   <script src="./src/config-manager.js"></script>
   <!-- 引入CSRF保护 -->
   <script src="./src/csrf-protection.js"></script>
   <!-- 引入缓存管理器 -->
   <script src="./src/cache-manager.js"></script>
-  <!-- 引入UI组件系统 -->
-  <script src="./src/ui-components.js"></script>
-  <script src="./src/ui-templates.js"></script>
   <!-- 引入简化版可访问性管理器 -->
   <script src="./src/accessibility-simple.js"></script>
   <!-- 引入性能监控 -->
   <script src="./src/performance-monitor.js"></script>
-  <!-- 引入备份管理器 -->
-  <script src="./src/backup-manager.js"></script>
+  <!-- 引入独立备份管理器 -->
+  <script src="./src/independent-backup-manager.js"></script>
   <!-- 引入虚拟滚动组件 -->
   <script src="./src/virtual-scroll.js"></script>
-  <!-- 引入Worker管理器 -->
-  <script src="./src/worker-manager.js"></script>
-  <!-- 引入日志模块 -->
-  <script src="./src/logger.js"></script>
   <!-- 引入 Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <!-- 引入Firebase Authentication模块 -->
-  <script src="./src/firebase-auth.js"></script>
 </head>
 <body>
   <!-- 管理员登录界面 -->
@@ -87,7 +77,6 @@
             <!-- 动态内容由 admin.js 填充，建议添加“加载中...”提示 -->
           </tbody>
         </table>
-        <button id="saveButton" type="button" aria-label="确认修改成员信息">确认修改</button>
         <button id="addMemberButton" type="button" aria-label="添加成员">添加</button>
         <button id="regenerateIdsButton" type="button" class="success-button" aria-label="重新生成序号">重新生成序号</button>
       </form>
@@ -132,7 +121,6 @@
       <button id="viewLogsButton" type="button" aria-label="查看日志">查看日志</button>
       <button id="excludeStatsButton" type="button" aria-label="未签到不统计">未签到不统计</button>
       <button id="manageAdminsButton" type="button" aria-label="管理员管理">管理员管理</button>
-      <button id="logoutButton" type="button" aria-label="登出" class="danger-button">登出</button>
       <input type="file" id="importFile" accept=".json" class="hidden-form" aria-label="选择要导入的JSON文件">
       
       

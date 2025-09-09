@@ -1,13 +1,17 @@
 /**
- * 自动备份管理器
- * 实现定期数据备份和恢复测试
+ * 独立备份管理器
+ * 与操作数据完全隔离的备份系统
+ * 24小时备份一次，保留10天
  */
 
-class BackupManager {
+class IndependentBackupManager {
   constructor() {
     this.backupInterval = 24 * 60 * 60 * 1000; // 24小时
-    this.maxBackups = 30; // 最多保留30个备份
-    this.backupKey = 'msh_backups';
+    this.maxBackups = 10; // 最多保留10个备份
+    this.maxAge = 10 * 24 * 60 * 60 * 1000; // 10天
+    this.backupKey = 'msh_independent_backups';
+    this.lastBackupKey = 'msh_last_backup_time';
+    this.isBackupInProgress = false;
     this.init();
   }
 
@@ -15,9 +19,9 @@ class BackupManager {
    * 初始化备份管理器
    */
   init() {
+    console.log('独立备份管理器初始化');
     this.setupPeriodicBackup();
     this.setupPageUnloadBackup();
-    this.setupDataChangeBackup();
   }
 
   /**
@@ -25,16 +29,17 @@ class BackupManager {
    */
   setupPeriodicBackup() {
     // 检查是否需要执行定期备份
-    const lastBackup = localStorage.getItem('lastBackup');
+    const lastBackup = localStorage.getItem(this.lastBackupKey);
     const now = Date.now();
     
     if (!lastBackup || (now - parseInt(lastBackup)) > this.backupInterval) {
-      this.performBackup();
+      console.log('执行初始备份检查');
+      this.performScheduledBackup();
     }
     
-    // 设置定时器
+    // 设置定时器，每24小时检查一次
     setInterval(() => {
-      this.performBackup();
+      this.performScheduledBackup();
     }, this.backupInterval);
   }
 
@@ -43,53 +48,64 @@ class BackupManager {
    */
   setupPageUnloadBackup() {
     window.addEventListener('beforeunload', () => {
-      this.performBackup();
+      if (!this.isBackupInProgress) {
+        this.performScheduledBackup();
+      }
     });
   }
 
   /**
-   * 设置数据变化备份
+   * 执行计划备份（只在需要时执行）
    */
-  setupDataChangeBackup() {
-    // 监听Firebase数据变化
-    if (window.dataManager) {
-      const originalWriteData = window.dataManager.writeData.bind(window.dataManager);
-      window.dataManager.writeData = async (path, data) => {
-        const result = await originalWriteData(path, data);
-        // 数据写入成功后触发备份
-        setTimeout(() => this.performBackup(), 1000);
-        return result;
-      };
+  async performScheduledBackup() {
+    if (this.isBackupInProgress) {
+      console.log('备份正在进行中，跳过');
+      return;
+    }
+
+    const lastBackup = localStorage.getItem(this.lastBackupKey);
+    const now = Date.now();
+    
+    // 检查是否需要备份
+    if (lastBackup && (now - parseInt(lastBackup)) < this.backupInterval) {
+      console.log('距离上次备份时间不足24小时，跳过');
+      return;
+    }
+
+    try {
+      this.isBackupInProgress = true;
+      console.log('开始执行计划备份...');
+      
+      const backup = await this.createBackup();
+      await this.saveBackup(backup);
+      this.cleanupOldBackups();
+      
+      localStorage.setItem(this.lastBackupKey, now.toString());
+      console.log('计划备份完成:', backup.id);
+      
+    } catch (error) {
+      console.error('计划备份失败:', error);
+    } finally {
+      this.isBackupInProgress = false;
     }
   }
 
   /**
-   * 执行备份
+   * 创建备份
    */
-  async performBackup() {
-    try {
-      console.log('开始执行数据备份...');
-      
-      const backupData = await this.collectBackupData();
-      const backup = {
-        id: this.generateBackupId(),
-        timestamp: Date.now(),
-        data: backupData,
-        version: '1.0.0',
-        checksum: this.calculateChecksum(backupData)
-      };
-      
-      await this.saveBackup(backup);
-      this.cleanupOldBackups();
-      
-      localStorage.setItem('lastBackup', backup.timestamp.toString());
-      console.log('数据备份完成:', backup.id);
-      
-      return backup;
-    } catch (error) {
-      console.error('备份失败:', error);
-      throw error;
-    }
+  async createBackup() {
+    const backupData = await this.collectBackupData();
+    const backup = {
+      id: this.generateBackupId(),
+      timestamp: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      data: backupData,
+      version: '2.0.0',
+      checksum: this.calculateChecksum(backupData),
+      type: 'scheduled'
+    };
+    
+    return backup;
   }
 
   /**
@@ -99,7 +115,8 @@ class BackupManager {
     const backupData = {
       timestamp: Date.now(),
       url: window.location.href,
-      userAgent: navigator.userAgent
+      userAgent: navigator.userAgent,
+      source: 'independent_backup'
     };
     
     // 从Firebase收集数据
@@ -109,44 +126,74 @@ class BackupManager {
         backupData.groupNames = await window.dataManager.loadGroupNames();
         backupData.attendanceRecords = await window.dataManager.loadAttendanceRecords();
         backupData.adminEmails = await window.dataManager.loadAdminEmails();
+        console.log('Firebase数据收集完成');
       } catch (error) {
         console.error('收集Firebase数据失败:', error);
         backupData.firebaseError = error.message;
       }
     }
     
-    // 从localStorage收集数据
-    backupData.localStorage = this.collectLocalStorageData();
-    
-    // 收集缓存数据
-    if (window.cacheManager) {
-      backupData.cacheStats = window.cacheManager.getStats();
+    // 从SessionStorage收集数据
+    if (window.sessionStorageManager) {
+      backupData.sessionStorage = window.sessionStorageManager.getAllData();
+      console.log('SessionStorage数据收集完成');
     }
     
-    // 收集性能数据
-    if (window.performanceMonitor) {
-      backupData.performance = window.performanceMonitor.getPerformanceSummary();
-    }
+    // 收集系统状态
+    backupData.systemStatus = {
+      isOnline: navigator.onLine,
+      language: navigator.language,
+      platform: navigator.platform,
+      cookieEnabled: navigator.cookieEnabled
+    };
     
     return backupData;
   }
 
   /**
-   * 收集localStorage数据
+   * 保存备份
    */
-  collectLocalStorageData() {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('msh_')) {
-        try {
-          data[key] = JSON.parse(localStorage.getItem(key));
-        } catch (error) {
-          data[key] = localStorage.getItem(key);
-        }
-      }
+  async saveBackup(backup) {
+    const backups = this.getBackups();
+    backups.push(backup);
+    
+    // 限制备份数量
+    if (backups.length > this.maxBackups) {
+      backups.splice(0, backups.length - this.maxBackups);
     }
-    return data;
+    
+    localStorage.setItem(this.backupKey, JSON.stringify(backups));
+    console.log(`备份已保存: ${backup.id}`);
+  }
+
+  /**
+   * 获取所有备份
+   */
+  getBackups() {
+    try {
+      const backups = localStorage.getItem(this.backupKey);
+      return backups ? JSON.parse(backups) : [];
+    } catch (error) {
+      console.error('获取备份列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 清理旧备份
+   */
+  cleanupOldBackups() {
+    const backups = this.getBackups();
+    const now = Date.now();
+    
+    const validBackups = backups.filter(backup => {
+      return (now - backup.timestamp) < this.maxAge;
+    });
+    
+    if (validBackups.length !== backups.length) {
+      localStorage.setItem(this.backupKey, JSON.stringify(validBackups));
+      console.log(`清理了 ${backups.length - validBackups.length} 个过期备份`);
+    }
   }
 
   /**
@@ -170,82 +217,6 @@ class BackupManager {
       hash = hash & hash; // 转换为32位整数
     }
     return hash.toString(16);
-  }
-
-  /**
-   * 保存备份
-   */
-  async saveBackup(backup) {
-    const backups = this.getBackups();
-    backups.push(backup);
-    
-    // 限制备份数量
-    if (backups.length > this.maxBackups) {
-      backups.splice(0, backups.length - this.maxBackups);
-    }
-    
-    localStorage.setItem(this.backupKey, JSON.stringify(backups));
-    
-    // 尝试上传到服务器（如果配置了）
-    await this.uploadBackup(backup);
-  }
-
-  /**
-   * 获取所有备份
-   */
-  getBackups() {
-    try {
-      const backups = localStorage.getItem(this.backupKey);
-      return backups ? JSON.parse(backups) : [];
-    } catch (error) {
-      console.error('获取备份列表失败:', error);
-      return [];
-    }
-  }
-
-  /**
-   * 清理旧备份
-   */
-  cleanupOldBackups() {
-    const backups = this.getBackups();
-    const now = Date.now();
-    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30天
-    
-    const validBackups = backups.filter(backup => {
-      return (now - backup.timestamp) < maxAge;
-    });
-    
-    if (validBackups.length !== backups.length) {
-      localStorage.setItem(this.backupKey, JSON.stringify(validBackups));
-      console.log(`清理了 ${backups.length - validBackups.length} 个过期备份`);
-    }
-  }
-
-  /**
-   * 上传备份到服务器
-   */
-  async uploadBackup(backup) {
-    if (!window.backupEndpoint) {
-      return; // 没有配置服务器端点
-    }
-    
-    try {
-      const response = await fetch(window.backupEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(backup)
-      });
-      
-      if (response.ok) {
-        console.log('备份已上传到服务器:', backup.id);
-      } else {
-        console.error('上传备份失败:', response.statusText);
-      }
-    } catch (error) {
-      console.error('上传备份失败:', error);
-    }
   }
 
   /**
@@ -276,10 +247,10 @@ class BackupManager {
         await window.dataManager.writeData('adminEmails', backup.data.adminEmails);
       }
       
-      // 恢复localStorage数据
-      if (backup.data.localStorage) {
-        for (const [key, value] of Object.entries(backup.data.localStorage)) {
-          localStorage.setItem(key, JSON.stringify(value));
+      // 恢复SessionStorage数据
+      if (window.sessionStorageManager && backup.data.sessionStorage) {
+        for (const [key, value] of Object.entries(backup.data.sessionStorage)) {
+          window.sessionStorageManager.setItem(key, value);
         }
       }
       
@@ -322,7 +293,7 @@ class BackupManager {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `backup_${backupId}.json`;
+    a.download = `independent_backup_${backupId}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -373,7 +344,8 @@ class BackupManager {
       totalSize: 0,
       oldest: null,
       newest: null,
-      byDay: {}
+      byDay: {},
+      nextBackup: null
     };
     
     backups.forEach(backup => {
@@ -392,6 +364,12 @@ class BackupManager {
       const day = new Date(backup.timestamp).toDateString();
       stats.byDay[day] = (stats.byDay[day] || 0) + 1;
     });
+    
+    // 计算下次备份时间
+    const lastBackup = localStorage.getItem(this.lastBackupKey);
+    if (lastBackup) {
+      stats.nextBackup = parseInt(lastBackup) + this.backupInterval;
+    }
     
     return stats;
   }
@@ -427,15 +405,41 @@ class BackupManager {
    */
   clearAllBackups() {
     localStorage.removeItem(this.backupKey);
-    localStorage.removeItem('lastBackup');
-    console.log('所有备份已清除');
+    localStorage.removeItem(this.lastBackupKey);
+    console.log('所有独立备份已清除');
+  }
+
+  /**
+   * 手动触发备份
+   */
+  async manualBackup() {
+    if (this.isBackupInProgress) {
+      throw new Error('备份正在进行中，请稍后再试');
+    }
+
+    try {
+      this.isBackupInProgress = true;
+      console.log('开始手动备份...');
+      
+      const backup = await this.createBackup();
+      backup.type = 'manual';
+      await this.saveBackup(backup);
+      
+      console.log('手动备份完成:', backup.id);
+      return backup;
+    } catch (error) {
+      console.error('手动备份失败:', error);
+      throw error;
+    } finally {
+      this.isBackupInProgress = false;
+    }
   }
 }
 
 // 创建全局实例
-const backupManager = new BackupManager();
+const independentBackupManager = new IndependentBackupManager();
 
 // 导出到全局作用域
 if (typeof window !== 'undefined') {
-  window.backupManager = backupManager;
+  window.independentBackupManager = independentBackupManager;
 }

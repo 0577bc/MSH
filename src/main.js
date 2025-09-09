@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const earlyList = document.getElementById('earlyList');
   const onTimeList = document.getElementById('onTimeList');
   const lateList = document.getElementById('lateList');
+  const afternoonList = document.getElementById('afternoonList');
 
   let groups = {};
   let groupNames = {};
@@ -64,26 +65,25 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("示例数据初始化完成！");
         needsUpdate = true;
       } else {
-        // 检查现有数据是否包含"未分组"组
-        const existingGroups = groupsSnapshot.val();
-        const existingGroupNames = groupNamesSnapshot.val();
+        // 检查是否需要添加缺失的组别（如未分组）
+        const existingGroups = groupsSnapshot.val() || {};
+        const existingGroupNames = groupNamesSnapshot.val() || {};
         
-        if (!existingGroups["未分组"] || !existingGroupNames["未分组"]) {
-          console.log("修复缺失的未分组组...");
+        if (!existingGroups['未分组'] || !existingGroupNames['未分组']) {
+          console.log("添加缺失的组别...");
           
-          // 确保有"未分组"组
-          if (!existingGroups["未分组"]) {
-            existingGroups["未分组"] = [];
-            await firebase.database().ref('groups').update({ "未分组": [] });
+          // 添加未分组组别
+          if (!existingGroups['未分组']) {
+            await firebase.database().ref('groups').update({ '未分组': [] });
+            console.log("已添加未分组组别");
           }
           
-          // 确保有"未分组"映射
-          if (!existingGroupNames["未分组"]) {
-            existingGroupNames["未分组"] = "未分组";
-            await firebase.database().ref('groupNames').update({ "未分组": "未分组" });
+          // 添加未分组名称映射
+          if (!existingGroupNames['未分组']) {
+            await firebase.database().ref('groupNames').update({ '未分组': '未分组' });
+            console.log("已添加未分组名称映射");
           }
           
-          console.log("未分组组修复完成！");
           needsUpdate = true;
         }
       }
@@ -112,6 +112,33 @@ document.addEventListener('DOMContentLoaded', () => {
       groupNames = await window.dataManager.loadGroupNames();
       attendanceRecords = await window.dataManager.loadAttendanceRecords();
 
+      // 确保未分组组别存在
+      let needsSync = false;
+      if (!groups['未分组']) {
+        groups['未分组'] = [];
+        console.log("签到页面：已添加未分组组别");
+        needsSync = true;
+      }
+      
+      if (!groupNames['未分组']) {
+        groupNames['未分组'] = '未分组';
+        console.log("签到页面：已添加未分组名称映射");
+        needsSync = true;
+      }
+      
+      // 如果需要同步，立即同步到Firebase
+      if (needsSync) {
+        try {
+          // 使用直接覆盖方式，确保未分组组别被正确保存
+          const db = firebase.database();
+          await db.ref('groups').set(groups);
+          await db.ref('groupNames').set(groupNames);
+          console.log("未分组组别已直接同步到Firebase");
+        } catch (error) {
+          console.error("同步未分组组别到Firebase失败:", error);
+        }
+      }
+
       // 确保所有成员都有nickname字段
       Object.keys(groups).forEach(group => {
         groups[group].forEach(member => {
@@ -121,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
+
       // 保存到本地存储
       localStorage.setItem('msh_groups', JSON.stringify(groups));
       localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
@@ -129,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadGroupsAndMembers();
       loadMembers(groupSelect ? groupSelect.value : '');
       loadAttendanceRecords();
+      initNameSearch(); // 初始化姓名检索控件
       console.log("Firebase数据加载成功");
     } catch (error) {
       console.error("Error loading data from Firebase:", error);
@@ -170,18 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
       }
 
-      // 确保有"未分组"组和映射
-      if (!groups["未分组"]) {
-        groups["未分组"] = [];
-        localStorage.setItem('msh_groups', JSON.stringify(groups));
-        console.log("本地存储：已添加未分组组");
-      }
-      
-      if (!groupNames["未分组"]) {
-        groupNames["未分组"] = "未分组";
-        localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
-        console.log("本地存储：已添加未分组映射");
-      }
 
       if (localAttendance) {
         attendanceRecords = JSON.parse(localAttendance);
@@ -193,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadGroupsAndMembers();
       loadMembers(groupSelect ? groupSelect.value : '');
       loadAttendanceRecords();
+      initNameSearch(); // 初始化姓名检索控件
       
       console.log("已切换到本地存储模式");
     } catch (error) {
@@ -203,11 +221,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 安全同步数据到Firebase
   async function syncToFirebase() {
     try {
+      const db = firebase.database();
       if (groups && Object.keys(groups).length > 0) {
-        await window.utils.safeSyncToFirebase(groups, 'groups');
+        await db.ref('groups').set(groups);
+        console.log("✅ groups数据已直接同步到Firebase");
       }
       if (groupNames && Object.keys(groupNames).length > 0) {
-        await window.utils.safeSyncToFirebase(groupNames, 'groupNames');
+        await db.ref('groupNames').set(groupNames);
+        console.log("✅ groupNames数据已直接同步到Firebase");
       }
       if (attendanceRecords && attendanceRecords.length > 0) {
         await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
@@ -284,10 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadAttendanceRecords() {
     const today = window.utils.getTodayString();
-    // 只显示上午的签到记录（早到、准时、迟到），不显示下午签到
+    // 显示所有签到记录（包括上午和下午）
     const todayRecords = attendanceRecords.filter(record => 
-      new Date(record.time).toLocaleDateString('zh-CN') === today &&
-      ['early', 'onTime', 'late'].includes(getAttendanceType(new Date(record.time)))
+      new Date(record.time).toLocaleDateString('zh-CN') === today
     );
     
     // 获取表格容器
@@ -312,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const onTimeRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'onTime')
       .sort((a, b) => new Date(a.time) - new Date(b.time));
     const lateRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'late')
+      .sort((a, b) => new Date(a.time) - new Date(b.time));
+    const afternoonRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'afternoon')
       .sort((a, b) => new Date(a.time) - new Date(b.time));
     
     // 显示早到签到名单 (9:20之前)
@@ -401,6 +423,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     
+    // 显示下午签到名单 (11:30之后)
+    const afternoonTable = document.getElementById('afternoonTable');
+    if (afternoonTable) {
+      afternoonTable.style.display = 'table'; // 始终显示表格
+      afternoonList.innerHTML = '';
+      if (afternoonRecords.length > 0) {
+        afternoonRecords.forEach(record => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${groupNames[record.group] || record.group}</td>
+            <td>${record.name}</td>
+            <td>${new Date(record.time).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}</td>
+          `;
+          afternoonList.appendChild(row);
+        });
+      } else {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+          <td colspan="3" style="text-align: center; color: #999;">
+            暂无下午签到记录
+          </td>
+        `;
+        afternoonList.appendChild(emptyRow);
+      }
+    }
+    
     // 加载当日新增人员
     loadTodayNewcomers();
     
@@ -459,70 +507,88 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!signinCountElement) return;
     
     const today = window.utils.getTodayString();
-    // 只统计10:40之前的签到记录
-    const morningRecords = attendanceRecords.filter(record => {
+    // 统计所有签到记录（包括上午和下午）
+    const todayRecords = attendanceRecords.filter(record => {
       const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
-      if (recordDate !== today) return false;
-      
-      const time = new Date(record.time);
-      const hours = time.getHours();
-      const minutes = time.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-      return timeInMinutes < 10 * 60 + 40; // 10:40之前
+      return recordDate === today;
     });
     
-    signinCountElement.textContent = morningRecords.length;
+    signinCountElement.textContent = todayRecords.length;
   }
 
-  if (memberSearch && suggestions) {
-    memberSearch.addEventListener('input', () => {
-      const query = memberSearch.value.toLowerCase();
-      suggestions.innerHTML = '';
-      suggestions.style.display = 'none';
-      if (query.length < 1) return;
+  // 初始化姓名检索控件
+  function initNameSearch() {
+    if (memberSearch && suggestions) {
+      console.log('姓名检索控件已初始化');
       
-      // 获取所有成员信息，包括组别
-      const allMembers = [];
-      Object.keys(groups).forEach(group => {
-        groups[group].forEach(member => {
-          allMembers.push({
-            ...member,
-            group: group
-          });
+      // 移除之前的事件监听器（如果存在）
+      memberSearch.removeEventListener('input', handleNameSearch);
+      
+      // 添加新的事件监听器
+      memberSearch.addEventListener('input', handleNameSearch);
+    } else {
+      console.error('姓名检索控件初始化失败:', { memberSearch, suggestions });
+    }
+  }
+  
+  // 姓名检索处理函数
+  function handleNameSearch() {
+    const query = memberSearch.value.toLowerCase();
+    suggestions.innerHTML = '';
+    suggestions.style.display = 'none';
+    if (query.length < 1) return;
+    
+    // 获取所有成员信息，包括组别
+    const allMembers = [];
+    Object.keys(groups).forEach(group => {
+      groups[group].forEach(member => {
+        allMembers.push({
+          ...member,
+          group: group
         });
       });
-      
-      const matches = allMembers.filter(member => 
-        member.name.toLowerCase().includes(query) ||
-        (member.nickname && member.nickname.trim() && member.nickname.toLowerCase().includes(query))
-      );
-      
-      if (matches.length > 0) {
-        suggestions.style.display = 'block';
-        matches.forEach(member => {
-          const div = document.createElement('div');
-          div.innerHTML = `
-            <span class="member-name">${member.name}${member.nickname ? ` (${member.nickname})` : ''}</span>
-            <span class="member-group">(${groupNames[member.group] || member.group})</span>
-          `;
-          div.className = 'suggestion-item';
-          div.addEventListener('click', () => {
-            memberSearch.value = member.name;
-            suggestions.style.display = 'none';
-            
-            // 自动填入小组和成员选择框
-            if (groupSelect) {
-              groupSelect.value = member.group;
-              loadMembers(member.group);
-            }
-            if (memberSelect) {
-              memberSelect.value = member.name;
-            }
-          });
-          suggestions.appendChild(div);
-        });
-      }
     });
+    
+    const matches = allMembers.filter(member => {
+      // 支持多种可能的字段名
+      const name = member.name || member.Name || member.姓名 || member.fullName;
+      const nickname = member.nickname || member.Nickname || member.花名 || member.alias;
+      
+      // 搜索姓名和花名
+      const nameMatch = name && name.toLowerCase().includes(query);
+      const nicknameMatch = nickname && nickname.trim() && nickname.toLowerCase().includes(query);
+      
+      return nameMatch || nicknameMatch;
+    });
+    
+    if (matches.length > 0) {
+      suggestions.style.display = 'block';
+      matches.forEach(member => {
+        const div = document.createElement('div');
+        const name = member.name || member.Name || member.姓名 || member.fullName;
+        const nickname = member.nickname || member.Nickname || member.花名 || member.alias;
+        
+        div.innerHTML = `
+          <span class="member-name">${name}${nickname ? ` (${nickname})` : ''}</span>
+          <span class="member-group">(${groupNames[member.group] || member.group})</span>
+        `;
+        div.className = 'suggestion-item';
+        div.addEventListener('click', () => {
+          memberSearch.value = name;
+          suggestions.style.display = 'none';
+          
+          // 自动填入小组和成员选择框
+          if (groupSelect) {
+            groupSelect.value = member.group;
+            loadMembers(member.group);
+          }
+          if (memberSelect) {
+            memberSelect.value = name;
+          }
+        });
+        suggestions.appendChild(div);
+      });
+    }
   }
 
   if (groupSelect) {
@@ -723,14 +789,36 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'groups':
           groups = data;
+          // 确保未分组组别存在
+          if (!groups['未分组']) {
+            groups['未分组'] = [];
+            console.log("签到页面同步：已添加未分组组别");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groups').set(groups).catch(error => {
+              console.error("同步未分组组别到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groups', JSON.stringify(groups));
           loadGroupsAndMembers();
           loadMembers(groupSelect ? groupSelect.value : '');
+          initNameSearch(); // 重新初始化姓名检索控件
           break;
         case 'groupNames':
           groupNames = data;
+          // 确保未分组名称映射存在
+          if (!groupNames['未分组']) {
+            groupNames['未分组'] = '未分组';
+            console.log("签到页面同步：已添加未分组名称映射");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groupNames').set(groupNames).catch(error => {
+              console.error("同步未分组名称映射到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
           loadGroupsAndMembers();
+          initNameSearch(); // 重新初始化姓名检索控件
           break;
       }
     });

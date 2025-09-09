@@ -47,6 +47,31 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.assign(groupNames, groupNamesSnapshot.val() || {});
       }
 
+      // 确保未分组组别和名称映射存在
+      let needsSync = false;
+      if (!groups['未分组']) {
+        groups['未分组'] = [];
+        console.log("日报表页面：已添加未分组组别");
+        needsSync = true;
+      }
+      if (!groupNames['未分组']) {
+        groupNames['未分组'] = '未分组';
+        console.log("日报表页面：已添加未分组名称映射");
+        needsSync = true;
+      }
+      
+      // 如果需要同步，立即同步到Firebase
+      if (needsSync) {
+        try {
+          const db = firebase.database();
+          await db.ref('groups').set(groups);
+          await db.ref('groupNames').set(groupNames);
+          console.log("未分组组别已同步到Firebase");
+        } catch (error) {
+          console.error("同步未分组组别到Firebase失败:", error);
+        }
+      }
+
       // 确保DOM元素已加载后再生成报表
       if (signedList) {
         generateDailyReport();
@@ -160,19 +185,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const earlyRecords = groupRecords.filter(record => {
           const timeSlot = window.utils.getAttendanceType(new Date(record.time));
           const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-          return timeSlot === '早到' && !isExcluded;
+          return timeSlot === 'early' && !isExcluded;
         });
         
         const onTimeRecords = groupRecords.filter(record => {
           const timeSlot = window.utils.getAttendanceType(new Date(record.time));
           const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-          return timeSlot === '准时' && !isExcluded;
+          return timeSlot === 'onTime' && !isExcluded;
         });
         
         const lateRecords = groupRecords.filter(record => {
           const timeSlot = window.utils.getAttendanceType(new Date(record.time));
           const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-          return timeSlot === '迟到' && !isExcluded;
+          return timeSlot === 'late' && !isExcluded;
+        });
+        
+        const afternoonRecords = groupRecords.filter(record => {
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === 'afternoon' && !isExcluded;
         });
         
         const row = document.createElement('tr');
@@ -183,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${earlyRecords.map(record => record.name).join(', ')}</td>
           <td>${onTimeRecords.map(record => record.name).join(', ')}</td>
           <td>${lateRecords.map(record => record.name).join(', ')}</td>
+          <td>${afternoonRecords.map(record => record.name).join(', ')}</td>
           <td>${unsignedNames || '无'}</td>
         `;
         unsignedList.appendChild(row);
@@ -217,72 +249,67 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 更新统计数据的函数
   function updateStatistics(todayRecords) {
-    // 只统计上午的签到记录（早到、准时、迟到），不显示下午签到
-    const morningRecords = todayRecords.filter(record => {
-      const time = new Date(record.time);
-      const hours = time.getHours();
-      const minutes = time.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-      return timeInMinutes < 10 * 60 + 40; // 10:40之前
+    // 统计所有签到记录（包括上午和下午）
+    const earlyRecords = todayRecords.filter(record => {
+      const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+      return timeSlot === 'early';
     });
     
-    const earlyRecords = morningRecords.filter(record => {
-      const time = new Date(record.time);
-      const hours = time.getHours();
-      const minutes = time.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-      return timeInMinutes < 9 * 60 + 20; // 9:20之前
+    const onTimeRecords = todayRecords.filter(record => {
+      const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+      return timeSlot === 'onTime';
     });
     
-    const onTimeRecords = morningRecords.filter(record => {
-      const time = new Date(record.time);
-      const hours = time.getHours();
-      const minutes = time.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-      return timeInMinutes >= 9 * 60 + 20 && timeInMinutes < 9 * 60 + 30; // 9:20-9:30
+    const lateRecords = todayRecords.filter(record => {
+      const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+      return timeSlot === 'late';
     });
     
-    const lateRecords = morningRecords.filter(record => {
-      const time = new Date(record.time);
-      const hours = time.getHours();
-      const minutes = time.getMinutes();
-      const timeInMinutes = hours * 60 + minutes;
-      return timeInMinutes >= 9 * 60 + 30 && timeInMinutes < 10 * 60 + 40; // 9:30-10:40
+    const afternoonRecords = todayRecords.filter(record => {
+      const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+      return timeSlot === 'afternoon';
     });
     
     const earlyCount = earlyRecords.length;
     const onTimeCount = onTimeRecords.length;
     const lateCount = lateRecords.length;
-    const totalCount = earlyCount + onTimeCount + lateCount;
+    const afternoonCount = afternoonRecords.length;
+    const totalCount = earlyCount + onTimeCount + lateCount + afternoonCount;
     
     // 更新人数
     const earlyCountElement = document.getElementById('earlyCount');
     const onTimeCountElement = document.getElementById('onTimeCount');
     const lateCountElement = document.getElementById('lateCount');
+    const afternoonCountElement = document.getElementById('afternoonCount');
     const totalCountElement = document.getElementById('totalCount');
     
     if (earlyCountElement) earlyCountElement.textContent = earlyCount;
     if (onTimeCountElement) onTimeCountElement.textContent = onTimeCount;
     if (lateCountElement) lateCountElement.textContent = lateCount;
+    if (afternoonCountElement) afternoonCountElement.textContent = afternoonCount;
     if (totalCountElement) totalCountElement.textContent = totalCount;
     
     // 计算并更新百分比
     const earlyPercentageElement = document.getElementById('earlyPercentage');
     const onTimePercentageElement = document.getElementById('onTimePercentage');
     const latePercentageElement = document.getElementById('latePercentage');
+    const afternoonPercentageElement = document.getElementById('afternoonPercentage');
     
     if (totalCount > 0) {
       const earlyPercentage = Math.round((earlyCount / totalCount) * 100);
       const onTimePercentage = Math.round((onTimeCount / totalCount) * 100);
       const latePercentage = Math.round((lateCount / totalCount) * 100);
+      const afternoonPercentage = Math.round((afternoonCount / totalCount) * 100);
       
       if (earlyPercentageElement) earlyPercentageElement.textContent = earlyPercentage + '%';
       if (onTimePercentageElement) onTimePercentageElement.textContent = onTimePercentage + '%';
       if (latePercentageElement) latePercentageElement.textContent = latePercentage + '%';
+      if (afternoonPercentageElement) afternoonPercentageElement.textContent = afternoonPercentage + '%';
     } else {
       if (earlyPercentageElement) earlyPercentageElement.textContent = '0%';
       if (onTimePercentageElement) onTimePercentageElement.textContent = '0%';
       if (latePercentageElement) latePercentageElement.textContent = '0%';
+      if (afternoonPercentageElement) afternoonPercentageElement.textContent = '0%';
     }
   }
 
@@ -367,11 +394,31 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'groups':
           groups = data;
+          // 确保未分组组别存在
+          if (!groups['未分组']) {
+            groups['未分组'] = [];
+            console.log("日报表页面同步：已添加未分组组别");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groups').set(groups).catch(error => {
+              console.error("同步未分组组别到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groups', JSON.stringify(groups));
           generateDailyReport();
           break;
         case 'groupNames':
-          groupNames = data;
+          Object.assign(groupNames, data);
+          // 确保未分组名称映射存在
+          if (!groupNames['未分组']) {
+            groupNames['未分组'] = '未分组';
+            console.log("日报表页面同步：已添加未分组名称映射");
+            // 立即同步到Firebase
+            const db = firebase.database();
+            db.ref('groupNames').set(groupNames).catch(error => {
+              console.error("同步未分组名称映射到Firebase失败:", error);
+            });
+          }
           localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
           generateDailyReport();
           break;

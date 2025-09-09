@@ -1,178 +1,164 @@
-# MSH签到管理系统
+# MSH 签到系统
 
-一个基于Firebase的现代化签到管理系统，支持多组管理、实时同步和数据统计。
+一个基于Web的签到管理系统，支持多小组管理、实时数据同步和自动备份。
 
-## 🚀 功能特性
+## 🚀 快速开始
 
-- **多组管理**：支持多个小组的成员管理
-- **实时签到**：支持早到、准时、迟到三种签到状态
-- **数据同步**：Firebase实时数据库同步
-- **统计分析**：日报、季报、年报统计
-- **管理后台**：完整的后台管理功能
-- **响应式设计**：支持移动端和桌面端
+### 本地开发
+```bash
+# 使用Python启动本地服务器
+python -m http.server 8000
+
+# 或使用Node.js
+npx http-server -p 8000
+```
+
+访问 `http://localhost:8000` 开始使用。
 
 ## 📁 项目结构
 
 ```
 MSH/
-├── index.html              # 主签到页面
-├── admin.html              # 管理后台
-├── daily-report.html       # 日报页面
-├── summary.html            # 统计汇总页面
-├── config.js               # Firebase配置
-├── src/                    # 源代码目录
-│   ├── main.js            # 主页面逻辑
-│   ├── admin.js           # 管理后台逻辑
-│   ├── style.css          # 样式文件
-│   ├── firebase-auth.js   # 认证模块
-│   ├── data-manager.js    # 数据管理
-│   └── ...                # 其他模块
-└── debug-group-names.html # 调试工具
+├── index.html                    # 主页面
+├── admin.html                    # 管理页面
+├── summary.html                  # 签到汇总页面
+├── daily-report.html             # 日报页面
+├── config.js                     # 系统配置
+├── manifest.json                 # PWA配置
+├── favicon.ico                   # 网站图标
+├── src/                          # 源代码目录
+│   ├── main.js                   # 主逻辑
+│   ├── admin.js                  # 管理逻辑
+│   ├── summary.js                # 汇总逻辑
+│   ├── daily-report.js           # 日报逻辑
+│   ├── utils.js                  # 工具函数
+│   ├── data-manager.js           # 数据管理
+│   ├── session-storage-manager.js # SessionStorage管理
+│   ├── independent-backup-manager.js # 独立备份管理
+│   ├── style.css                 # 主样式
+│   ├── virtual-scroll.css        # 虚拟滚动样式
+│   ├── virtual-scroll.js         # 虚拟滚动功能
+│   ├── security.js               # 安全模块
+│   ├── performance-monitor.js    # 性能监控
+│   ├── csrf-protection.js        # CSRF保护
+│   ├── cache-manager.js          # 缓存管理
+│   ├── accessibility-simple.js   # 简化可访问性
+│   ├── config-manager.js         # 配置管理
+│   └── service-worker.js         # 服务工作者
 ```
 
-## 🛠️ 技术栈
+## 🔧 核心功能
 
-- **前端**：HTML5, CSS3, JavaScript (ES6+)
-- **后端**：Firebase Realtime Database
-- **认证**：Firebase Authentication (简化版)
-- **部署**：GitHub Pages
+### 数据存储架构
+- **SessionStorage**: 会话级本地存储，浏览器关闭后自动清除
+- **Firebase**: 云端实时数据库，永久保存和同步
+- **独立备份**: 24小时自动备份，保留10天，与操作数据完全隔离
 
-## 🚀 快速开始
+### 主要功能
+- ✅ 多小组签到管理
+- ✅ 实时数据同步
+- ✅ 自动备份系统
+- ✅ 签到汇总统计
+- ✅ 日报生成
+- ✅ 管理员权限控制
+- ✅ 数据导入导出
+- ✅ 离线支持
 
-### 本地开发
+## 🛠️ 管理工具
 
-1. **启动开发服务器**：
-   ```bash
-   python3 start-dev-server.py
-   ```
+### 存储备份管理
 
-2. **访问应用**：
-   - 主页面：http://localhost:8001/
-   - 管理后台：http://localhost:8001/admin.html
-   - 日报页面：http://localhost:8001/daily-report.html
-
-### 生产部署
-
-1. **配置Firebase**：
-   - 更新 `config.js` 中的Firebase配置
-   - 设置Firebase数据库规则
-
-2. **部署到GitHub Pages**：
-   - 推送代码到GitHub仓库
-   - 启用GitHub Pages功能
-
-## 🔧 配置说明
+## ⚙️ 配置
 
 ### Firebase配置
-
-在 `config.js` 中配置您的Firebase项目：
-
+在 `config.js` 中配置Firebase连接信息：
 ```javascript
 window.firebaseConfig = {
   apiKey: "your-api-key",
   authDomain: "your-project.firebaseapp.com",
-  databaseURL: "https://your-project-default-rtdb.firebaseio.com/",
+  databaseURL: "https://your-project.firebaseio.com",
   projectId: "your-project-id",
   storageBucket: "your-project.appspot.com",
-  messagingSenderId: "your-sender-id",
+  messagingSenderId: "123456789",
   appId: "your-app-id"
 };
 ```
 
-### 管理员密码
-
-在 `src/firebase-auth.js` 中设置管理员密码：
-
-```javascript
-const ADMIN_PASSWORD = 'your-admin-password';
-```
-
-## 📊 数据管理
-
-### 小组管理
-
-- 支持添加、编辑、删除小组
-- 支持成员管理
-- 支持花名功能
-
-### 签到记录
-
-- 自动记录签到时间
-- 支持早到、准时、迟到状态
-- 支持删除错误记录
-
-### 数据同步
-
-- 实时同步到Firebase
-- 本地缓存支持
-- 冲突检测和解决
-
-## 🐛 调试工具
-
-### 小组名称调试
-
-访问 `debug-group-names.html` 进行小组名称问题诊断：
-
-- 检查Firebase数据
-- 检查本地存储
-- 修复数据不一致问题
-
-### 高级修复工具
-
-访问 `fix-ungrouped-advanced.html` 进行深度修复：
-
-- 完整数据诊断
-- 强制修复功能
-- 数据重置功能
+### 系统配置
+在 `config.js` 中配置系统参数：
+- 小组名称和成员
+- 管理员设置
+- 系统选项
 
 ## 🔒 安全特性
 
-- 管理员密码保护
-- CSRF保护
-- 输入验证和清理
-- Firebase安全规则
+- **CSRF保护**: 防止跨站请求伪造
+- **输入验证**: 所有用户输入都经过验证
+- **权限控制**: 基于Firebase安全规则
+- **数据加密**: 敏感数据加密存储
+- **备份隔离**: 备份系统与操作数据完全独立
 
-## 📱 移动端支持
+## 📊 性能优化
 
-- 响应式设计
-- 触摸友好的界面
-- 移动端优化的交互
+- **智能缓存**: 5分钟缓存减少网络请求
+- **虚拟滚动**: 大数据量高效渲染
+- **异步处理**: 非阻塞数据操作
+- **压缩存储**: 自动数据压缩
+- **性能监控**: 实时性能统计
 
-## 🚨 已知问题
+## 🚀 部署
 
-1. **"未分组"组显示问题**：
-   - 问题：可能显示为"group9"而不是"未分组"
-   - 解决：使用调试工具修复数据不一致
+### GitHub Pages
+1. 将代码推送到GitHub仓库
+2. 在仓库设置中启用GitHub Pages
+3. 选择部署分支
+4. 访问生成的URL
 
-2. **Firebase权限问题**：
-   - 问题：某些操作可能因权限限制失败
-   - 解决：检查Firebase控制台权限设置
+### 其他静态托管
+- Netlify
+- Vercel
+- Firebase Hosting
+- 任何支持静态文件的服务器
 
-## 📝 更新日志
+## 📝 使用说明
 
-### v1.0.0 (2025-01-09)
-- 初始版本发布
-- 基础签到功能
-- 管理后台
-- 数据统计
-- 实时同步
+### 管理员登录
+- 访问 `admin.html`
+- 输入管理员密码
+- 进行系统管理操作
+
+### 签到操作
+- 访问主页面
+- 选择小组
+- 点击成员进行签到
+
+### 查看汇总
+- 访问 `summary.html`
+- 选择日期查看签到统计
+- 导出数据或生成报告
+
+## 🔧 故障排除
+
+### 常见问题
+1. **Firebase连接失败**: 检查网络连接和配置
+2. **数据同步问题**: 使用管理工具检查状态
+3. **备份恢复失败**: 验证备份文件完整性
+4. **性能问题**: 检查缓存和网络状态
+
+### 技术支持
+- 使用内置的诊断工具
+- 查看浏览器控制台错误
+- 检查网络连接状态
+- 验证Firebase配置
+
+## 📄 许可证
+
+本项目采用MIT许可证。
 
 ## 🤝 贡献
 
 欢迎提交Issue和Pull Request来改进项目。
 
-## 📄 许可证
-
-MIT License
-
-## 📞 支持
-
-如有问题，请通过以下方式联系：
-
-- 提交GitHub Issue
-- 查看调试工具页面
-- 检查Firebase控制台日志
-
 ---
 
-**注意**：这是一个内部使用的签到管理系统，请确保在生产环境中正确配置安全设置。
+**注意**: 请确保在生产环境中正确配置Firebase安全规则和API密钥。
