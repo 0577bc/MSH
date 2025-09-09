@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>最终修复未分组组</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #1976D2;
+    }
+    button.danger {
+      background-color: #f44336;
+    }
+    button.danger:hover {
+      background-color: #d32f2f;
+    }
+    button.success {
+      background-color: #4caf50;
+    }
+    button.success:hover {
+      background-color: #45a049;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+      background-color: #e8f5e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      background-color: #ffe8e8;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .info {
+      color: blue;
+      font-weight: bold;
+      background-color: #e8f0ff;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .warning {
+      color: orange;
+      font-weight: bold;
+      background-color: #fff3e0;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .code {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      margin: 10px 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .step {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border-left: 4px solid #2196F3;
+    }
+  </style>
+  <!-- 引入Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 最终修复未分组组工具</h1>
+    <p>此工具将彻底解决"未分组"组显示问题，确保数据一致性。</p>
+    
+    <div class="section">
+      <h2>📊 当前状态检查</h2>
+      <button onclick="checkCurrentStatus()">检查当前状态</button>
+      <div id="statusResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🔧 修复操作</h2>
+      <button onclick="step1FixConfig()">步骤1: 修复配置文件</button>
+      <button onclick="step2FixLocalStorage()">步骤2: 修复本地存储</button>
+      <button onclick="step3FixFirebase()">步骤3: 修复Firebase</button>
+      <button onclick="step4VerifyFix()">步骤4: 验证修复</button>
+      <div id="fixResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🚀 一键修复</h2>
+      <button onclick="oneClickFix()" class="success">一键修复所有问题</button>
+      <div id="oneClickResult"></div>
+    </div>
+    
+    <div class="section">
+      <h2>🧪 测试功能</h2>
+      <button onclick="testGroupDisplay()">测试小组显示</button>
+      <button onclick="goToMainPage()">前往主页面测试</button>
+      <button onclick="goToAdminPage()">前往管理页面测试</button>
+      <div id="testResult"></div>
+    </div>
+  </div>
+
+  <script>
+    let firebaseApp = null;
+    let database = null;
+
+    // 初始化Firebase
+    function initFirebase() {
+      try {
+        if (!firebaseApp) {
+          firebaseApp = firebase.initializeApp(window.firebaseConfig);
+          database = firebase.database();
+          console.log('Firebase初始化成功');
+        }
+        return true;
+      } catch (error) {
+        console.error('Firebase初始化失败:', error);
+        return false;
+      }
+    }
+
+    // 检查当前状态
+    async function checkCurrentStatus() {
+      const resultDiv = document.getElementById('statusResult');
+      resultDiv.innerHTML = '<div class="info">正在检查当前状态...</div>';
+      
+      let report = '<h3>📊 状态检查报告</h3>';
+      
+      // 检查配置文件
+      report += '<div class="step"><h4>1. 配置文件检查</h4>';
+      if (window.sampleData && window.sampleData.groups) {
+        const groups = window.sampleData.groups;
+        const groupNames = window.sampleData.groupNames;
+        
+        report += `<div class="success">✅ 配置文件加载成功</div>`;
+        report += `<div class="info">小组数量: ${Object.keys(groups).length}</div>`;
+        
+        if (groups["未分组"]) {
+          report += `<div class="success">✅ 配置中有"未分组"组 (${groups["未分组"].length}个成员)</div>`;
+        } else {
+          report += `<div class="error">❌ 配置中没有"未分组"组</div>`;
+        }
+        
+        if (groupNames["未分组"]) {
+          report += `<div class="success">✅ 配置中有"未分组"映射: "${groupNames["未分组"]}"</div>`;
+        } else {
+          report += `<div class="error">❌ 配置中没有"未分组"映射</div>`;
+        }
+      } else {
+        report += `<div class="error">❌ 配置文件未加载</div>`;
+      }
+      report += '</div>';
+      
+      // 检查本地存储
+      report += '<div class="step"><h4>2. 本地存储检查</h4>';
+      const localGroups = localStorage.getItem('msh_groups');
+      const localGroupNames = localStorage.getItem('msh_groupNames');
+      
+      if (localGroups) {
+        const groups = JSON.parse(localGroups);
+        report += `<div class="success">✅ 本地存储中有groups数据</div>`;
+        report += `<div class="info">本地小组数量: ${Object.keys(groups).length}</div>`;
+        
+        if (groups["未分组"]) {
+          report += `<div class="success">✅ 本地存储中有"未分组"组 (${groups["未分组"].length}个成员)</div>`;
+        } else {
+          report += `<div class="error">❌ 本地存储中没有"未分组"组</div>`;
+        }
+      } else {
+        report += `<div class="warning">⚠️ 本地存储中没有groups数据</div>`;
+      }
+      
+      if (localGroupNames) {
+        const groupNames = JSON.parse(localGroupNames);
+        report += `<div class="success">✅ 本地存储中有groupNames数据</div>`;
+        
+        if (groupNames["未分组"]) {
+          report += `<div class="success">✅ 本地groupNames中有"未分组"映射: "${groupNames["未分组"]}"</div>`;
+        } else {
+          report += `<div class="error">❌ 本地groupNames中没有"未分组"映射</div>`;
+        }
+      } else {
+        report += `<div class="warning">⚠️ 本地存储中没有groupNames数据</div>`;
+      }
+      report += '</div>';
+      
+      // 检查Firebase
+      report += '<div class="step"><h4>3. Firebase检查</h4>';
+      try {
+        if (initFirebase()) {
+          const groupsSnapshot = await database.ref('groups').once('value');
+          if (groupsSnapshot.exists()) {
+            const groups = groupsSnapshot.val();
+            report += `<div class="success">✅ Firebase中有groups数据</div>`;
+            report += `<div class="info">Firebase小组数量: ${Object.keys(groups).length}</div>`;
+            
+            if (groups["未分组"]) {
+              report += `<div class="success">✅ Firebase中有"未分组"组 (${groups["未分组"].length}个成员)</div>`;
+            } else {
+              report += `<div class="error">❌ Firebase中没有"未分组"组</div>`;
+            }
+          } else {
+            report += `<div class="error">❌ Firebase中没有groups数据</div>`;
+          }
+          
+          const groupNamesSnapshot = await database.ref('groupNames').once('value');
+          if (groupNamesSnapshot.exists()) {
+            const groupNames = groupNamesSnapshot.val();
+            report += `<div class="success">✅ Firebase中有groupNames数据</div>`;
+            
+            if (groupNames["未分组"]) {
+              report += `<div class="success">✅ Firebase groupNames中有"未分组"映射: "${groupNames["未分组"]}"</div>`;
+            } else {
+              report += `<div class="error">❌ Firebase groupNames中没有"未分组"映射</div>`;
+            }
+          } else {
+            report += `<div class="error">❌ Firebase中没有groupNames数据</div>`;
+          }
+        } else {
+          report += `<div class="error">❌ Firebase初始化失败</div>`;
+        }
+      } catch (error) {
+        report += `<div class="error">❌ Firebase检查失败: ${error.message}</div>`;
+      }
+      report += '</div>';
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 步骤1: 修复配置文件
+    function step1FixConfig() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在修复配置文件...</div>';
+      
+      try {
+        if (!window.sampleData) {
+          throw new Error('配置文件未加载');
+        }
+        
+        // 确保有"未分组"组
+        if (!window.sampleData.groups["未分组"]) {
+          window.sampleData.groups["未分组"] = [];
+        }
+        
+        // 确保有"未分组"映射
+        if (!window.sampleData.groupNames["未分组"]) {
+          window.sampleData.groupNames["未分组"] = "未分组";
+        }
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h4>✅ 步骤1完成: 配置文件修复</h4>
+            <p>已确保配置文件中包含"未分组"组和映射</p>
+            <ul>
+              <li>未分组成员数量: ${window.sampleData.groups["未分组"].length}</li>
+              <li>未分组映射: "${window.sampleData.groupNames["未分组"]}"</li>
+            </ul>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 步骤1失败: ${error.message}</div>`;
+      }
+    }
+
+    // 步骤2: 修复本地存储
+    function step2FixLocalStorage() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在修复本地存储...</div>';
+      
+      try {
+        if (!window.sampleData) {
+          throw new Error('配置文件未加载');
+        }
+        
+        // 获取当前数据
+        let groups = window.sampleData.groups;
+        let groupNames = window.sampleData.groupNames;
+        
+        // 尝试从本地存储加载现有数据
+        const localGroups = localStorage.getItem('msh_groups');
+        const localGroupNames = localStorage.getItem('msh_groupNames');
+        
+        if (localGroups) {
+          groups = JSON.parse(localGroups);
+        }
+        if (localGroupNames) {
+          groupNames = JSON.parse(localGroupNames);
+        }
+        
+        // 确保有"未分组"组
+        if (!groups["未分组"]) {
+          groups["未分组"] = [];
+        }
+        
+        // 确保有"未分组"映射
+        if (!groupNames["未分组"]) {
+          groupNames["未分组"] = "未分组";
+        }
+        
+        // 更新本地存储
+        localStorage.setItem('msh_groups', JSON.stringify(groups));
+        localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h4>✅ 步骤2完成: 本地存储修复</h4>
+            <p>已更新本地存储数据</p>
+            <ul>
+              <li>小组数量: ${Object.keys(groups).length}</li>
+              <li>未分组成员数量: ${groups["未分组"].length}</li>
+              <li>未分组映射: "${groupNames["未分组"]}"</li>
+            </ul>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 步骤2失败: ${error.message}</div>`;
+      }
+    }
+
+    // 步骤3: 修复Firebase
+    async function step3FixFirebase() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在修复Firebase...</div>';
+      
+      try {
+        if (!initFirebase()) {
+          throw new Error('Firebase初始化失败');
+        }
+        
+        // 获取当前数据
+        let groups = window.sampleData.groups;
+        let groupNames = window.sampleData.groupNames;
+        
+        // 尝试从本地存储加载现有数据
+        const localGroups = localStorage.getItem('msh_groups');
+        const localGroupNames = localStorage.getItem('msh_groupNames');
+        
+        if (localGroups) {
+          groups = JSON.parse(localGroups);
+        }
+        if (localGroupNames) {
+          groupNames = JSON.parse(localGroupNames);
+        }
+        
+        // 确保有"未分组"组
+        if (!groups["未分组"]) {
+          groups["未分组"] = [];
+        }
+        
+        // 确保有"未分组"映射
+        if (!groupNames["未分组"]) {
+          groupNames["未分组"] = "未分组";
+        }
+        
+        // 更新Firebase
+        await database.ref('groups').update({ "未分组": groups["未分组"] });
+        await database.ref('groupNames').update({ "未分组": groupNames["未分组"] });
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h4>✅ 步骤3完成: Firebase修复</h4>
+            <p>已更新Firebase数据</p>
+            <ul>
+              <li>未分组成员数量: ${groups["未分组"].length}</li>
+              <li>未分组映射: "${groupNames["未分组"]}"</li>
+            </ul>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 步骤3失败: ${error.message}</div>`;
+      }
+    }
+
+    // 步骤4: 验证修复
+    async function step4VerifyFix() {
+      const resultDiv = document.getElementById('fixResult');
+      resultDiv.innerHTML = '<div class="info">正在验证修复...</div>';
+      
+      let report = '<h4>🔍 修复验证报告</h4>';
+      
+      // 验证配置文件
+      if (window.sampleData && window.sampleData.groups["未分组"] && window.sampleData.groupNames["未分组"]) {
+        report += `<div class="success">✅ 配置文件验证通过</div>`;
+      } else {
+        report += `<div class="error">❌ 配置文件验证失败</div>`;
+      }
+      
+      // 验证本地存储
+      const localGroups = localStorage.getItem('msh_groups');
+      const localGroupNames = localStorage.getItem('msh_groupNames');
+      
+      if (localGroups && localGroupNames) {
+        const groups = JSON.parse(localGroups);
+        const groupNames = JSON.parse(localGroupNames);
+        
+        if (groups["未分组"] && groupNames["未分组"]) {
+          report += `<div class="success">✅ 本地存储验证通过</div>`;
+        } else {
+          report += `<div class="error">❌ 本地存储验证失败</div>`;
+        }
+      } else {
+        report += `<div class="error">❌ 本地存储验证失败</div>`;
+      }
+      
+      // 验证Firebase
+      try {
+        if (initFirebase()) {
+          const groupsSnapshot = await database.ref('groups').once('value');
+          const groupNamesSnapshot = await database.ref('groupNames').once('value');
+          
+          if (groupsSnapshot.exists() && groupNamesSnapshot.exists()) {
+            const groups = groupsSnapshot.val();
+            const groupNames = groupNamesSnapshot.val();
+            
+            if (groups["未分组"] && groupNames["未分组"]) {
+              report += `<div class="success">✅ Firebase验证通过</div>`;
+            } else {
+              report += `<div class="error">❌ Firebase验证失败</div>`;
+            }
+          } else {
+            report += `<div class="error">❌ Firebase验证失败</div>`;
+          }
+        } else {
+          report += `<div class="error">❌ Firebase验证失败</div>`;
+        }
+      } catch (error) {
+        report += `<div class="error">❌ Firebase验证失败: ${error.message}</div>`;
+      }
+      
+      resultDiv.innerHTML = report;
+    }
+
+    // 一键修复
+    async function oneClickFix() {
+      const resultDiv = document.getElementById('oneClickResult');
+      resultDiv.innerHTML = '<div class="info">正在执行一键修复...</div>';
+      
+      try {
+        // 执行所有修复步骤
+        step1FixConfig();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        step2FixLocalStorage();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        await step3FixFirebase();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        await step4VerifyFix();
+        
+        resultDiv.innerHTML = `
+          <div class="success">
+            <h3>🎉 一键修复完成！</h3>
+            <p>所有修复步骤已执行完成，请验证结果。</p>
+            <p>现在可以前往主页面或管理页面测试"未分组"组是否正常显示。</p>
+          </div>
+        `;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 一键修复失败: ${error.message}</div>`;
+      }
+    }
+
+    // 测试小组显示
+    function testGroupDisplay() {
+      const resultDiv = document.getElementById('testResult');
+      resultDiv.innerHTML = '<div class="info">正在测试小组显示...</div>';
+      
+      try {
+        // 获取当前数据
+        let groups = window.sampleData.groups;
+        let groupNames = window.sampleData.groupNames;
+        
+        const localGroups = localStorage.getItem('msh_groups');
+        const localGroupNames = localStorage.getItem('msh_groupNames');
+        
+        if (localGroups) {
+          groups = JSON.parse(localGroups);
+        }
+        if (localGroupNames) {
+          groupNames = JSON.parse(localGroupNames);
+        }
+        
+        // 模拟小组选择下拉框
+        let html = '<h4>📋 小组显示测试</h4>';
+        html += '<div class="code">';
+        
+        Object.keys(groups).forEach(group => {
+          const displayName = groupNames[group] || group;
+          html += `${group} -> "${displayName}"\n`;
+        });
+        
+        html += '</div>';
+        
+        // 检查"未分组"组
+        if (groups["未分组"]) {
+          const displayName = groupNames["未分组"] || "未分组";
+          html += `<div class="success">✅ "未分组"组显示为: "${displayName}"</div>`;
+        } else {
+          html += `<div class="error">❌ 没有找到"未分组"组</div>`;
+        }
+        
+        resultDiv.innerHTML = html;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 前往主页面
+    function goToMainPage() {
+      window.open('index.html', '_blank');
+    }
+
+    // 前往管理页面
+    function goToAdminPage() {
+      window.open('admin.html', '_blank');
+    }
+
+    // 页面加载时自动检查状态
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('最终修复工具已加载');
+      checkCurrentStatus();
+    });
+  </script>
+</body>
+</html>

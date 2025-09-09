@@ -50,15 +50,52 @@ document.addEventListener('DOMContentLoaded', () => {
   async function initializeSampleData() {
     try {
       const groupsRef = firebase.database().ref('groups');
+      const groupNamesRef = firebase.database().ref('groupNames');
       const groupsSnapshot = await groupsRef.once('value');
+      const groupNamesSnapshot = await groupNamesRef.once('value');
       
-      // 如果没有数据，则初始化示例数据
+      let needsUpdate = false;
+      
+      // 检查是否需要初始化数据
       if (!groupsSnapshot.exists() || Object.keys(groupsSnapshot.val() || {}).length === 0) {
         console.log("初始化示例数据...");
         await window.utils.safeSyncToFirebase(window.sampleData.groups, 'groups');
         await window.utils.safeSyncToFirebase(window.sampleData.groupNames, 'groupNames');
         console.log("示例数据初始化完成！");
+        needsUpdate = true;
+      } else {
+        // 检查现有数据是否包含"未分组"组
+        const existingGroups = groupsSnapshot.val();
+        const existingGroupNames = groupNamesSnapshot.val();
+        
+        if (!existingGroups["未分组"] || !existingGroupNames["未分组"]) {
+          console.log("修复缺失的未分组组...");
+          
+          // 确保有"未分组"组
+          if (!existingGroups["未分组"]) {
+            existingGroups["未分组"] = [];
+            await firebase.database().ref('groups').update({ "未分组": [] });
+          }
+          
+          // 确保有"未分组"映射
+          if (!existingGroupNames["未分组"]) {
+            existingGroupNames["未分组"] = "未分组";
+            await firebase.database().ref('groupNames').update({ "未分组": "未分组" });
+          }
+          
+          console.log("未分组组修复完成！");
+          needsUpdate = true;
+        }
       }
+      
+      if (needsUpdate) {
+        // 更新本地存储
+        const updatedGroups = await window.dataManager.loadGroups();
+        const updatedGroupNames = await window.dataManager.loadGroupNames();
+        localStorage.setItem('msh_groups', JSON.stringify(updatedGroups));
+        localStorage.setItem('msh_groupNames', JSON.stringify(updatedGroupNames));
+      }
+      
     } catch (error) {
       console.error("Error initializing sample data:", error);
     }
@@ -131,6 +168,19 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         groupNames = window.sampleData.groupNames;
         localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+      }
+
+      // 确保有"未分组"组和映射
+      if (!groups["未分组"]) {
+        groups["未分组"] = [];
+        localStorage.setItem('msh_groups', JSON.stringify(groups));
+        console.log("本地存储：已添加未分组组");
+      }
+      
+      if (!groupNames["未分组"]) {
+        groupNames["未分组"] = "未分组";
+        localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+        console.log("本地存储：已添加未分组映射");
       }
 
       if (localAttendance) {

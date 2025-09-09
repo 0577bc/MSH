@@ -260,6 +260,19 @@ document.addEventListener('DOMContentLoaded', () => {
         groupNames = groupNamesSnapshot.val() || {};
       }
 
+      // 确保有"未分组"组和映射
+      if (!groups["未分组"]) {
+        groups["未分组"] = [];
+        await firebase.database().ref('groups').update({ "未分组": [] });
+        console.log("管理页面：已添加未分组组");
+      }
+      
+      if (!groupNames["未分组"]) {
+        groupNames["未分组"] = "未分组";
+        await firebase.database().ref('groupNames').update({ "未分组": "未分组" });
+        console.log("管理页面：已添加未分组映射");
+      }
+
       // 加载 attendanceRecords
       const attendanceRef = firebase.database().ref('attendanceRecords');
       const attendanceSnapshot = await attendanceRef.once('value');
