@@ -25,14 +25,31 @@
   <script>
     let db = null;
 
+    // 初始化Firebase（避免重复初始化）
+    function initFirebase() {
+      if (!db) {
+        try {
+          const app = firebase.initializeApp(window.firebaseConfig);
+          db = firebase.database();
+        } catch (error) {
+          if (error.code === 'app/duplicate-app') {
+            // 应用已存在，获取现有应用
+            db = firebase.database();
+          } else {
+            throw error;
+          }
+        }
+      }
+      return db;
+    }
+
     async function testFirebase() {
       const resultDiv = document.getElementById('result');
       resultDiv.innerHTML = '<div class="info">正在测试Firebase...</div>';
       
       try {
         // 初始化Firebase
-        const app = firebase.initializeApp(window.firebaseConfig);
-        db = firebase.database();
+        initFirebase();
         
         // 测试基本操作
         await db.ref('test').set({ timestamp: Date.now() });
@@ -51,26 +68,52 @@
       resultDiv.innerHTML = '<div class="info">正在添加未分组组...</div>';
       
       try {
-        if (!db) {
-          const app = firebase.initializeApp(window.firebaseConfig);
-          db = firebase.database();
-        }
+        // 初始化Firebase
+        initFirebase();
+        
+        // 先检查当前数据状态
+        const groupsSnapshot = await db.ref('groups').once('value');
+        const currentGroups = groupsSnapshot.exists() ? groupsSnapshot.val() : {};
+        
+        console.log('添加前的小组:', Object.keys(currentGroups));
         
         // 尝试添加未分组组
         await db.ref('groups/未分组').set([]);
         await db.ref('groupNames/未分组').set("未分组");
         
-        // 验证添加结果
-        const groupsSnapshot = await db.ref('groups').once('value');
-        const groups = groupsSnapshot.val();
+        // 等待一下确保数据写入
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        resultDiv.innerHTML = `
-          <div class="success">
-            ✅ 未分组组添加成功！<br>
-            总小组数: ${Object.keys(groups).length}<br>
-            所有小组: ${Object.keys(groups).join(', ')}
-          </div>
-        `;
+        // 验证添加结果
+        const newGroupsSnapshot = await db.ref('groups').once('value');
+        const newGroups = newGroupsSnapshot.exists() ? newGroupsSnapshot.val() : {};
+        
+        console.log('添加后的小组:', Object.keys(newGroups));
+        
+        // 检查是否真的添加成功
+        const hasUngrouped = newGroups["未分组"] !== undefined;
+        const groupCount = Object.keys(newGroups).length;
+        
+        if (hasUngrouped && groupCount > Object.keys(currentGroups).length) {
+          resultDiv.innerHTML = `
+            <div class="success">
+              ✅ 未分组组添加成功！<br>
+              添加前小组数: ${Object.keys(currentGroups).length}<br>
+              添加后小组数: ${groupCount}<br>
+              所有小组: ${Object.keys(newGroups).join(', ')}
+            </div>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <div class="error">
+              ❌ 添加失败！<br>
+              添加前小组数: ${Object.keys(currentGroups).length}<br>
+              添加后小组数: ${groupCount}<br>
+              未分组组存在: ${hasUngrouped ? '是' : '否'}<br>
+              所有小组: ${Object.keys(newGroups).join(', ')}
+            </div>
+          `;
+        }
         
       } catch (error) {
         resultDiv.innerHTML = `<div class="error">❌ 添加失败: ${error.message}</div>`;
