@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase直接修复工具</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    button { padding: 15px 30px; margin: 10px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button.success { background: #4caf50; }
+    button.danger { background: #f44336; }
+    .result { margin: 10px 0; padding: 15px; border-radius: 4px; }
+    .success { background: #e8f5e8; color: green; }
+    .error { background: #ffe8e8; color: red; }
+    .info { background: #e8f0ff; color: blue; }
+    .warning { background: #fff3e0; color: orange; }
+    .code { background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="./config.js"></script>
+</head>
+<body>
+  <h1>Firebase直接修复工具</h1>
+  <button onclick="directFix()" class="success">直接修复未分组组</button>
+  <button onclick="resetFromConfig()" class="danger">从配置文件重置</button>
+  <button onclick="checkCurrentState()">检查当前状态</button>
+  <div id="result"></div>
+
+  <script>
+    let db = null;
+
+    // 初始化Firebase
+    function initFirebase() {
+      if (!db) {
+        try {
+          const app = firebase.initializeApp(window.firebaseConfig);
+          db = firebase.database();
+        } catch (error) {
+          if (error.code === 'app/duplicate-app') {
+            db = firebase.database();
+          } else {
+            throw error;
+          }
+        }
+      }
+      return db;
+    }
+
+    // 直接修复未分组组
+    async function directFix() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在直接修复未分组组...</div>';
+      
+      try {
+        initFirebase();
+        
+        let report = '<h3>🔧 直接修复过程</h3>';
+        
+        // 步骤1: 读取当前数据
+        const groupsSnapshot = await db.ref('groups').once('value');
+        const groupNamesSnapshot = await db.ref('groupNames').once('value');
+        
+        const currentGroups = groupsSnapshot.exists() ? groupsSnapshot.val() : {};
+        const currentGroupNames = groupNamesSnapshot.exists() ? groupNamesSnapshot.val() : {};
+        
+        report += `<div class="info">📊 当前状态: ${Object.keys(currentGroups).length}个小组</div>`;
+        report += `<div class="info">📋 当前小组: ${Object.keys(currentGroups).join(', ')}</div>`;
+        
+        // 步骤2: 创建新的数据对象
+        const newGroups = { ...currentGroups };
+        const newGroupNames = { ...currentGroupNames };
+        
+        // 确保有未分组组
+        if (!newGroups["未分组"]) {
+          newGroups["未分组"] = [];
+        }
+        
+        // 确保有未分组映射
+        if (!newGroupNames["未分组"]) {
+          newGroupNames["未分组"] = "未分组";
+        }
+        
+        report += `<div class="info">🔨 准备添加未分组组到数据中</div>`;
+        
+        // 步骤3: 使用set方法完全替换数据
+        await db.ref('groups').set(newGroups);
+        await db.ref('groupNames').set(newGroupNames);
+        
+        report += `<div class="success">✅ 数据写入完成</div>`;
+        
+        // 步骤4: 等待并验证
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const finalGroupsSnapshot = await db.ref('groups').once('value');
+        const finalGroupNamesSnapshot = await db.ref('groupNames').once('value');
+        
+        const finalGroups = finalGroupsSnapshot.exists() ? finalGroupsSnapshot.val() : {};
+        const finalGroupNames = finalGroupNamesSnapshot.exists() ? finalGroupNamesSnapshot.val() : {};
+        
+        report += `<div class="info">📊 修复后状态: ${Object.keys(finalGroups).length}个小组</div>`;
+        report += `<div class="info">📋 修复后小组: ${Object.keys(finalGroups).join(', ')}</div>`;
+        
+        if (finalGroups["未分组"] && finalGroupNames["未分组"]) {
+          report += `<div class="success">🎉 修复成功！未分组组已添加</div>`;
+        } else {
+          report += `<div class="error">❌ 修复失败！未分组组仍然不存在</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 直接修复失败: ${error.message}</div>`;
+      }
+    }
+
+    // 从配置文件重置
+    async function resetFromConfig() {
+      if (!confirm('确定要从配置文件重置所有数据吗？这将覆盖所有现有数据！')) {
+        return;
+      }
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在从配置文件重置数据...</div>';
+      
+      try {
+        initFirebase();
+        
+        if (!window.sampleData) {
+          throw new Error('配置文件数据未加载');
+        }
+        
+        let report = '<h3>🔄 从配置文件重置</h3>';
+        
+        // 使用配置文件数据完全替换
+        await db.ref('groups').set(window.sampleData.groups);
+        await db.ref('groupNames').set(window.sampleData.groupNames);
+        await db.ref('attendanceRecords').set([]);
+        
+        report += `<div class="success">✅ 数据重置完成</div>`;
+        
+        // 验证重置结果
+        const groupsSnapshot = await db.ref('groups').once('value');
+        const groups = groupsSnapshot.exists() ? groupsSnapshot.val() : {};
+        
+        report += `<div class="info">📊 重置后状态: ${Object.keys(groups).length}个小组</div>`;
+        report += `<div class="info">📋 重置后小组: ${Object.keys(groups).join(', ')}</div>`;
+        
+        if (groups["未分组"]) {
+          report += `<div class="success">🎉 重置成功！包含未分组组</div>`;
+        } else {
+          report += `<div class="error">❌ 重置失败！不包含未分组组</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 重置失败: ${error.message}</div>`;
+      }
+    }
+
+    // 检查当前状态
+    async function checkCurrentState() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在检查当前状态...</div>';
+      
+      try {
+        initFirebase();
+        
+        let report = '<h3>📊 当前数据状态</h3>';
+        
+        // 检查groups数据
+        const groupsSnapshot = await db.ref('groups').once('value');
+        if (groupsSnapshot.exists()) {
+          const groups = groupsSnapshot.val();
+          report += `<div class="success">✅ groups数据存在</div>`;
+          report += `<div class="info">小组数量: ${Object.keys(groups).length}</div>`;
+          report += `<div class="info">所有小组: ${Object.keys(groups).join(', ')}</div>`;
+          
+          if (groups["未分组"]) {
+            report += `<div class="success">✅ 未分组组存在 (${groups["未分组"].length}个成员)</div>`;
+          } else {
+            report += `<div class="error">❌ 未分组组不存在</div>`;
+          }
+        } else {
+          report += `<div class="error">❌ groups数据不存在</div>`;
+        }
+        
+        // 检查groupNames数据
+        const groupNamesSnapshot = await db.ref('groupNames').once('value');
+        if (groupNamesSnapshot.exists()) {
+          const groupNames = groupNamesSnapshot.val();
+          report += `<div class="success">✅ groupNames数据存在</div>`;
+          report += `<div class="info">映射数量: ${Object.keys(groupNames).length}</div>`;
+          
+          if (groupNames["未分组"]) {
+            report += `<div class="success">✅ 未分组映射存在: "${groupNames["未分组"]}"</div>`;
+          } else {
+            report += `<div class="error">❌ 未分组映射不存在</div>`;
+          }
+        } else {
+          report += `<div class="error">❌ groupNames数据不存在</div>`;
+        }
+        
+        // 检查配置文件
+        if (window.sampleData) {
+          report += `<div class="success">✅ 配置文件数据已加载</div>`;
+          report += `<div class="info">配置小组数量: ${Object.keys(window.sampleData.groups).length}</div>`;
+          report += `<div class="info">配置包含未分组组: ${window.sampleData.groups["未分组"] ? '是' : '否'}</div>`;
+        } else {
+          report += `<div class="error">❌ 配置文件数据未加载</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 状态检查失败: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

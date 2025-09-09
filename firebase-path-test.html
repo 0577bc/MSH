@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase路径权限测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    button { padding: 15px 30px; margin: 10px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button.success { background: #4caf50; }
+    button.danger { background: #f44336; }
+    .result { margin: 10px 0; padding: 15px; border-radius: 4px; }
+    .success { background: #e8f5e8; color: green; }
+    .error { background: #ffe8e8; color: red; }
+    .info { background: #e8f0ff; color: blue; }
+    .warning { background: #fff3e0; color: orange; }
+    .code { background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="./config.js"></script>
+</head>
+<body>
+  <h1>Firebase路径权限测试</h1>
+  <button onclick="testAllPaths()">测试所有路径权限</button>
+  <button onclick="testGroupsPath()">专门测试groups路径</button>
+  <button onclick="tryAlternativeMethods()">尝试替代方法</button>
+  <button onclick="checkFirebaseConsole()">检查Firebase控制台</button>
+  <div id="result"></div>
+
+  <script>
+    let db = null;
+
+    // 初始化Firebase
+    function initFirebase() {
+      if (!db) {
+        try {
+          const app = firebase.initializeApp(window.firebaseConfig);
+          db = firebase.database();
+        } catch (error) {
+          if (error.code === 'app/duplicate-app') {
+            db = firebase.database();
+          } else {
+            throw error;
+          }
+        }
+      }
+      return db;
+    }
+
+    // 测试所有路径权限
+    async function testAllPaths() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在测试所有路径权限...</div>';
+      
+      try {
+        initFirebase();
+        
+        let report = '<h3>🔍 路径权限测试结果</h3>';
+        
+        // 测试不同的路径
+        const testPaths = [
+          { path: 'test', name: '根测试路径' },
+          { path: 'groups', name: 'groups根路径' },
+          { path: 'groups/test', name: 'groups子路径' },
+          { path: 'groups/未分组', name: 'groups/未分组路径' },
+          { path: 'groupNames', name: 'groupNames根路径' },
+          { path: 'groupNames/test', name: 'groupNames子路径' },
+          { path: 'groupNames/未分组', name: 'groupNames/未分组路径' },
+          { path: 'attendanceRecords', name: 'attendanceRecords路径' }
+        ];
+        
+        for (const testPath of testPaths) {
+          try {
+            // 测试写入
+            await db.ref(testPath.path).set({ test: true, timestamp: Date.now() });
+            
+            // 测试读取
+            const snapshot = await db.ref(testPath.path).once('value');
+            const data = snapshot.val();
+            
+            // 清理测试数据
+            await db.ref(testPath.path).remove();
+            
+            report += `<div class="success">✅ ${testPath.name}: 读写正常</div>`;
+          } catch (error) {
+            report += `<div class="error">❌ ${testPath.name}: 失败 (${error.message})</div>`;
+          }
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 路径测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 专门测试groups路径
+    async function testGroupsPath() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在专门测试groups路径...</div>';
+      
+      try {
+        initFirebase();
+        
+        let report = '<h3>🎯 Groups路径专门测试</h3>';
+        
+        // 测试1: 读取现有groups数据
+        try {
+          const groupsSnapshot = await db.ref('groups').once('value');
+          const groups = groupsSnapshot.exists() ? groupsSnapshot.val() : {};
+          report += `<div class="success">✅ 读取groups数据成功: ${Object.keys(groups).length}个小组</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 读取groups数据失败: ${error.message}</div>`;
+        }
+        
+        // 测试2: 尝试在groups下创建测试数据
+        try {
+          const testKey = 'testGroup' + Date.now();
+          await db.ref(`groups/${testKey}`).set(['测试成员']);
+          report += `<div class="success">✅ 在groups下创建测试数据成功</div>`;
+          
+          // 验证创建的数据
+          const testSnapshot = await db.ref(`groups/${testKey}`).once('value');
+          if (testSnapshot.exists()) {
+            report += `<div class="success">✅ 验证测试数据存在</div>`;
+          } else {
+            report += `<div class="error">❌ 验证测试数据不存在</div>`;
+          }
+          
+          // 清理测试数据
+          await db.ref(`groups/${testKey}`).remove();
+          report += `<div class="success">✅ 清理测试数据成功</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 在groups下创建测试数据失败: ${error.message}</div>`;
+        }
+        
+        // 测试3: 尝试直接设置未分组组
+        try {
+          await db.ref('groups/未分组').set([]);
+          report += `<div class="success">✅ 直接设置未分组组成功</div>`;
+          
+          // 验证设置结果
+          const ungroupedSnapshot = await db.ref('groups/未分组').once('value');
+          if (ungroupedSnapshot.exists()) {
+            report += `<div class="success">✅ 验证未分组组存在</div>`;
+          } else {
+            report += `<div class="error">❌ 验证未分组组不存在</div>`;
+          }
+        } catch (error) {
+          report += `<div class="error">❌ 直接设置未分组组失败: ${error.message}</div>`;
+        }
+        
+        // 测试4: 尝试使用update方法
+        try {
+          await db.ref('groups').update({ "未分组": [] });
+          report += `<div class="success">✅ 使用update方法设置未分组组成功</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 使用update方法设置未分组组失败: ${error.message}</div>`;
+        }
+        
+        // 最终验证
+        try {
+          const finalSnapshot = await db.ref('groups').once('value');
+          const finalGroups = finalSnapshot.exists() ? finalSnapshot.val() : {};
+          report += `<div class="info">📊 最终结果: ${Object.keys(finalGroups).length}个小组</div>`;
+          report += `<div class="info">📋 所有小组: ${Object.keys(finalGroups).join(', ')}</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 最终验证失败: ${error.message}</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ Groups路径测试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 尝试替代方法
+    async function tryAlternativeMethods() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<div class="info">正在尝试替代方法...</div>';
+      
+      try {
+        initFirebase();
+        
+        let report = '<h3>🔄 替代方法尝试</h3>';
+        
+        // 方法1: 使用transaction
+        try {
+          await db.ref('groups').transaction((current) => {
+            if (current === null) {
+              return { "未分组": [] };
+            }
+            current["未分组"] = [];
+            return current;
+          });
+          report += `<div class="success">✅ 方法1: 使用transaction成功</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 方法1: 使用transaction失败: ${error.message}</div>`;
+        }
+        
+        // 方法2: 使用push然后重命名
+        try {
+          const newRef = await db.ref('groups').push([]);
+          await newRef.set({ name: "未分组", members: [] });
+          report += `<div class="success">✅ 方法2: 使用push成功</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 方法2: 使用push失败: ${error.message}</div>`;
+        }
+        
+        // 方法3: 先删除再重建
+        try {
+          // 先备份现有数据
+          const backupSnapshot = await db.ref('groups').once('value');
+          const backupData = backupSnapshot.exists() ? backupSnapshot.val() : {};
+          
+          // 添加未分组组到备份数据
+          backupData["未分组"] = [];
+          
+          // 重新设置整个groups数据
+          await db.ref('groups').set(backupData);
+          report += `<div class="success">✅ 方法3: 重建数据成功</div>`;
+        } catch (error) {
+          report += `<div class="error">❌ 方法3: 重建数据失败: ${error.message}</div>`;
+        }
+        
+        // 最终验证
+        try {
+          const finalSnapshot = await db.ref('groups').once('value');
+          const finalGroups = finalSnapshot.exists() ? finalSnapshot.val() : {};
+          report += `<div class="info">📊 最终结果: ${Object.keys(finalGroups).length}个小组</div>`;
+          report += `<div class="info">📋 所有小组: ${Object.keys(finalGroups).join(', ')}</div>`;
+          
+          if (finalGroups["未分组"]) {
+            report += `<div class="success">🎉 未分组组最终添加成功！</div>`;
+          } else {
+            report += `<div class="error">❌ 未分组组仍然不存在</div>`;
+          }
+        } catch (error) {
+          report += `<div class="error">❌ 最终验证失败: ${error.message}</div>`;
+        }
+        
+        resultDiv.innerHTML = report;
+        
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">❌ 替代方法尝试失败: ${error.message}</div>`;
+      }
+    }
+
+    // 检查Firebase控制台
+    function checkFirebaseConsole() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = `
+        <div class="warning">
+          <h3>🔍 Firebase控制台检查指南</h3>
+          <p>请按照以下步骤检查Firebase控制台：</p>
+          <ol>
+            <li>访问 <a href="https://console.firebase.google.com/" target="_blank">Firebase控制台</a></li>
+            <li>选择项目：<strong>yjys-4102e</strong></li>
+            <li>进入 <strong>Realtime Database</strong></li>
+            <li>检查以下内容：</li>
+          </ol>
+          <ul>
+            <li><strong>数据标签</strong>：查看是否有groups数据，以及groups下是否有"未分组"</li>
+            <li><strong>规则标签</strong>：确认规则为 <code>{ "rules": { ".read": true, ".write": true } }</code></li>
+            <li><strong>使用情况标签</strong>：检查是否有使用限制</li>
+            <li><strong>设置标签</strong>：检查项目设置是否正常</li>
+          </ul>
+          <p>如果发现任何异常，请截图并报告。</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
