@@ -196,17 +196,34 @@
           throw new Error('请先测试Firebase连接');
         }
         
-        // 确保有"未分组"组
-        await database.ref('groups').update({ "未分组": [] });
+        // 先检查当前数据状态
+        const groupsSnapshot = await database.ref('groups').once('value');
+        const groupNamesSnapshot = await database.ref('groupNames').once('value');
         
-        // 确保有"未分组"映射
-        await database.ref('groupNames').update({ "未分组": "未分组" });
+        let currentGroups = groupsSnapshot.exists() ? groupsSnapshot.val() : {};
+        let currentGroupNames = groupNamesSnapshot.exists() ? groupNamesSnapshot.val() : {};
+        
+        // 确保有"未分组"组 - 使用set方法确保添加
+        await database.ref('groups/未分组').set([]);
+        
+        // 确保有"未分组"映射 - 使用set方法确保添加
+        await database.ref('groupNames/未分组').set("未分组");
+        
+        // 验证修复结果
+        const newGroupsSnapshot = await database.ref('groups').once('value');
+        const newGroupNamesSnapshot = await database.ref('groupNames').once('value');
+        
+        const newGroups = newGroupsSnapshot.val();
+        const newGroupNames = newGroupNamesSnapshot.val();
         
         resultDiv.innerHTML = `
           <div class="success">
             <h3>✅ 未分组组修复完成</h3>
-            <p>已成功在Firebase中添加"未分组"组和映射</p>
-            <p>现在可以正常使用签到系统了</p>
+            <p>修复前小组数量: ${Object.keys(currentGroups).length}</p>
+            <p>修复后小组数量: ${Object.keys(newGroups).length}</p>
+            <p>未分组组存在: ${newGroups["未分组"] ? '是' : '否'}</p>
+            <p>未分组映射存在: ${newGroupNames["未分组"] ? '是' : '否'}</p>
+            <p>所有小组: ${Object.keys(newGroups).join(', ')}</p>
           </div>
         `;
         
