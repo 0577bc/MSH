@@ -647,13 +647,18 @@ class DataSyncManager {
     try {
       const db = firebase.database();
       
+      // 如果没有提供callback，使用默认处理
+      const defaultCallback = callback || function(dataType, data) {
+        console.log(`数据同步: ${dataType}`, data);
+      };
+      
       // 监听签到记录变化
       const attendanceRef = db.ref('attendanceRecords');
       attendanceRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (data && Array.isArray(data)) {
           this.lastSyncTime = Date.now();
-          callback('attendanceRecords', data);
+          defaultCallback('attendanceRecords', data);
         }
       });
 
@@ -663,7 +668,7 @@ class DataSyncManager {
         const data = snapshot.val();
         if (data) {
           this.lastSyncTime = Date.now();
-          callback('groups', data);
+          defaultCallback('groups', data);
         }
       });
 
@@ -673,7 +678,7 @@ class DataSyncManager {
         const data = snapshot.val();
         if (data) {
           this.lastSyncTime = Date.now();
-          callback('groupNames', data);
+          defaultCallback('groupNames', data);
         }
       });
 
