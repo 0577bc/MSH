@@ -146,17 +146,13 @@ function initializeEventListeners() {
   // cancelEditGroupButton事件监听器在下面定义
 
   // 导入导出按钮事件
-  if (exportButton) {
-    exportButton.addEventListener('click', handleExport);
-  }
+  // exportButton事件监听器在下面定义
 
   if (importButton) {
     importButton.addEventListener('click', () => importFile.click());
   }
 
-  if (importFile) {
-    importFile.addEventListener('change', handleImport);
-  }
+  // importFile事件监听器在下面定义
 
   // 数据同步监听器已在DOMContentLoaded中初始化
 }
