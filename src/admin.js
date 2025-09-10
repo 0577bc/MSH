@@ -25,18 +25,19 @@ let currentPageState = {
 };
 
 // ==================== Firebase初始化 ====================
-function initializeFirebase() {
+async function initializeFirebase() {
   try {
     app = firebase.app();
     db = firebase.database();
-    console.log('✅ 使用已存在的Firebase应用');
+    return true;
   } catch (error) {
     if (window.firebaseConfig) {
       app = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
-      console.log('✅ 创建新的Firebase应用');
+      return true;
     } else {
       console.error('❌ Firebase配置未找到');
+      return false;
     }
   }
 }
@@ -64,16 +65,27 @@ function initializeDOMElements() {
   cancelEditGroupButton = document.getElementById('cancelEditGroupButton');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  
-  // 初始化Firebase
-  initializeFirebase();
+document.addEventListener('DOMContentLoaded', async () => {
   
   // 初始化DOM元素
   initializeDOMElements();
   
-  // 加载数据
-  loadData();
+  // 初始化Firebase并等待完成
+  const firebaseInitialized = await initializeFirebase();
+  
+  if (firebaseInitialized) {
+    // 加载数据
+    await loadData();
+    
+    // 初始化数据同步监听器
+    if (window.utils && window.utils.dataSyncManager) {
+      try {
+        window.utils.dataSyncManager.startListening();
+      } catch (error) {
+        console.error('启动数据同步监听失败:', error);
+      }
+    }
+  }
   
   // 初始化事件监听器
   initializeEventListeners();
@@ -125,9 +137,7 @@ function initializeEventListeners() {
     cancelGroupButton.addEventListener('click', handleCancelGroup);
   }
 
-  if (deleteGroupButton) {
-    deleteGroupButton.addEventListener('click', handleDeleteGroup);
-  }
+  // deleteGroupButton事件监听器在下面定义
 
   if (editGroupNameButton) {
     editGroupNameButton.addEventListener('click', handleEditGroupName);
@@ -375,15 +385,18 @@ function handleCancelGroup() {
   // 加载数据从 Firebase
   async function loadDataFromFirebase() {
     try {
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
       // 加载 groups
-      const groupsRef = firebase.database().ref('groups');
+      const groupsRef = db.ref('groups');
       const groupsSnapshot = await groupsRef.once('value');
       if (groupsSnapshot.exists()) {
         groups = groupsSnapshot.val() || {};
       }
 
       // 加载 groupNames
-      const groupNamesRef = firebase.database().ref('groupNames');
+      const groupNamesRef = db.ref('groupNames');
       const groupNamesSnapshot = await groupNamesRef.once('value');
       if (groupNamesSnapshot.exists()) {
         groupNames = groupNamesSnapshot.val() || {};
@@ -394,7 +407,7 @@ function handleCancelGroup() {
       // 确保未分组组别存在
       if (!groups.hasOwnProperty('未分组')) {
         groups['未分组'] = [];
-        await firebase.database().ref('groups').update({ '未分组': [] });
+        await db.ref('groups').update({ '未分组': [] });
         console.log("管理页面：已添加未分组组别");
       } else {
         console.log(`未分组已存在，成员数量: ${groups['未分组'].length}`);
@@ -402,13 +415,13 @@ function handleCancelGroup() {
       
       if (!groupNames['未分组']) {
         groupNames['未分组'] = '未分组';
-        await firebase.database().ref('groupNames').update({ '未分组': '未分组' });
+        await db.ref('groupNames').update({ '未分组': '未分组' });
         console.log("管理页面：已添加未分组名称映射");
       }
 
 
       // 加载 attendanceRecords
-      const attendanceRef = firebase.database().ref('attendanceRecords');
+      const attendanceRef = db.ref('attendanceRecords');
       const attendanceSnapshot = await attendanceRef.once('value');
       if (attendanceSnapshot.exists()) {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
@@ -486,7 +499,9 @@ function handleCancelGroup() {
   // 安全同步数据到Firebase
   async function syncToFirebase() {
     try {
-      const db = firebase.database();
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
       
       if (groups && Object.keys(groups).length > 0) {
         // 使用set操作，因为这是完整的数据同步
@@ -1498,7 +1513,9 @@ function handleCancelGroup() {
   // 加载管理员邮箱列表
   async function loadAdminEmails() {
     try {
-      const db = firebase.database();
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
       const adminEmailsRef = db.ref('adminEmails');
       const snapshot = await adminEmailsRef.once('value');
       
@@ -1560,7 +1577,9 @@ function handleCancelGroup() {
     }
     
     try {
-      const db = firebase.database();
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
       const adminEmailsRef = db.ref('adminEmails');
       await adminEmailsRef.child(email).set(true);
       
@@ -1587,7 +1606,9 @@ function handleCancelGroup() {
     }
     
     try {
-      const db = firebase.database();
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
       const adminEmailsRef = db.ref('adminEmails');
       await adminEmailsRef.child(email).remove();
       
@@ -1935,10 +1956,11 @@ function handleCancelGroup() {
               // 如果本地数据与远程数据不同，同步本地数据到Firebase
               if (JSON.stringify(groups) !== JSON.stringify(data)) {
                 console.log('管理页面 - 本地数据与远程数据不同，同步本地数据到Firebase');
-                const db = firebase.database();
-                db.ref('groups').set(groups).catch(error => {
-                  console.error('管理页面 - 同步本地groups数据失败:', error);
-                });
+                if (db) {
+                  db.ref('groups').set(groups).catch(error => {
+                    console.error('管理页面 - 同步本地groups数据失败:', error);
+                  });
+                }
               }
             } catch (error) {
               console.error('管理页面 - 解析本地groups数据失败:', error);
