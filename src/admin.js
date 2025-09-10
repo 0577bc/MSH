@@ -141,13 +141,9 @@ function initializeEventListeners() {
 
   // editGroupNameButton事件监听器在下面定义
 
-  if (saveEditGroupButton) {
-    saveEditGroupButton.addEventListener('click', handleSaveEditGroup);
-  }
+  // saveEditGroupButton事件监听器在下面定义
 
-  if (cancelEditGroupButton) {
-    cancelEditGroupButton.addEventListener('click', handleCancelEditGroup);
-  }
+  // cancelEditGroupButton事件监听器在下面定义
 
   // 导入导出按钮事件
   if (exportButton) {
