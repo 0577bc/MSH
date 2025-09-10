@@ -16,18 +16,19 @@ let signedList, unsignedList, newcomersList;
 let totalSigned, totalNewcomers, backButton;
 
 // ==================== Firebase初始化 ====================
-function initializeFirebase() {
+async function initializeFirebase() {
   try {
     app = firebase.app();
     db = firebase.database();
-    console.log('✅ 使用已存在的Firebase应用');
+    return true;
   } catch (error) {
     if (window.firebaseConfig) {
       app = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
-      console.log('✅ 创建新的Firebase应用');
+      return true;
     } else {
       console.error('❌ Firebase配置未找到');
+      return false;
     }
   }
 }
@@ -42,16 +43,27 @@ function initializeDOMElements() {
   backButton = document.getElementById('backButton');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  
-  // 初始化Firebase
-  initializeFirebase();
+document.addEventListener('DOMContentLoaded', async () => {
   
   // 初始化DOM元素
   initializeDOMElements();
   
-  // 加载数据
-  loadData();
+  // 初始化Firebase并等待完成
+  const firebaseInitialized = await initializeFirebase();
+  
+  if (firebaseInitialized) {
+    // 加载数据
+    await loadData();
+    
+    // 初始化数据同步监听器
+    if (window.utils && window.utils.dataSyncManager) {
+      try {
+        window.utils.dataSyncManager.startListening();
+      } catch (error) {
+        console.error('启动数据同步监听失败:', error);
+      }
+    }
+  }
   
   // 初始化事件监听器
   initializeEventListeners();
@@ -86,19 +98,22 @@ function initializeEventListeners() {
 // ==================== 数据加载函数 ====================
 async function loadDataFromFirebase() {
     try {
-      const attendanceRef = firebase.database().ref('attendanceRecords');
+      if (!db) {
+        throw new Error('Firebase数据库未初始化');
+      }
+      const attendanceRef = db.ref('attendanceRecords');
       const attendanceSnapshot = await attendanceRef.once('value');
       if (attendanceSnapshot.exists()) {
         attendanceRecords = Object.values(attendanceSnapshot.val() || {});
       }
 
-      const groupsRef = firebase.database().ref('groups');
+      const groupsRef = db.ref('groups');
       const groupsSnapshot = await groupsRef.once('value');
       if (groupsSnapshot.exists()) {
         groups = groupsSnapshot.val() || {};
       }
 
-      const groupNamesRef = firebase.database().ref('groupNames');
+      const groupNamesRef = db.ref('groupNames');
       const groupNamesSnapshot = await groupNamesRef.once('value');
       if (groupNamesSnapshot.exists()) {
         Object.assign(groupNames, groupNamesSnapshot.val() || {});
@@ -122,7 +137,9 @@ async function loadDataFromFirebase() {
       // 如果需要同步，立即同步到Firebase
       if (needsSync) {
         try {
-          const db = firebase.database();
+          if (!db) {
+            throw new Error('Firebase数据库未初始化');
+          }
           await db.ref('groups').update({ '未分组': [] });
           await db.ref('groupNames').update({ '未分组': '未分组' });
           console.log("未分组组别已同步到Firebase");
@@ -481,10 +498,11 @@ async function loadDataFromFirebase() {
               // 如果本地数据与远程数据不同，同步本地数据到Firebase
               if (JSON.stringify(groups) !== JSON.stringify(data)) {
                 console.log('日报表页面 - 本地数据与远程数据不同，同步本地数据到Firebase');
-                const db = firebase.database();
-                db.ref('groups').set(groups).catch(error => {
-                  console.error('日报表页面 - 同步本地groups数据失败:', error);
-                });
+                if (db) {
+                  db.ref('groups').set(groups).catch(error => {
+                    console.error('日报表页面 - 同步本地groups数据失败:', error);
+                  });
+                }
               }
             } catch (error) {
               console.error('日报表页面 - 解析本地groups数据失败:', error);
@@ -500,10 +518,11 @@ async function loadDataFromFirebase() {
             groups['未分组'] = [];
             console.log("日报表页面同步：已添加未分组组别");
             // 立即同步到Firebase
-            const db = firebase.database();
-            db.ref('groups').update({ '未分组': [] }).catch(error => {
-              console.error("同步未分组组别到Firebase失败:", error);
-            });
+            if (db) {
+              db.ref('groups').update({ '未分组': [] }).catch(error => {
+                console.error("同步未分组组别到Firebase失败:", error);
+              });
+            }
           } else {
             console.log(`未分组已存在，成员数量: ${groups['未分组'].length}`);
           }
@@ -519,20 +538,22 @@ async function loadDataFromFirebase() {
             groupNames['未分组'] = '未分组';
             console.log("日报表页面同步：已添加未分组名称映射");
             // 使用update而不是set，避免覆盖其他数据
-            const db = firebase.database();
-            db.ref('groupNames').update({ '未分组': '未分组' }).catch(error => {
-              console.error("同步未分组名称映射到Firebase失败:", error);
-            });
+            if (db) {
+              db.ref('groupNames').update({ '未分组': '未分组' }).catch(error => {
+                console.error("同步未分组名称映射到Firebase失败:", error);
+              });
+            }
           }
           
           // 检查并修复培茹组（在groupNames加载后检查）
           if (!groups['培茹组'] && groupNames['培茹组']) {
             console.log("日报表页面 - 检测到培茹组名称存在但成员数组丢失，正在修复...");
             groups['培茹组'] = []; // 重新创建空的培茹组
-            const db = firebase.database();
-            db.ref('groups').update({ '培茹组': [] }).catch(error => {
-              console.error("日报表页面 - 修复培茹组失败:", error);
-            });
+            if (db) {
+              db.ref('groups').update({ '培茹组': [] }).catch(error => {
+                console.error("日报表页面 - 修复培茹组失败:", error);
+              });
+            }
             console.log("日报表页面 - 培茹组已修复");
             
             // 更新本地存储
