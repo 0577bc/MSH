@@ -22,6 +22,10 @@
 ### 📊 报告文档 (`reports/`)
 - **`OPTIMIZATION_REPORT.md`** - 性能优化报告
 - **`CHANGELOG.md`** - 系统变更日志
+- **`SUNDAY_TRACKING_ANALYSIS.md`** - 主日跟踪问题分析报告
+- **`EXCLUDED_MEMBERS_ANALYSIS.md`** - 未签到不统计人员问题分析报告
+- **`DATA_PERSISTENCE_FIX.md`** - 数据持久化修复报告
+- **`FIREBASE_INIT_FIX.md`** - Firebase初始化顺序修复报告
 
 ### ⚡ 命令文档 (`commands/`)
 - **`CLEANUP_CHECKLIST.md`** - 文件清理检查清单
@@ -42,6 +46,10 @@
 1. 使用 [安全操作指令](commands/SAFE_OPERATION_COMMANDS.md) 进行系统操作
 2. 参考 [文件清理检查清单](commands/CLEANUP_CHECKLIST.md) 进行文件清理
 3. 查看 [变更日志](reports/CHANGELOG.md) 了解系统更新
+4. 遇到问题请查看 [故障排除指南](troubleshooting/TROUBLESHOOTING.md)
+5. 了解最新修复内容：
+   - [数据持久化修复](reports/DATA_PERSISTENCE_FIX.md)
+   - [Firebase初始化修复](reports/FIREBASE_INIT_FIX.md)
 
 ### 开发指南
 1. 遵循 [代码优化指南](guides/CODE_OPTIMIZATION_GUIDE.md) 进行代码优化

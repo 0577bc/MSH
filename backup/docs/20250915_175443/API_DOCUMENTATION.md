@@ -524,6 +524,22 @@ try {
 }
 ```
 
+## 📚 相关文档
+
+### **问题分析报告**
+- `docs/reports/SUNDAY_TRACKING_ANALYSIS.md` - 主日跟踪问题分析
+- `docs/reports/CHANGELOG.md` - 系统变更日志
+- `docs/reports/OPTIMIZATION_REPORT.md` - 性能优化报告
+- `docs/reports/EXCLUDED_MEMBERS_ANALYSIS.md` - 未签到不统计人员问题分析
+- `docs/reports/DATA_PERSISTENCE_FIX.md` - 数据持久化修复报告
+- `docs/reports/FIREBASE_INIT_FIX.md` - Firebase初始化顺序修复报告
+- `docs/reports/BUSINESS_LOGIC_FIX.md` - 业务逻辑修复报告
+
+### **系统文档**
+- `docs/requirements/SYSTEM_REQUIREMENTS.md` - 系统需求文档
+- `docs/guides/DOCUMENTATION_GUIDE.md` - 文档维护指南
+- `docs/troubleshooting/TROUBLESHOOTING.md` - 故障排除指南
+
 ## 📞 技术支持
 
 ### **API问题反馈**

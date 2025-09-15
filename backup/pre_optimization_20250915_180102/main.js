@@ -151,11 +151,6 @@ async function loadData() {
   }
 }
 
-/**
- * 初始化示例数据
- * 检查并初始化Firebase中的基础数据结构
- * 包括默认组别和组别名称映射
- */
 async function initializeSampleData() {
     try {
       // 确保Firebase应用已初始化

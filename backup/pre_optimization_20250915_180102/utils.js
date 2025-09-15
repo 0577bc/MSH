@@ -1406,16 +1406,7 @@ const SYNC_CONFIG = {
 };
 
 // ==================== 统一页面同步管理器 ====================
-/**
- * 页面同步管理器
- * 为不同页面提供统一的数据同步管理功能
- * 支持自动同步和手动同步两种模式
- */
 class PageSyncManager {
-  /**
-   * 构造函数
-   * @param {string} pageType - 页面类型 ('main', 'admin', 'daily-report', 'summary', 'sundayTracking')
-   */
   constructor(pageType) {
     this.pageType = pageType;
     this.config = SYNC_CONFIG[pageType] || SYNC_CONFIG.admin;
@@ -1423,13 +1414,7 @@ class PageSyncManager {
     console.log(`页面同步管理器初始化: ${this.config.description}`);
   }
   
-  /**
-   * 统一的同步方法
-   * @param {*} localData - 本地数据
-   * @param {*} remoteData - 远程数据
-   * @param {string} dataType - 数据类型
-   * @returns {Promise} 同步结果
-   */
+  // 统一的同步方法
   syncData(localData, remoteData, dataType) {
     console.log(`${this.pageType}页面 - 开始数据同步: ${dataType}`);
     

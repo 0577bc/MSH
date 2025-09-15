@@ -15,6 +15,8 @@
 ### **3. 性能问题**
 ### **4. 配置问题**
 ### **5. 浏览器兼容性问题**
+### **6. 初始化问题**
+### **7. 数据持久化问题**
 
 ## 🔧 数据同步问题
 
@@ -707,6 +709,146 @@ function emergencyRecovery() {
   
   // 4. 重新初始化
   initializeSystem()
+}
+```
+
+## 🔧 初始化问题
+
+### **问题1：Firebase初始化错误**
+
+#### **症状**
+- 控制台显示"Firebase: No Firebase App '[DEFAULT]' has been created"
+- NewDataManager初始化失败
+- 页面功能异常
+
+#### **可能原因**
+1. Firebase初始化顺序问题
+2. 配置文件错误
+3. 网络连接问题
+
+#### **解决方案**
+1. **检查Firebase配置**
+   ```javascript
+   // 在控制台检查
+   console.log('Firebase应用数量:', firebase.apps.length);
+   console.log('Firebase配置:', firebase.apps[0]?.options);
+   ```
+
+2. **等待初始化完成**
+   - 刷新页面，等待Firebase完全初始化
+   - 检查控制台是否还有错误信息
+
+3. **手动重试**
+   ```javascript
+   // 在控制台运行
+   if (window.newDataManager) {
+     window.newDataManager.checkExistingData();
+   }
+   ```
+
+### **问题2：NewDataManager初始化失败**
+
+#### **症状**
+- 显示"NewDataManager设置的全局数据无效"
+- 数据加载失败
+- 同步功能异常
+
+#### **解决方案**
+1. **检查数据完整性**
+   ```javascript
+   // 检查本地数据
+   console.log('本地数据状态:', {
+     groups: !!localStorage.getItem('msh_groups'),
+     groupNames: !!localStorage.getItem('msh_groupNames'),
+     attendanceRecords: !!localStorage.getItem('msh_attendanceRecords'),
+     excludedMembers: !!localStorage.getItem('msh_excludedMembers')
+   });
+   ```
+
+2. **重新初始化**
+   - 清除浏览器缓存
+   - 刷新页面重新加载
+
+## 🔧 数据持久化问题
+
+### **问题1：添加"未签到不统计人员"后数据丢失**
+
+#### **症状**
+- 添加人员后删除缓存，人员消失
+- 数据没有同步到Firebase
+- 页面刷新后数据丢失
+
+#### **解决方案**
+1. **检查数据保护状态**
+   ```javascript
+   // 检查数据是否受保护
+   if (window.newDataManager) {
+     console.log('数据保护状态:', window.newDataManager.isDataProtected());
+   }
+   ```
+
+2. **手动同步数据**
+   ```javascript
+   // 强制同步到Firebase
+   if (window.newDataManager) {
+     window.newDataManager.performManualSync();
+   }
+   ```
+
+3. **检查同步状态**
+   ```javascript
+   // 检查同步按钮状态
+   const syncButton = window.newDataManager?.syncButton;
+   console.log('同步按钮状态:', syncButton?.innerHTML);
+   ```
+
+### **问题2：数据验证错误**
+
+#### **症状**
+- 控制台显示数据验证错误
+- 数据被误判为无效
+- 本地数据被清理
+
+#### **解决方案**
+1. **检查数据格式**
+   ```javascript
+   // 验证数据格式
+   const data = localStorage.getItem('msh_groups');
+   if (data) {
+     try {
+       const parsed = JSON.parse(data);
+       console.log('数据格式正确:', typeof parsed === 'object' && !Array.isArray(parsed));
+     } catch (error) {
+       console.log('数据格式错误:', error.message);
+     }
+   }
+   ```
+
+2. **从Firebase恢复**
+   - 等待自动恢复机制
+   - 或手动从Firebase重新加载数据
+
+## 📞 技术支持
+
+### **问题报告**
+如果遇到上述问题无法解决，请提供以下信息：
+1. 浏览器控制台的完整错误日志
+2. 问题复现步骤
+3. 浏览器版本和操作系统信息
+4. 网络连接状态
+
+### **紧急恢复**
+```javascript
+// 紧急数据恢复脚本
+function emergencyDataRecovery() {
+  // 1. 清除所有本地数据
+  localStorage.clear();
+  
+  // 2. 重新加载页面
+  location.reload();
+  
+  // 3. 等待系统重新初始化
+  console.log('系统正在重新初始化，请稍候...');
 }
 ```
 

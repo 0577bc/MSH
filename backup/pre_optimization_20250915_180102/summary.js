@@ -374,13 +374,7 @@ function initializeEventListeners() {
     });
   }
   
-  /**
-   * 渲染表格行
-   * @param {Object} item - 数据项
-   * @param {number} index - 行索引
-   * @param {Array} columns - 列配置数组
-   * @returns {HTMLTableRowElement} 渲染后的表格行元素
-   */
+  // 渲染表格行
   function renderTableRow(item, index, columns) {
     const row = document.createElement('tr');
     row.className = index % 2 === 0 ? 'even' : 'odd';
@@ -396,12 +390,7 @@ function initializeEventListeners() {
     return row;
   }
   
-  /**
-   * 获取单元格值
-   * @param {Object} item - 数据项
-   * @param {Object} column - 列配置对象
-   * @returns {string} 单元格显示值
-   */
+  // 获取单元格值
   function getCellValue(item, column) {
     if (typeof column.dataKey === 'function') {
       return column.dataKey(item);

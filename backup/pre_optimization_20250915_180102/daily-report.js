@@ -126,11 +126,6 @@ function initializeEventListeners() {
 // ==================== 数据加载函数 ====================
 // 旧的数据加载函数已移除，现在使用NewDataManager统一管理数据
 
-  /**
-   * 生成日报表
-   * 根据选择的日期生成当日的签到统计报表
-   * 包括签到人员列表、未签到人员列表、各时间段统计等
-   */
   function generateDailyReport() {
     if (!signedList) {
       console.error('signedList element not found');
@@ -141,9 +136,6 @@ function initializeEventListeners() {
     const todayRecords = attendanceRecords.filter(record => 
       new Date(record.time).toLocaleDateString('zh-CN') === today
     );
-    
-    // 调试日志：记录当日签到数据统计
-    console.log(`📊 日报表生成 - 日期: ${today}, 签到记录数: ${todayRecords.length}`);
     
 
     signedList.innerHTML = '';
@@ -182,23 +174,23 @@ function initializeEventListeners() {
         
         // 按时间段分类签到记录，并过滤掉不统计的人员
         // 只统计上午签到情况（早到、准时、迟到）
+        const earlyRecords = groupRecords.filter(record => {
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === 'early' && !isExcluded;
+        });
         
-        /**
-         * 根据时间段过滤签到记录
-         * @param {string} timeSlot - 时间段类型 ('early', 'onTime', 'late')
-         * @returns {Array} 过滤后的签到记录数组
-         */
-        const filterRecordsByTimeSlot = (timeSlot) => {
-          return groupRecords.filter(record => {
-            const recordTimeSlot = window.utils.getAttendanceType(new Date(record.time));
-            const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
-            return recordTimeSlot === timeSlot && !isExcluded;
-          });
-        };
+        const onTimeRecords = groupRecords.filter(record => {
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === 'onTime' && !isExcluded;
+        });
         
-        const earlyRecords = filterRecordsByTimeSlot('early');
-        const onTimeRecords = filterRecordsByTimeSlot('onTime');
-        const lateRecords = filterRecordsByTimeSlot('late');
+        const lateRecords = groupRecords.filter(record => {
+          const timeSlot = window.utils.getAttendanceType(new Date(record.time));
+          const isExcluded = window.utils.isMemberExcluded(record, group, excludedMembers);
+          return timeSlot === 'late' && !isExcluded;
+        });
         
         
         // 统计上午签到的人员（用于计算未签到人员）
