@@ -26,6 +26,11 @@
 - **`EXCLUDED_MEMBERS_ANALYSIS.md`** - 未签到不统计人员问题分析报告
 - **`DATA_PERSISTENCE_FIX.md`** - 数据持久化修复报告
 - **`FIREBASE_INIT_FIX.md`** - Firebase初始化顺序修复报告
+- **`FILE_CLEANUP_REPORT.md`** - 文件清理执行报告
+- **`FILE_ORGANIZATION_REPORT.md`** - 文件整理执行报告
+- **`external_integration_design.md`** - 外部集成设计文档
+- **`firebase_limits_analysis.md`** - Firebase限制分析文档
+- **`uuid_fix_solution.md`** - UUID修复方案文档
 
 ### ⚡ 命令文档 (`commands/`)
 - **`CLEANUP_CHECKLIST.md`** - 文件清理检查清单

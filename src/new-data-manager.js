@@ -922,11 +922,22 @@ class NewDataManager {
             console.warn('⚠️ 警告：attendanceRecords数据为空，跳过同步以防止数据丢失');
             syncResults.attendanceRecords = true; // 跳过同步
           } else {
-            await db.ref('attendanceRecords').update(attendanceRecords);
+            // 修复：使用set()而不是update()来同步数组数据
+            await db.ref('attendanceRecords').set(attendanceRecords);
           }
-          // 优化验证逻辑：只验证关键字段
+          // 优化验证逻辑：处理Firebase返回的数据格式
           const verifySnapshot = await db.ref('attendanceRecords').once('value');
-          const remoteRecords = Object.values(verifySnapshot.val() || {});
+          const remoteData = verifySnapshot.val();
+          let remoteRecords;
+          
+          if (Array.isArray(remoteData)) {
+            remoteRecords = remoteData;
+          } else if (remoteData && typeof remoteData === 'object') {
+            remoteRecords = Object.values(remoteData);
+          } else {
+            remoteRecords = [];
+          }
+          
           syncResults.attendanceRecords = this.verifyDataSync(attendanceRecords, remoteRecords, 'attendanceRecords');
           console.log(`✅ attendanceRecords数据同步${syncResults.attendanceRecords ? '成功' : '失败'}`);
         }
@@ -1400,6 +1411,160 @@ class NewDataManager {
     } catch (error) {
       console.error('❌ 数据完整性验证异常:', error);
       return false;
+    }
+  }
+
+  // ==================== 删除操作方法 ====================
+  
+  /**
+   * 删除小组中的成员
+   * @param {string} groupKey - 小组键名
+   * @param {string} memberName - 成员姓名
+   */
+  async deleteGroupMember(groupKey, memberName) {
+    try {
+      console.log(`🔄 删除小组成员: ${groupKey} - ${memberName}`);
+      
+      // 获取当前数据
+      const groups = this.loadFromLocalStorage('groups') || {};
+      const attendanceRecords = this.loadFromLocalStorage('attendanceRecords') || [];
+      
+      if (!groups[groupKey]) {
+        throw new Error(`小组 ${groupKey} 不存在`);
+      }
+      
+      // 从小组中移除成员
+      const updatedMembers = groups[groupKey].filter(member => 
+        (member.name || member) !== memberName
+      );
+      groups[groupKey] = updatedMembers;
+      
+      // 删除相关的签到记录
+      const memberRecords = attendanceRecords.filter(record => 
+        record.name === memberName && record.group === groupKey
+      );
+      
+      const updatedAttendanceRecords = attendanceRecords.filter(record => 
+        !(record.name === memberName && record.group === groupKey)
+      );
+      
+      // 保存到本地存储
+      this.saveToLocalStorage('groups', groups);
+      this.saveToLocalStorage('attendanceRecords', updatedAttendanceRecords);
+      
+      // 更新全局变量
+      window.groups = groups;
+      window.attendanceRecords = updatedAttendanceRecords;
+      
+      // 标记数据变更
+      this.markDataChange('groups', 'modified', `delete_member_${groupKey}_${memberName}`);
+      this.markDataChange('attendanceRecords', 'deleted', `delete_member_records_${memberName}`);
+      
+      console.log(`✅ 小组成员删除成功: ${memberName}`);
+      console.log(`📊 同时删除了 ${memberRecords.length} 条相关签到记录`);
+      
+      // 自动同步到Firebase
+      await this.performManualSync();
+      
+    } catch (error) {
+      console.error('❌ 删除小组成员失败:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 删除单条签到记录
+   * @param {Object} record - 要删除的签到记录
+   */
+  async deleteAttendanceRecord(record) {
+    try {
+      console.log(`🔄 删除签到记录: ${record.name} - ${record.time}`);
+      
+      // 获取当前数据
+      const attendanceRecords = this.loadFromLocalStorage('attendanceRecords') || [];
+      
+      // 查找并删除记录
+      const updatedRecords = attendanceRecords.filter(r => 
+        !(r.name === record.name && 
+          r.group === record.group && 
+          r.time === record.time)
+      );
+      
+      if (updatedRecords.length === attendanceRecords.length) {
+        throw new Error('找不到要删除的签到记录');
+      }
+      
+      // 保存到本地存储
+      this.saveToLocalStorage('attendanceRecords', updatedRecords);
+      
+      // 更新全局变量
+      window.attendanceRecords = updatedRecords;
+      
+      // 标记数据变更
+      this.markDataChange('attendanceRecords', 'deleted', `delete_record_${record.name}_${record.time}`);
+      
+      console.log(`✅ 签到记录删除成功: ${record.name}`);
+      
+      // 自动同步到Firebase
+      await this.performManualSync();
+      
+    } catch (error) {
+      console.error('❌ 删除签到记录失败:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 删除整个小组
+   * @param {string} groupKey - 小组键名
+   */
+  async deleteGroup(groupKey) {
+    try {
+      console.log(`🔄 删除小组: ${groupKey}`);
+      
+      // 获取当前数据
+      const groups = this.loadFromLocalStorage('groups') || {};
+      const groupNames = this.loadFromLocalStorage('groupNames') || {};
+      const attendanceRecords = this.loadFromLocalStorage('attendanceRecords') || [];
+      
+      if (!groups[groupKey]) {
+        throw new Error(`小组 ${groupKey} 不存在`);
+      }
+      
+      const memberCount = groups[groupKey].length;
+      
+      // 删除小组
+      delete groups[groupKey];
+      delete groupNames[groupKey];
+      
+      // 删除相关签到记录
+      const groupRecords = attendanceRecords.filter(record => record.group === groupKey);
+      const updatedAttendanceRecords = attendanceRecords.filter(record => record.group !== groupKey);
+      
+      // 保存到本地存储
+      this.saveToLocalStorage('groups', groups);
+      this.saveToLocalStorage('groupNames', groupNames);
+      this.saveToLocalStorage('attendanceRecords', updatedAttendanceRecords);
+      
+      // 更新全局变量
+      window.groups = groups;
+      window.groupNames = groupNames;
+      window.attendanceRecords = updatedAttendanceRecords;
+      
+      // 标记数据变更
+      this.markDataChange('groups', 'deleted', `delete_group_${groupKey}`);
+      this.markDataChange('groupNames', 'deleted', `delete_group_name_${groupKey}`);
+      this.markDataChange('attendanceRecords', 'deleted', `delete_group_records_${groupKey}`);
+      
+      console.log(`✅ 小组删除成功: ${groupKey}`);
+      console.log(`📊 同时删除了 ${memberCount} 名成员和 ${groupRecords.length} 条签到记录`);
+      
+      // 自动同步到Firebase
+      await this.performManualSync();
+      
+    } catch (error) {
+      console.error('❌ 删除小组失败:', error);
+      throw error;
     }
   }
 }

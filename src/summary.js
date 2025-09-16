@@ -597,10 +597,12 @@ function initializeEventListeners() {
 
     // 统计各时段人数
     let earlyCountNum = 0, onTimeCountNum = 0, lateCountNum = 0;
-    const signedNames = new Set();
+    const signedUUIDs = new Set();
     
     dayRecords.forEach(record => {
-      signedNames.add(record.name);
+      // 使用UUID进行统计匹配，避免姓名变更导致的重复统计
+      const identifier = record.memberUUID || record.name;
+      signedUUIDs.add(identifier);
       const timeSlot = record.timeSlot || window.utils.getAttendanceType(new Date(record.time));
       if (timeSlot === 'early') earlyCountNum++;
       else if (timeSlot === 'onTime') onTimeCountNum++;
@@ -610,12 +612,16 @@ function initializeEventListeners() {
     // 统计未签到人数（排除未签到的不统计人员）
     const excludedMembers = window.utils.loadExcludedMembers();
     const allMembers = Object.keys(groups).flatMap(group => 
-      groups[group].map(member => ({ group, name: member.name }))
+      groups[group].map(member => ({ 
+        group, 
+        name: member.name,
+        uuid: member.uuid || member.name  // 添加UUID标识用于匹配
+      }))
     );
     
     // 计算未签到人员：所有人员 - 已签到人员 - 未签到的不统计人员
     const unsignedMembers = allMembers.filter(member => 
-      !signedNames.has(member.name) && // 没有签到
+      !signedUUIDs.has(member.uuid) && // 没有签到（使用UUID匹配）
       !excludedMembers.some(excluded => // 且不是未签到的不统计人员
         excluded.name === member.name && excluded.group === member.group
       )
@@ -651,16 +657,17 @@ function initializeEventListeners() {
     const excludedGroups = ['美团组', '未分组'];
     const validMembers = allMembers.filter(member => !excludedGroups.includes(member.group));
     const totalMembers = validMembers.length;
-    const validSignedNames = new Set();
+    const validSignedUUIDs = new Set();
     
-    // 只统计有效组的签到人员
+    // 只统计有效组的签到人员（使用UUID匹配）
     dayRecords.forEach(record => {
       if (!excludedGroups.includes(record.group)) {
-        validSignedNames.add(record.name);
+        const identifier = record.memberUUID || record.name;
+        validSignedUUIDs.add(identifier);
       }
     });
     
-    const attendanceRateNum = totalMembers > 0 ? Math.round((validSignedNames.size / totalMembers) * 100) : 0;
+    const attendanceRateNum = totalMembers > 0 ? Math.round((validSignedUUIDs.size / totalMembers) * 100) : 0;
     if (attendanceRate) attendanceRate.textContent = attendanceRateNum + '%';
 
     // 生成详细的日报表内容
@@ -677,11 +684,12 @@ function initializeEventListeners() {
       
       // 统计该组的签到情况
       const groupRecords = dayRecords.filter(record => record.group === group);
-      const signedMembers = groupRecords.map(record => record.name);
+      // 使用UUID进行统计匹配，避免姓名变更导致的重复统计
+      const signedUUIDs = groupRecords.map(record => record.memberUUID || record.name);
       
       // 过滤掉不统计的人员
       const unsignedMembers = window.utils.filterExcludedMembers(
-        groupMembers.filter(member => !signedMembers.includes(member.name)),
+        groupMembers.filter(member => !signedUUIDs.includes(member.uuid || member.name)),
         group,
         excludedMembers
       );
@@ -741,13 +749,13 @@ function initializeEventListeners() {
     Object.keys(groups).forEach(group => {
       const groupMembers = groups[group];
       const groupSigned = dayRecords.filter(record => record.group === group);
-      const signedNames = groupSigned.map(record => record.name);
+      const signedUUIDs = groupSigned.map(record => record.memberUUID || record.name);
       // 获取不统计人员列表
       const excludedMembers = window.utils.loadExcludedMembers();
       
       // 过滤掉未签到的不统计人员（已签到的不统计人员仍然统计）
       const unsignedMembers = groupMembers.filter(member => 
-        !signedNames.includes(member.name) && // 没有签到
+        !signedUUIDs.includes(member.uuid || member.name) && // 没有签到（使用UUID匹配）
         !excludedMembers.some(excluded => // 且不是未签到的不统计人员
           excluded.name === member.name && excluded.group === group
         )

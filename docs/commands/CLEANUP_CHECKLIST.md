@@ -55,6 +55,12 @@ cat PROTECTED_FILES.md
 - [ ] `src/style.css` - 样式文件
 - [ ] `src/service-worker.js` - 服务工作者
 
+### **4. 工具和辅助文件确认**
+**可以移动但不可删除的文件**：
+- [ ] `tools/batch_signin_fix.html` - 批量签到修复工具
+- [ ] `tools/uuid_editor.html` - UUID编辑器
+- [ ] `tools/export_missing_uuids.html` - 导出工具
+
 ## ✅ 可以安全删除的文件
 
 ### **1. 临时文件**
@@ -107,6 +113,9 @@ grep -r "script src=" *.html
 
 # 检查JavaScript文件中的import/require
 grep -r "import\|require" src/
+
+# 检查工具文件引用
+grep -r "tools/" *.html
 ```
 
 ### **步骤4：备份重要变更**

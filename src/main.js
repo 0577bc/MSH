@@ -1083,8 +1083,23 @@ async function handleSignin() {
   alert('签到成功！');
 }
 
-// 检查是否已签到
+// 检查是否已签到（基于UUID的精确检查）
 function isAlreadySignedIn(member, today, timeSlot) {
+  // 首先尝试通过UUID检查
+  const memberInfo = groups[groupSelect.value]?.find(m => m.name === member);
+  if (memberInfo && memberInfo.uuid) {
+    return attendanceRecords.some(record => {
+      const recordUUID = record.memberUUID || record.name; // 兼容旧数据
+      const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
+      const recordTimeSlot = getAttendanceType(new Date(record.time));
+      
+      return recordUUID === memberInfo.uuid && 
+             recordDate === today && 
+             recordTimeSlot === timeSlot;
+    });
+  }
+  
+  // 如果没有UUID，降级使用姓名检查
   return attendanceRecords.some(record => 
     record.name === member && 
     new Date(record.time).toLocaleDateString('zh-CN') === today &&

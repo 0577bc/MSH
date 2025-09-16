@@ -527,6 +527,7 @@ try {
 ## 📚 相关文档
 
 ### **问题分析报告**
+- `docs/reports/UUID_MATCHING_FIX.md` - UUID匹配修复报告
 - `docs/reports/SUNDAY_TRACKING_ANALYSIS.md` - 主日跟踪问题分析
 - `docs/reports/CHANGELOG.md` - 系统变更日志
 - `docs/reports/OPTIMIZATION_REPORT.md` - 性能优化报告

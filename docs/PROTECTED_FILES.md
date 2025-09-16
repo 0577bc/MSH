@@ -30,6 +30,13 @@
    - `config.backup.js` - 配置文件备份
    - `config.example.js` - 配置示例文件
 
+### **工具文件（永久保护）**
+1. **`tools/`** 文件夹及其所有内容
+   - `batch_signin_fix.html` - 批量签到修复工具
+   - `uuid_editor.html` - UUID编辑器
+   - `export_missing_uuids.html` - 导出工具
+   - 用于系统维护和数据修复
+
 ### **运维文档（永久保护）**
 1. **`DEPLOYMENT.md`** - 部署指南
 2. **`MAINTENANCE.md`** - 维护手册

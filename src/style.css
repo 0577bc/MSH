@@ -1819,3 +1819,277 @@ button:hover {
   background-color: #f8d7da;
   color: #721c24;
 }
+
+/* ==================== UUID编辑器样式 ==================== */
+.uuid-editor-btn {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.uuid-editor-btn:hover {
+  background: #138496;
+}
+
+.uuid-editor-container {
+  max-width: 100%;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.uuid-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 2px solid #e9ecef;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.uuid-editor-stats {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.uuid-editor-stats .stat-card {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  text-align: center;
+  min-width: 100px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.uuid-editor-stats .stat-number {
+  font-size: 20px;
+  font-weight: bold;
+  color: #007bff;
+  margin-bottom: 5px;
+}
+
+.uuid-editor-stats .stat-label {
+  font-size: 11px;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.uuid-editor-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.uuid-editor-actions button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.uuid-editor-actions .success-button {
+  background: #28a745;
+  color: white;
+}
+
+.uuid-editor-actions .success-button:hover {
+  background: #1e7e34;
+}
+
+.uuid-editor-filters {
+  display: flex;
+  gap: 15px;
+  margin: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.uuid-editor-filters label {
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.uuid-editor-filters select,
+.uuid-editor-filters input {
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 12px;
+  min-width: 120px;
+}
+
+.uuid-editor-filters select:focus,
+.uuid-editor-filters input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
+}
+
+.uuid-editor-table-container {
+  margin: 20px;
+  overflow-x: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.uuid-editor-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 12px;
+}
+
+.uuid-editor-table-container th,
+.uuid-editor-table-container td {
+  border: 1px solid #dee2e6;
+  padding: 8px;
+  text-align: left;
+}
+
+.uuid-editor-table-container th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.uuid-editor-table-container .uuid-cell {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  max-width: 200px;
+  word-break: break-all;
+}
+
+.uuid-editor-table-container .missing-uuid {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.uuid-editor-table-container .has-uuid {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.uuid-editor-table-container .editing {
+  background-color: #e3f2fd;
+}
+
+.uuid-editor-table-container .edit-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  margin: 2px;
+}
+
+.uuid-editor-table-container .edit-button:hover {
+  background: #0056b3;
+}
+
+.uuid-editor-table-container .save-button {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  margin: 2px;
+}
+
+.uuid-editor-table-container .save-button:hover {
+  background: #1e7e34;
+}
+
+.uuid-editor-table-container .cancel-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  margin: 2px;
+}
+
+.uuid-editor-table-container .cancel-button:hover {
+  background: #545b62;
+}
+
+.uuid-editor-table-container .input-field {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid #007bff;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.uuid-editor-log {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: 15px;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  margin: 20px;
+  line-height: 1.4;
+}
+
+.uuid-editor-log div {
+  margin-bottom: 3px;
+  padding: 2px 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .uuid-editor-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .uuid-editor-stats {
+    justify-content: center;
+  }
+  
+  .uuid-editor-actions {
+    justify-content: center;
+  }
+  
+  .uuid-editor-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .uuid-editor-filters select,
+  .uuid-editor-filters input {
+    min-width: auto;
+    width: 100%;
+  }
+}

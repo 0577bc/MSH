@@ -410,12 +410,14 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <!-- Firebase SDK v8 (兼容版本) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
-    <!-- 配置文件 -->
+    <!-- 系统依赖文件 -->
     <script src="config.js"></script>
+    <script src="src/utils.js"></script>
+    <script src="src/new-data-manager.js"></script>
     
     <script>
         // 全局变量
@@ -423,17 +425,39 @@
         let groups = {};
         let groupNames = {};
         let attendanceRecords = [];
+        let newDataManager = null;
+        
+        // 等待Firebase SDK加载
+        async function waitForFirebase() {
+            return new Promise((resolve) => {
+                const checkFirebase = () => {
+                    if (typeof firebase !== 'undefined') {
+                        resolve(true);
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                checkFirebase();
+            });
+        }
         
         // 初始化Firebase
-        function initFirebase() {
+        async function initFirebase() {
             try {
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
+                await waitForFirebase();
+                if (firebaseConfig) {
+                    if (firebase.apps && firebase.apps.length === 0) {
+                        firebase.initializeApp(firebaseConfig);
+                    }
+                    db = firebase.database();
+                    updateConnectionStatus(true);
+                    log('✅ Firebase 初始化成功', 'success');
+                    return true;
+                } else {
+                    updateConnectionStatus(false);
+                    log('❌ Firebase配置未找到', 'error');
+                    return false;
                 }
-                db = firebase.database();
-                updateConnectionStatus(true);
-                log('✅ Firebase 初始化成功', 'success');
-                return true;
             } catch (error) {
                 updateConnectionStatus(false);
                 log('❌ Firebase 初始化失败: ' + error.message, 'error');
@@ -441,25 +465,77 @@
             }
         }
         
+        // 初始化NewDataManager
+        async function initNewDataManager() {
+            try {
+                if (window.newDataManager) {
+                    newDataManager = window.newDataManager;
+                    log('✅ 使用现有NewDataManager实例', 'success');
+                    return true;
+                } else if (window.utils && window.utils.NewDataManager) {
+                    newDataManager = new window.utils.NewDataManager();
+                    window.newDataManager = newDataManager;
+                    log('✅ NewDataManager初始化成功', 'success');
+                    return true;
+                } else {
+                    log('⚠️ NewDataManager不可用，将使用直接Firebase操作', 'warning');
+                    return false;
+                }
+            } catch (error) {
+                log('❌ NewDataManager初始化失败: ' + error.message, 'error');
+                return false;
+            }
+        }
+        
         // 加载数据
         async function loadData() {
-            if (!initFirebase()) {
-                return;
-            }
-            
             try {
                 log('🔄 开始加载数据...', 'info');
                 
-                // 并行加载所有数据
-                const [groupsSnapshot, groupNamesSnapshot, attendanceSnapshot] = await Promise.all([
-                    db.ref('groups').once('value'),
-                    db.ref('groupNames').once('value'),
-                    db.ref('attendanceRecords').once('value')
-                ]);
-                
-                groups = groupsSnapshot.val() || {};
-                groupNames = groupNamesSnapshot.val() || {};
-                attendanceRecords = Object.values(attendanceSnapshot.val() || {});
+                // 优先使用NewDataManager加载数据
+                if (newDataManager) {
+                    log('📦 使用NewDataManager加载数据...', 'info');
+                    
+                    // 等待NewDataManager数据加载完成
+                    let retryCount = 0;
+                    const maxRetries = 20;
+                    while ((!window.groups || Object.keys(window.groups).length === 0) && retryCount < maxRetries) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        retryCount++;
+                    }
+                    
+                    groups = window.groups || {};
+                    groupNames = window.groupNames || {};
+                    attendanceRecords = window.attendanceRecords || [];
+                    
+                    log('✅ 通过NewDataManager加载数据完成', 'success');
+                } else if (db) {
+                    log('📦 使用直接Firebase加载数据...', 'info');
+                    
+                    // 并行加载所有数据
+                    const [groupsSnapshot, groupNamesSnapshot, attendanceSnapshot] = await Promise.all([
+                        db.ref('groups').once('value'),
+                        db.ref('groupNames').once('value'),
+                        db.ref('attendanceRecords').once('value')
+                    ]);
+                    
+                    groups = groupsSnapshot.val() || {};
+                    groupNames = groupNamesSnapshot.val() || {};
+                    // 修复：使用数组格式而不是对象格式
+                    const attendanceData = attendanceSnapshot.val();
+                    if (Array.isArray(attendanceData)) {
+                        attendanceRecords = attendanceData;
+                    } else if (attendanceData && typeof attendanceData === 'object') {
+                        attendanceRecords = Object.values(attendanceData);
+                    } else {
+                        attendanceRecords = [];
+                    }
+                    
+                    log('✅ 通过Firebase直接加载数据完成', 'success');
+                } else {
+                    log('❌ 没有可用的数据源', 'error');
+                    return;
+                }
                 
                 // 更新UI
                 updateGroupSelects();
@@ -627,21 +703,37 @@
                     (member.name || member) !== memberName
                 );
                 
-                await db.ref(`groups/${groupKey}`).set(updatedMembers);
+                // 使用NewDataManager或直接Firebase删除
+                if (newDataManager) {
+                    // 通过NewDataManager删除
+                    await newDataManager.deleteGroupMember(groupKey, memberName);
+                    log('✅ 通过NewDataManager删除人员', 'success');
+                } else {
+                    // 直接Firebase删除
+                    await db.ref(`groups/${groupKey}`).set(updatedMembers);
+                    
+                    // 删除相关的签到记录
+                    const memberRecords = attendanceRecords.filter(record => 
+                        record.name === memberName && record.group === groupKey
+                    );
+                    
+                    for (const record of memberRecords) {
+                        const recordIndex = attendanceRecords.findIndex(r => 
+                            r.name === record.name && 
+                            r.group === record.group && 
+                            r.time === record.time
+                        );
+                        if (recordIndex !== -1) {
+                            await db.ref(`attendanceRecords/${recordIndex}`).remove();
+                        }
+                    }
+                    log('✅ 通过Firebase直接删除人员', 'success');
+                }
                 
-                // 删除相关的签到记录
+                // 计算删除的记录数量
                 const memberRecords = attendanceRecords.filter(record => 
                     record.name === memberName && record.group === groupKey
                 );
-                
-                for (const record of memberRecords) {
-                    const recordKey = Object.keys(attendanceRecords).find(key => 
-                        attendanceRecords[key] === record
-                    );
-                    if (recordKey) {
-                        await db.ref(`attendanceRecords/${recordKey}`).remove();
-                    }
-                }
                 
                 log(`✅ 人员删除成功: ${memberName}`, 'success');
                 log(`📊 同时删除了 ${memberRecords.length} 条相关签到记录`, 'info');
@@ -695,19 +787,26 @@
             try {
                 log(`🔄 开始删除签到记录: ${selectedMember} - ${recordDate}`, 'info');
                 
-                // 找到记录在原始数组中的索引
-                const originalIndex = attendanceRecords.findIndex(record => 
-                    record.name === recordToDelete.name && 
-                    record.group === recordToDelete.group && 
-                    record.time === recordToDelete.time
-                );
-                
-                if (originalIndex === -1) {
-                    throw new Error('找不到要删除的记录');
+                // 使用NewDataManager或直接Firebase删除
+                if (newDataManager) {
+                    // 通过NewDataManager删除
+                    await newDataManager.deleteAttendanceRecord(recordToDelete);
+                    log('✅ 通过NewDataManager删除签到记录', 'success');
+                } else {
+                    // 直接Firebase删除
+                    const originalIndex = attendanceRecords.findIndex(record => 
+                        record.name === recordToDelete.name && 
+                        record.group === recordToDelete.group && 
+                        record.time === recordToDelete.time
+                    );
+                    
+                    if (originalIndex === -1) {
+                        throw new Error('找不到要删除的记录');
+                    }
+                    
+                    await db.ref(`attendanceRecords/${originalIndex}`).remove();
+                    log('✅ 通过Firebase直接删除签到记录', 'success');
                 }
-                
-                // 删除记录
-                await db.ref(`attendanceRecords/${originalIndex}`).remove();
                 
                 log(`✅ 签到记录删除成功: ${selectedMember} - ${recordDate}`, 'success');
                 
@@ -745,25 +844,37 @@
             try {
                 log(`🔄 开始删除小组: ${groupName}`, 'info');
                 
-                // 删除小组
-                await db.ref(`groups/${groupKey}`).remove();
-                
-                // 删除小组名称映射
-                await db.ref(`groupNames/${groupKey}`).remove();
-                
-                // 删除相关签到记录
-                const groupRecords = attendanceRecords.filter(record => record.group === groupKey);
-                let deletedRecords = 0;
-                
-                for (const record of groupRecords) {
-                    const recordKey = Object.keys(attendanceRecords).find(key => 
-                        attendanceRecords[key] === record
-                    );
-                    if (recordKey) {
-                        await db.ref(`attendanceRecords/${recordKey}`).remove();
-                        deletedRecords++;
+                // 使用NewDataManager或直接Firebase删除
+                if (newDataManager) {
+                    // 通过NewDataManager删除
+                    await newDataManager.deleteGroup(groupKey);
+                    log('✅ 通过NewDataManager删除小组', 'success');
+                } else {
+                    // 直接Firebase删除
+                    await db.ref(`groups/${groupKey}`).remove();
+                    await db.ref(`groupNames/${groupKey}`).remove();
+                    
+                    // 删除相关签到记录
+                    const groupRecords = attendanceRecords.filter(record => record.group === groupKey);
+                    let deletedRecords = 0;
+                    
+                    for (const record of groupRecords) {
+                        const recordIndex = attendanceRecords.findIndex(r => 
+                            r.name === record.name && 
+                            r.group === record.group && 
+                            r.time === record.time
+                        );
+                        if (recordIndex !== -1) {
+                            await db.ref(`attendanceRecords/${recordIndex}`).remove();
+                            deletedRecords++;
+                        }
                     }
+                    log('✅ 通过Firebase直接删除小组', 'success');
                 }
+                
+                // 计算删除的记录数量
+                const groupRecords = attendanceRecords.filter(record => record.group === groupKey);
+                const deletedRecords = groupRecords.length;
                 
                 log(`✅ 小组删除成功: ${groupName}`, 'success');
                 log(`📊 同时删除了 ${memberCount} 名成员和 ${deletedRecords} 条签到记录`, 'info');
@@ -802,21 +913,32 @@
                 
                 if (type === 'attendance' || type === 'all') {
                     // 清理签到记录
-                    const recordsToDelete = [];
-                    
-                    attendanceRecords.forEach((record, index) => {
+                    const recordsToDelete = attendanceRecords.filter(record => {
                         const recordDate = new Date(record.time).toISOString().split('T')[0];
-                        if (recordDate < cutoffDateStr) {
-                            recordsToDelete.push(index);
-                        }
+                        return recordDate < cutoffDateStr;
                     });
                     
-                    for (const index of recordsToDelete) {
-                        const recordKey = Object.keys(attendanceRecords)[index];
-                        if (recordKey) {
-                            await db.ref(`attendanceRecords/${recordKey}`).remove();
+                    if (newDataManager) {
+                        // 通过NewDataManager批量删除
+                        for (const record of recordsToDelete) {
+                            await newDataManager.deleteAttendanceRecord(record);
                             deletedCount++;
                         }
+                        log('✅ 通过NewDataManager批量清理', 'success');
+                    } else {
+                        // 直接Firebase删除
+                        for (const record of recordsToDelete) {
+                            const recordIndex = attendanceRecords.findIndex(r => 
+                                r.name === record.name && 
+                                r.group === record.group && 
+                                r.time === record.time
+                            );
+                            if (recordIndex !== -1) {
+                                await db.ref(`attendanceRecords/${recordIndex}`).remove();
+                                deletedCount++;
+                            }
+                        }
+                        log('✅ 通过Firebase直接批量清理', 'success');
                     }
                 }
                 
@@ -870,11 +992,21 @@
         }
         
         // 页面加载时自动初始化
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
             log('🚀 删除管理页面加载完成', 'info');
-            initFirebase();
-            loadData();
+            
+            // 初始化Firebase和NewDataManager
+            const firebaseOk = await initFirebase();
+            const newDataManagerOk = await initNewDataManager();
+            
+            if (firebaseOk || newDataManagerOk) {
+                log('✅ 系统初始化完成，开始加载数据', 'success');
+                await loadData();
+            } else {
+                log('❌ 系统初始化失败，无法加载数据', 'error');
+            }
         });
     </script>
 </body>
 </html>
+

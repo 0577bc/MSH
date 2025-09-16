@@ -202,15 +202,16 @@ function initializeEventListeners() {
         
         
         // 统计上午签到的人员（用于计算未签到人员）
-        const morningSignedMembers = [
-          ...earlyRecords.map(record => record.name),
-          ...onTimeRecords.map(record => record.name),
-          ...lateRecords.map(record => record.name)
+        // 使用UUID进行统计匹配，避免姓名变更导致的重复统计
+        const morningSignedUUIDs = [
+          ...earlyRecords.map(record => record.memberUUID || record.name),
+          ...onTimeRecords.map(record => record.memberUUID || record.name),
+          ...lateRecords.map(record => record.memberUUID || record.name)
         ];
         
         // 计算上午未签到的人员（只统计上午未签到，下午签到不算）
         const unsignedMembers = window.utils.filterExcludedMembers(
-          groupMembers.filter(member => !morningSignedMembers.includes(member.name)),
+          groupMembers.filter(member => !morningSignedUUIDs.includes(member.uuid || member.name)),
           group,
           excludedMembers
         );
