@@ -14,7 +14,7 @@ let pageSyncManager; // 页面同步管理器
 
 // DOM元素引用
 let backToSummaryButton, backToSigninButton, exportButton;
-let sundayTrackingSection, sundayTrackingList;
+let sundayTrackingSection, sundayTrackingList, groupFilter;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
@@ -54,6 +54,7 @@ function initializeDOMElements() {
   
   sundayTrackingSection = document.getElementById('sundayTrackingSection');
   sundayTrackingList = document.getElementById('sundayTrackingList');
+  groupFilter = document.getElementById('groupFilter');
 }
 
 // ==================== 事件监听器初始化 ====================
@@ -71,30 +72,25 @@ function initializeEventListeners() {
   if (exportButton) {
     exportButton.addEventListener('click', async () => {
       try {
-        // 动态加载html2canvas库
-        if (!window.html2canvas) {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          document.head.appendChild(script);
-          
-          // 等待库加载完成
-          await new Promise((resolve, reject) => {
-            script.onload = resolve;
-            script.onerror = reject;
-          });
+        // 获取当前显示的跟踪列表
+        const currentTrackingList = getCurrentTrackingList();
+        
+        if (currentTrackingList.length === 0) {
+          alert('没有跟踪记录可以导出！');
+          return;
         }
 
-        // 生成图片
-        const canvas = await html2canvas(sundayTrackingSection, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          useCORS: true
-        });
-
-        // 下载图片
+        // 按小组分组
+        const groupedData = groupTrackingByGroup(currentTrackingList);
+        
+        // 生成导出内容
+        const exportContent = generateExportContent(groupedData);
+        
+        // 创建并下载文件
+        const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
-        link.download = `主日跟踪-${new Date().toISOString().split('T')[0]}.png`;
-        link.href = canvas.toDataURL();
+        link.href = URL.createObjectURL(blob);
+        link.download = `主日跟踪记录-${new Date().toISOString().split('T')[0]}.txt`;
         link.click();
 
         alert('导出成功！');
@@ -105,24 +101,10 @@ function initializeEventListeners() {
     });
   }
   
-  // 重置跟踪状态按钮事件
-  const resetTrackingBtn = document.getElementById('resetTrackingBtn');
-  if (resetTrackingBtn) {
-    resetTrackingBtn.addEventListener('click', () => {
-      if (confirm('确定要重置所有跟踪记录的状态吗？这将把所有已解决/忽略的记录重新设置为跟踪状态。')) {
-        if (window.utils && window.utils.SundayTrackingManager) {
-          const success = window.utils.SundayTrackingManager.resetAllTrackingRecords();
-          if (success) {
-            alert('已重置所有跟踪记录状态！');
-            // 重新加载跟踪数据
-            loadSundayTracking();
-          } else {
-            alert('重置失败，请重试！');
-          }
-        } else {
-          alert('主日跟踪功能暂不可用！');
-        }
-      }
+  // 小组筛选事件
+  if (groupFilter) {
+    groupFilter.addEventListener('change', () => {
+      filterTrackingList();
     });
   }
 
@@ -356,13 +338,138 @@ function updateTrackingSummary(trackingList) {
   
   // 更新统计显示
   const trackingCountEl = document.getElementById('trackingCount');
-  const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
-  
   if (trackingCountEl) trackingCountEl.textContent = trackingCount;
-  if (lastUpdateTimeEl) {
-    const now = new Date();
-    lastUpdateTimeEl.textContent = now.toLocaleString('zh-CN');
+  
+  // 更新小组筛选选项
+  updateGroupFilterOptions(trackingList);
+}
+
+// 更新小组筛选选项
+function updateGroupFilterOptions(trackingList) {
+  if (!groupFilter) return;
+  
+  // 获取所有小组
+  const allGroups = new Set();
+  trackingList.forEach(item => {
+    if (item.group) {
+      allGroups.add(item.group);
+    }
+  });
+  
+  // 清空现有选项（保留"全部小组"选项）
+  groupFilter.innerHTML = '<option value="">--全部小组--</option>';
+  
+  // 添加小组选项，确保"未分组"排在最后
+  const sortedGroups = Array.from(allGroups).sort((a, b) => {
+    if (a === '未分组') return 1;
+    if (b === '未分组') return -1;
+    return a.localeCompare(b);
+  });
+  
+  sortedGroups.forEach(group => {
+    const option = document.createElement('option');
+    option.value = group;
+    option.textContent = groupNames[group] || group;
+    groupFilter.appendChild(option);
+  });
+}
+
+// 筛选跟踪列表
+function filterTrackingList() {
+  if (!groupFilter) return;
+  
+  const selectedGroup = groupFilter.value;
+  const allRows = sundayTrackingList.querySelectorAll('tr');
+  
+  allRows.forEach(row => {
+    if (row.querySelector('td')) {
+      const groupCell = row.querySelector('td:nth-child(2)');
+      if (groupCell) {
+        const groupName = groupCell.textContent.trim();
+        const shouldShow = !selectedGroup || groupName === (groupNames[selectedGroup] || selectedGroup);
+        row.style.display = shouldShow ? '' : 'none';
+      }
+    }
+  });
+  
+  // 更新统计信息
+  updateFilteredCount();
+}
+
+// 更新筛选后的统计信息
+function updateFilteredCount() {
+  const visibleRows = sundayTrackingList.querySelectorAll('tr:not([style*="display: none"])');
+  const visibleCount = Array.from(visibleRows).filter(row => row.querySelector('td')).length;
+  
+  const trackingCountEl = document.getElementById('trackingCount');
+  if (trackingCountEl) {
+    const selectedGroup = groupFilter ? groupFilter.value : '';
+    if (selectedGroup) {
+      trackingCountEl.textContent = `${visibleCount} (${groupNames[selectedGroup] || selectedGroup})`;
+    } else {
+      trackingCountEl.textContent = visibleCount;
+    }
   }
+}
+
+// 获取当前显示的跟踪列表
+function getCurrentTrackingList() {
+  const allRows = sundayTrackingList.querySelectorAll('tr');
+  const currentList = [];
+  
+  allRows.forEach(row => {
+    if (row.querySelector('td') && row.style.display !== 'none') {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 4) {
+        currentList.push({
+          memberName: cells[0].textContent.trim(),
+          group: cells[1].textContent.trim(),
+          consecutiveAbsences: cells[2].textContent.trim(),
+          lastAttendanceDate: cells[3].textContent.trim()
+        });
+      }
+    }
+  });
+  
+  return currentList;
+}
+
+// 按小组分组跟踪数据
+function groupTrackingByGroup(trackingList) {
+  const grouped = {};
+  
+  trackingList.forEach(item => {
+    const group = item.group;
+    if (!grouped[group]) {
+      grouped[group] = [];
+    }
+    grouped[group].push(item);
+  });
+  
+  return grouped;
+}
+
+// 生成导出内容
+function generateExportContent(groupedData) {
+  let content = `主日跟踪记录导出\n`;
+  content += `导出时间：${new Date().toLocaleString('zh-CN')}\n`;
+  content += `总事件数：${Object.values(groupedData).reduce((sum, group) => sum + group.length, 0)}\n\n`;
+  
+  Object.keys(groupedData).sort().forEach(group => {
+    const groupData = groupedData[group];
+    content += `=== ${group} ===\n`;
+    content += `事件数量：${groupData.length}\n\n`;
+    
+    groupData.forEach((item, index) => {
+      content += `${index + 1}. 姓名：${item.memberName}\n`;
+      content += `   连续缺勤：${item.consecutiveAbsences}\n`;
+      content += `   最后签到：${item.lastAttendanceDate}\n\n`;
+    });
+    
+    content += '\n';
+  });
+  
+  return content;
 }
 
   // 显示跟踪列表
@@ -381,16 +488,53 @@ function updateTrackingSummary(trackingList) {
       return;
     }
     
-    trackingList.forEach((item, index) => {
+    // 排序：第一关键词组别，第二关键词连续缺勤次数（降序），第三关键词姓名
+    const sortedList = trackingList.sort((a, b) => {
+      // 第一关键词：组别
+      if (a.group !== b.group) {
+        // 确保"未分组"排在最后
+        if (a.group === '未分组') return 1;
+        if (b.group === '未分组') return -1;
+        return a.group.localeCompare(b.group);
+      }
+      
+      // 第二关键词：连续缺勤次数（降序）
+      if (a.consecutiveAbsences !== b.consecutiveAbsences) {
+        return b.consecutiveAbsences - a.consecutiveAbsences;
+      }
+      
+      // 第三关键词：姓名
+      return a.memberName.localeCompare(b.memberName);
+    });
+    
+    sortedList.forEach((item, index) => {
       const row = document.createElement('tr');
+      
+      // 根据事件类型设置不同的样式
+      let rowClass = '';
+      let eventTypeText = '';
+      
+      if (item.eventType === 'extended_absence') {
+        rowClass = 'extended-absence-row';
+        eventTypeText = '4周以上缺勤';
+      } else if (item.eventType === 'severe_absence') {
+        rowClass = 'severe-absence-row';
+        eventTypeText = '3周以上缺勤';
+      } else {
+        rowClass = 'normal-absence-row';
+        eventTypeText = '2周缺勤';
+      }
+      
+      row.className = rowClass;
       row.innerHTML = `
         <td>${item.memberName}</td>
-        <td>${item.group}</td>
-        <td>${item.consecutiveAbsences}次</td>
+        <td>${groupNames[item.originalGroup || item.group] || (item.originalGroup || item.group)}</td>
+        <td>${item.consecutiveAbsences}次 <span class="event-type">(${eventTypeText})</span></td>
         <td>${item.lastAttendanceDate ? formatDateForDisplay(item.lastAttendanceDate) : '无'}</td>
         <td>
-          <button class="resolve-btn" onclick="resolveTracking('${item.memberUUID}', '${item.memberName}')">跟踪</button>
-          <button class="ignore-btn" onclick="ignoreTracking('${item.memberUUID}', '${item.memberName}')">忽略</button>
+          <button class="resolve-btn" onclick="resolveTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">跟踪</button>
+          <button class="ignore-btn" onclick="ignoreTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">事件终止</button>
+          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')">个人页面</button>
         </td>
       `;
       sundayTrackingList.appendChild(row);
@@ -421,7 +565,7 @@ function getStatusText(status) {
 }
 
 // 跟踪
-function resolveTracking(memberUUID, memberName) {
+function resolveTracking(recordId, memberName) {
   // 显示跟踪对话框
   const dialog = document.getElementById('resolveTrackingDialog');
   if (!dialog) {
@@ -429,8 +573,11 @@ function resolveTracking(memberUUID, memberName) {
     return;
   }
   
-  // 清空表单
-  document.getElementById('resolveReason').value = '';
+  // 清空表单并设置默认日期
+  document.getElementById('trackingDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('trackingContent').value = '';
+  document.getElementById('trackingCategory').value = '';
+  document.getElementById('trackingPerson').value = '';
   
   // 显示对话框
   dialog.classList.remove('hidden-dialog');
@@ -440,16 +587,33 @@ function resolveTracking(memberUUID, memberName) {
   const cancelBtn = document.getElementById('cancelResolve');
   
   const handleConfirm = () => {
-    const reason = document.getElementById('resolveReason').value.trim();
+    const date = document.getElementById('trackingDate').value;
+    const content = document.getElementById('trackingContent').value.trim();
+    const category = document.getElementById('trackingCategory').value;
+    const person = document.getElementById('trackingPerson').value.trim();
     
-    if (!reason) {
-      alert('请填写情况说明！');
+    if (!date || !content || !category || !person) {
+      alert('请填写所有必填字段！');
       return;
     }
     
     // 调用跟踪功能
     if (window.utils && window.utils.SundayTrackingManager) {
-      const success = window.utils.SundayTrackingManager.resolveTracking(memberUUID, reason, '系统');
+      // 获取记录ID对应的成员UUID
+      const trackingRecord = window.utils.SundayTrackingManager.getTrackingRecord(recordId);
+      const memberUUID = trackingRecord ? trackingRecord.memberUUID : recordId;
+      
+      const trackingData = {
+        date: date,
+        content: content,
+        category: category,
+        person: person,
+        memberUUID: memberUUID,
+        memberName: memberName,
+        createdAt: new Date().toISOString()
+      };
+      
+      const success = window.utils.SundayTrackingManager.addTrackingRecord(memberUUID, trackingData);
       
       if (success) {
         alert(`已记录 ${memberName} 的跟踪情况！`);
@@ -480,7 +644,7 @@ function resolveTracking(memberUUID, memberName) {
 }
 
 // 忽略跟踪
-function ignoreTracking(memberUUID, memberName) {
+function ignoreTracking(recordId, memberName) {
   // 显示忽略对话框
   const dialog = document.getElementById('ignoreTrackingDialog');
   if (!dialog) {
@@ -488,8 +652,9 @@ function ignoreTracking(memberUUID, memberName) {
     return;
   }
   
-  // 清空表单
+  // 清空表单并设置默认日期
   document.getElementById('ignoreReason').value = '';
+  document.getElementById('ignoreDate').value = new Date().toISOString().split('T')[0];
   
   // 显示对话框
   dialog.classList.remove('hidden-dialog');
@@ -500,26 +665,40 @@ function ignoreTracking(memberUUID, memberName) {
   
   const handleConfirm = () => {
     const reason = document.getElementById('ignoreReason').value.trim();
+    const date = document.getElementById('ignoreDate').value;
     
-    if (!reason) {
-      alert('请填写忽略原因！');
+    if (!reason || !date) {
+      alert('请填写终止原因和日期！');
       return;
     }
     
     // 调用忽略跟踪功能
     if (window.utils && window.utils.SundayTrackingManager) {
-      console.log(`开始忽略跟踪: ${memberName} (${memberUUID})`);
-      const success = window.utils.SundayTrackingManager.ignoreTracking(memberUUID, reason);
-      console.log(`忽略跟踪结果: ${success}`);
+      // 获取记录ID对应的成员UUID
+      const trackingRecord = window.utils.SundayTrackingManager.getTrackingRecord(recordId);
+      const memberUUID = trackingRecord ? trackingRecord.memberUUID : recordId;
+      
+      console.log(`开始终止跟踪: ${memberName} (${memberUUID})`);
+      
+      const terminationRecord = {
+        memberUUID: memberUUID,
+        memberName: memberName,
+        reason: reason,
+        terminationDate: date,
+        createdAt: new Date().toISOString()
+      };
+      
+      const success = window.utils.SundayTrackingManager.terminateTracking(recordId, terminationRecord);
+      console.log(`终止跟踪结果: ${success}`);
       
       if (success) {
-        alert(`已忽略 ${memberName} 的跟踪！`);
+        alert(`已终止 ${memberName} 的跟踪事件！`);
         dialog.classList.add('hidden-dialog');
         
         // 重新加载跟踪数据
         loadSundayTracking();
       } else {
-        alert('忽略跟踪失败，请重试！');
+        alert('终止跟踪失败，请重试！');
       }
     } else {
       alert('主日跟踪功能暂不可用！');
@@ -540,9 +719,15 @@ function ignoreTracking(memberUUID, memberName) {
   cancelBtn.addEventListener('click', handleCancel);
 }
 
+// 查看个人页面
+function viewPersonalPage(memberUUID) {
+  window.location.href = `personal-page.html?uuid=${memberUUID}`;
+}
+
 // 将函数暴露到全局作用域
 window.resolveTracking = resolveTracking;
 window.ignoreTracking = ignoreTracking;
+window.viewPersonalPage = viewPersonalPage;
 
 // ==================== 页面初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {

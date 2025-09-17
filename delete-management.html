@@ -305,6 +305,7 @@
         <div class="controls">
             <button class="btn btn-primary" onclick="loadData()">刷新数据</button>
             <button class="btn btn-warning" onclick="clearLog()">清空日志</button>
+            <button class="btn btn-success" onclick="performSync()" id="syncButton">同步数据</button>
             <a href="index.html" class="btn btn-success">返回主页</a>
             <div class="status disconnected" id="connectionStatus">未连接</div>
         </div>
@@ -337,23 +338,27 @@
                 <h3><span class="icon">📝</span>删除签到记录</h3>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="deleteDate">选择日期</label>
-                        <input type="date" id="deleteDate" onchange="loadMemberRecords()">
+                        <label for="deleteDate">选择日期：</label>
+                        <input type="date" id="deleteDate" onchange="loadMemberRecords()" class="date-input">
                     </div>
                     <div class="form-group">
-                        <label for="deleteMemberName">选择人员</label>
+                        <label for="deleteMemberName">选择人员：</label>
                         <select id="deleteMemberName" onchange="loadMemberRecords()">
                             <option value="">--请选择人员--</option>
                         </select>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="deleteRecordSelect">选择要删除的签到记录</label>
-                    <select id="deleteRecordSelect">
+                    <label for="deleteRecordSelect">选择要删除的签到记录（可多选）</label>
+                    <select id="deleteRecordSelect" multiple size="5" class="multi-select">
                         <option value="">--请先选择日期和人员--</option>
                     </select>
+                    <div class="multi-select-controls">
+                        <button type="button" onclick="selectAllRecords()" class="btn btn-warning select-all-btn">全选</button>
+                        <button type="button" onclick="clearAllRecords()" class="btn btn-secondary">清空选择</button>
+                    </div>
                 </div>
-                <button class="delete-button" onclick="deleteSingleAttendanceRecord()" id="deleteAttendanceBtn" disabled>
+                <button class="delete-button" onclick="deleteSelectedAttendanceRecords()" id="deleteAttendanceBtn" disabled>
                     删除选中的签到记录
                 </button>
             </div>
@@ -559,18 +564,19 @@
             groupSelect1.innerHTML = '<option value="">--请选择小组--</option>';
             groupSelect2.innerHTML = '<option value="">--请选择小组--</option>';
             
-            // 添加小组选项（排除未分组）
-            Object.keys(groups).forEach(groupKey => {
-                if (groupKey !== '未分组') {
-                    const groupName = groupNames[groupKey] || groupKey;
-                    const memberCount = groups[groupKey] ? groups[groupKey].length : 0;
-                    
-                    const option1 = new Option(`${groupName} (${memberCount}人)`, groupKey);
-                    const option2 = new Option(`${groupName} (${memberCount}人)`, groupKey);
-                    
-                    groupSelect1.add(option1);
-                    groupSelect2.add(option2);
-                }
+            // 使用utils.sortGroups函数排序，确保"未分组"排在最后
+            const sortedGroups = window.utils ? window.utils.sortGroups(groups, groupNames) : Object.keys(groups);
+            
+            // 添加所有小组选项（包括未分组）
+            sortedGroups.forEach(groupKey => {
+                const groupName = groupNames[groupKey] || groupKey;
+                const memberCount = groups[groupKey] ? groups[groupKey].length : 0;
+                
+                const option1 = new Option(`${groupName} (${memberCount}人)`, groupKey);
+                const option2 = new Option(`${groupName} (${memberCount}人)`, groupKey);
+                
+                groupSelect1.add(option1);
+                groupSelect2.add(option2);
             });
         }
         
@@ -613,22 +619,43 @@
             // 清空现有选项
             memberSelect.innerHTML = '<option value="">--请选择人员--</option>';
             
-            // 获取指定日期有签到记录的人员
-            const membersWithRecords = new Set();
-            attendanceRecords.forEach(record => {
-                if (record.name) {
-                    const recordDate = new Date(record.time).toISOString().split('T')[0];
-                    if (!selectedDate || recordDate === selectedDate) {
-                        membersWithRecords.add(record.name);
+            // 如果选择了日期，只显示该日期有签到记录的人员
+            if (selectedDate) {
+                const membersWithRecords = new Set();
+                attendanceRecords.forEach(record => {
+                    if (record.name) {
+                        const recordDate = new Date(record.time).toISOString().split('T')[0];
+                        if (recordDate === selectedDate) {
+                            membersWithRecords.add(record.name);
+                        }
                     }
+                });
+                
+                // 添加人员选项
+                Array.from(membersWithRecords).sort().forEach(memberName => {
+                    const option = new Option(memberName, memberName);
+                    memberSelect.add(option);
+                });
+                
+                // 如果没有人员，显示提示
+                if (membersWithRecords.size === 0) {
+                    memberSelect.innerHTML = '<option value="">--该日期无签到记录--</option>';
                 }
-            });
-            
-            // 添加人员选项
-            Array.from(membersWithRecords).sort().forEach(memberName => {
-                const option = new Option(memberName, memberName);
-                memberSelect.add(option);
-            });
+            } else {
+                // 如果没有选择日期，显示所有有签到记录的人员
+                const allMembersWithRecords = new Set();
+                attendanceRecords.forEach(record => {
+                    if (record.name) {
+                        allMembersWithRecords.add(record.name);
+                    }
+                });
+                
+                // 添加人员选项
+                Array.from(allMembersWithRecords).sort().forEach(memberName => {
+                    const option = new Option(memberName, memberName);
+                    memberSelect.add(option);
+                });
+            }
         }
         
         // 加载人员的签到记录
@@ -640,6 +667,11 @@
             
             const selectedMember = memberSelect.value;
             const selectedDate = dateInput ? dateInput.value : '';
+            
+            // 如果日期变化，先更新人员列表
+            if (selectedDate) {
+                updateMemberSelect();
+            }
             
             // 清空记录选择器
             recordSelect.innerHTML = '<option value="">--请选择记录--</option>';
@@ -672,6 +704,24 @@
                 if (memberRecords.length > 0) {
                     deleteBtn.disabled = false;
                 }
+            }
+        }
+        
+        // 全选记录
+        function selectAllRecords() {
+            const recordSelect = document.getElementById('deleteRecordSelect');
+            for (let i = 0; i < recordSelect.options.length; i++) {
+                if (recordSelect.options[i].value !== '') {
+                    recordSelect.options[i].selected = true;
+                }
+            }
+        }
+        
+        // 清空选择
+        function clearAllRecords() {
+            const recordSelect = document.getElementById('deleteRecordSelect');
+            for (let i = 0; i < recordSelect.options.length; i++) {
+                recordSelect.options[i].selected = false;
             }
         }
         
@@ -749,15 +799,15 @@
             }
         }
         
-        // 删除单条签到记录
-        async function deleteSingleAttendanceRecord() {
+        // 删除选中的签到记录（支持多选）
+        async function deleteSelectedAttendanceRecords() {
             const memberSelect = document.getElementById('deleteMemberName');
             const recordSelect = document.getElementById('deleteRecordSelect');
             
             const selectedMember = memberSelect.value;
-            const selectedRecordIndex = parseInt(recordSelect.value);
+            const selectedOptions = Array.from(recordSelect.selectedOptions);
             
-            if (!selectedMember || selectedRecordIndex === undefined) {
+            if (!selectedMember || selectedOptions.length === 0) {
                 alert('请选择人员和要删除的记录');
                 return;
             }
@@ -768,52 +818,71 @@
             );
             memberRecords.sort((a, b) => new Date(b.time) - new Date(a.time));
             
-            if (selectedRecordIndex < 0 || selectedRecordIndex >= memberRecords.length) {
-                alert('选择的记录无效');
+            const recordsToDelete = [];
+            selectedOptions.forEach(option => {
+                if (option.value !== '') {
+                    const index = parseInt(option.value);
+                    if (index >= 0 && index < memberRecords.length) {
+                        recordsToDelete.push(memberRecords[index]);
+                    }
+                }
+            });
+            
+            if (recordsToDelete.length === 0) {
+                alert('没有有效的记录可删除');
                 return;
             }
             
-            const recordToDelete = memberRecords[selectedRecordIndex];
-            const recordDate = new Date(recordToDelete.time).toLocaleString('zh-CN');
-            const groupName = groupNames[recordToDelete.group] || recordToDelete.group;
-            
             // 确认删除
-            const confirm1 = confirm(`确定要删除以下签到记录吗？\n\n姓名：${selectedMember}\n时间：${recordDate}\n组别：${groupName}`);
+            let confirmMessage = `确定要删除以下 ${recordsToDelete.length} 条签到记录吗？\n\n`;
+            recordsToDelete.forEach((record, index) => {
+                const recordDate = new Date(record.time).toLocaleString('zh-CN');
+                const groupName = groupNames[record.group] || record.group;
+                confirmMessage += `${index + 1}. ${recordDate} - ${groupName}\n`;
+            });
+            
+            const confirm1 = confirm(confirmMessage);
             if (!confirm1) return;
             
-            const confirm2 = confirm(`⚠️ 此操作不可撤销！\n\n确定要永久删除这条签到记录吗？`);
+            const confirm2 = confirm(`⚠️ 此操作不可撤销！\n\n确定要永久删除这 ${recordsToDelete.length} 条签到记录吗？`);
             if (!confirm2) return;
             
             try {
-                log(`🔄 开始删除签到记录: ${selectedMember} - ${recordDate}`, 'info');
+                log(`🔄 开始删除 ${recordsToDelete.length} 条签到记录`, 'info');
+                
+                let deletedCount = 0;
                 
                 // 使用NewDataManager或直接Firebase删除
                 if (newDataManager) {
                     // 通过NewDataManager删除
-                    await newDataManager.deleteAttendanceRecord(recordToDelete);
+                    for (const record of recordsToDelete) {
+                        await newDataManager.deleteAttendanceRecord(record);
+                        deletedCount++;
+                    }
                     log('✅ 通过NewDataManager删除签到记录', 'success');
                 } else {
                     // 直接Firebase删除
-                    const originalIndex = attendanceRecords.findIndex(record => 
-                        record.name === recordToDelete.name && 
-                        record.group === recordToDelete.group && 
-                        record.time === recordToDelete.time
-                    );
-                    
-                    if (originalIndex === -1) {
-                        throw new Error('找不到要删除的记录');
+                    for (const record of recordsToDelete) {
+                        const originalIndex = attendanceRecords.findIndex(r => 
+                            r.name === record.name && 
+                            r.group === record.group && 
+                            r.time === record.time
+                        );
+                        
+                        if (originalIndex !== -1) {
+                            await db.ref(`attendanceRecords/${originalIndex}`).remove();
+                            deletedCount++;
+                        }
                     }
-                    
-                    await db.ref(`attendanceRecords/${originalIndex}`).remove();
                     log('✅ 通过Firebase直接删除签到记录', 'success');
                 }
                 
-                log(`✅ 签到记录删除成功: ${selectedMember} - ${recordDate}`, 'success');
+                log(`✅ 签到记录删除成功: ${deletedCount} 条记录`, 'success');
                 
                 // 重新加载数据
                 await loadData();
                 
-                alert(`✅ 删除成功！\n已删除 ${selectedMember} 的签到记录。`);
+                alert(`✅ 删除成功！\n已删除 ${deletedCount} 条签到记录。`);
                 
             } catch (error) {
                 log('❌ 删除签到记录失败: ' + error.message, 'error');
@@ -989,6 +1058,59 @@
         // 清空日志
         function clearLog() {
             document.getElementById('logContainer').innerHTML = '<div class="log-entry info">日志已清空</div>';
+        }
+        
+        // 执行数据同步
+        async function performSync() {
+            const syncButton = document.getElementById('syncButton');
+            const originalText = syncButton.textContent;
+            
+            try {
+                syncButton.textContent = '同步中...';
+                syncButton.disabled = true;
+                
+                log('🔄 开始数据同步...', 'info');
+                
+                if (newDataManager) {
+                    // 使用NewDataManager进行同步
+                    await newDataManager.performManualSync();
+                    log('✅ 数据同步完成（NewDataManager）', 'success');
+                } else if (db) {
+                    // 直接使用Firebase同步
+                    await db.ref('groups').set(groups);
+                    await db.ref('groupNames').set(groupNames);
+                    await db.ref('attendanceRecords').set(attendanceRecords);
+                    log('✅ 数据同步完成（Firebase直接）', 'success');
+                } else {
+                    log('❌ 没有可用的同步方法', 'error');
+                    return;
+                }
+                
+                // 显示同步成功反馈
+                syncButton.textContent = '同步成功';
+                syncButton.style.backgroundColor = '#28a745';
+                
+                // 2秒后恢复按钮状态
+                setTimeout(() => {
+                    syncButton.textContent = originalText;
+                    syncButton.style.backgroundColor = '';
+                    syncButton.disabled = false;
+                }, 2000);
+                
+            } catch (error) {
+                log('❌ 数据同步失败: ' + error.message, 'error');
+                
+                // 显示同步失败反馈
+                syncButton.textContent = '同步失败';
+                syncButton.style.backgroundColor = '#dc3545';
+                
+                // 2秒后恢复按钮状态
+                setTimeout(() => {
+                    syncButton.textContent = originalText;
+                    syncButton.style.backgroundColor = '';
+                    syncButton.disabled = false;
+                }, 2000);
+            }
         }
         
         // 页面加载时自动初始化

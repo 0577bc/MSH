@@ -13,11 +13,7 @@ let attendanceRecords = [];
 let pageSyncManager; // 页面同步管理器
 
 // DOM元素引用
-let groupSelect, memberList, addMemberButton, backButton, summaryButton;
-let exportButton, importButton, importFile, addGroupButton, addGroupForm;
-let newGroupName, saveGroupButton, cancelGroupButton, deleteGroupButton;
-let editGroupNameButton, editGroupForm, editGroupName;
-let saveEditGroupButton, cancelEditGroupButton;
+let backButton, summaryButton;
 
 // 页面状态管理
 let currentPageState = {
@@ -27,16 +23,16 @@ let currentPageState = {
 
 // ==================== Firebase初始化 ====================
 function initializeFirebase() {
-  try {
-    app = firebase.app();
-    db = firebase.database();
+try {
+  app = firebase.app();
+  db = firebase.database();
     console.log('✅ 管理页面Firebase初始化成功');
-  } catch (error) {
-    if (window.firebaseConfig) {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
+} catch (error) {
+  if (window.firebaseConfig) {
+    app = firebase.initializeApp(window.firebaseConfig);
+    db = firebase.database();
       console.log('✅ 管理页面Firebase应用创建成功');
-    } else {
+  } else {
       console.error('❌ Firebase配置未找到');
       alert('Firebase配置错误，请检查config.js文件');
     }
@@ -60,9 +56,6 @@ function initializeDOMElements() {
   addMemberButton = document.getElementById('addMemberButton');
   backButton = document.getElementById('backButton');
   summaryButton = document.getElementById('summaryButton');
-  exportButton = document.getElementById('exportButton');
-  importButton = document.getElementById('importButton');
-  importFile = document.getElementById('importFile');
   addGroupButton = document.getElementById('addGroupButton');
   addGroupForm = document.getElementById('addGroupForm');
   newGroupName = document.getElementById('newGroupName');
@@ -265,6 +258,15 @@ function initializeEventListeners() {
     attendanceRecordsButton.addEventListener('click', () => window.location.href = 'attendance-records.html');
   }
 
+  // 成员管理按钮事件
+  const groupManagementButton = document.getElementById('groupManagementButton');
+  if (groupManagementButton) {
+    groupManagementButton.addEventListener('click', () => {
+      window.location.href = 'group-management.html';
+    });
+  }
+
+
   // 删除管理按钮事件
   const deleteManagementButton = document.getElementById('deleteManagementButton');
   if (deleteManagementButton) {
@@ -298,25 +300,17 @@ function initializeEventListeners() {
 
   // cancelEditGroupButton事件监听器在下面定义
 
-  // 导入导出按钮事件
-  // exportButton事件监听器在下面定义
-
-  if (importButton) {
-    importButton.addEventListener('click', () => importFile.click());
-  }
-
-  // importFile事件监听器在下面定义
 
   // 数据同步监听器已在DOMContentLoaded中初始化
 }
 
 // ==================== 页面状态管理 ====================
-function updatePageState() {
-  if (groupSelect) {
-    currentPageState.selectedGroup = groupSelect.value;
-    currentPageState.isGroupValid = currentPageState.selectedGroup && groups[currentPageState.selectedGroup];
+  function updatePageState() {
+    if (groupSelect) {
+      currentPageState.selectedGroup = groupSelect.value;
+      currentPageState.isGroupValid = currentPageState.selectedGroup && groups[currentPageState.selectedGroup];
+    }
   }
-}
 
 // ==================== 事件处理函数 ====================
 function handleGroupChange() {
@@ -750,16 +744,16 @@ function handleCancelGroup() {
         }
       } else {
         // 降级到直接同步
-        if (groups && Object.keys(groups).length > 0) {
-          await db.ref('groups').set(groups);
-          console.log("✅ groups数据已直接同步到Firebase");
-        }
-        if (groupNames && Object.keys(groupNames).length > 0) {
-          await db.ref('groupNames').set(groupNames);
-          console.log("✅ groupNames数据已直接同步到Firebase");
-        }
-        if (attendanceRecords && attendanceRecords.length > 0) {
-          await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
+      if (groups && Object.keys(groups).length > 0) {
+        await db.ref('groups').set(groups);
+        console.log("✅ groups数据已直接同步到Firebase");
+      }
+      if (groupNames && Object.keys(groupNames).length > 0) {
+        await db.ref('groupNames').set(groupNames);
+        console.log("✅ groupNames数据已直接同步到Firebase");
+      }
+      if (attendanceRecords && attendanceRecords.length > 0) {
+        await window.utils.safeSyncToFirebase(attendanceRecords, 'attendanceRecords');
         }
       }
       console.log("Admin data safely synced to Firebase");
@@ -913,7 +907,7 @@ function handleCancelGroup() {
       }
       
       // 从未签到不统计列表中移除该成员（使用数据引用管理器）
-      ExcludedMembersManager.removeMember(memberToDelete.name, group);
+        ExcludedMembersManager.removeMember(memberToDelete.name, group);
       
       // 直接从数组中删除成员
       groups[group].splice(index, 1);
@@ -929,16 +923,16 @@ function handleCancelGroup() {
         console.log(`✅ 成员 ${memberToDelete.name} 已从小组 ${group} 删除，当前成员数: ${groups[group].length}`);
       } else {
         // 降级到本地存储
-        localStorage.setItem('msh_groups', JSON.stringify(groups));
-        localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+      localStorage.setItem('msh_groups', JSON.stringify(groups));
+      localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
         localStorage.setItem('msh_groups_timestamp', Date.now().toString());
         localStorage.setItem('msh_groupNames_timestamp', Date.now().toString());
-        
-        // 同步到Firebase
-        try {
-          await window.utils.DataReferenceManager.directSyncToFirebase(groups, 'groups');
-        } catch (error) {
-          console.error('同步到Firebase失败:', error);
+      
+      // 同步到Firebase
+      try {
+        await window.utils.DataReferenceManager.directSyncToFirebase(groups, 'groups');
+      } catch (error) {
+        console.error('同步到Firebase失败:', error);
         }
       }
       
@@ -1008,7 +1002,7 @@ function handleCancelGroup() {
     // 取消按钮事件
     cancelBtn.addEventListener('click', () => {
       if (dialog && dialog.parentNode) {
-        document.body.removeChild(dialog);
+      document.body.removeChild(dialog);
       }
       window.moveMemberInProgress = false; // 重置标志
     });
@@ -1028,7 +1022,7 @@ function handleCancelGroup() {
         // 执行移动操作
         performMemberMove(currentGroup, memberIndex, targetGroup);
         if (dialog && dialog.parentNode) {
-          document.body.removeChild(dialog);
+        document.body.removeChild(dialog);
         }
         window.moveMemberInProgress = false; // 重置标志
       }
@@ -1038,7 +1032,7 @@ function handleCancelGroup() {
     dialog.addEventListener('click', (e) => {
       if (e.target === dialog) {
         if (dialog && dialog.parentNode) {
-          document.body.removeChild(dialog);
+        document.body.removeChild(dialog);
         }
         window.moveMemberInProgress = false; // 重置标志
       }
@@ -1053,55 +1047,55 @@ function handleCancelGroup() {
     window.memberMoveInProgress = true;
     
     try {
-      // 保存当前页面状态
-      updatePageState();
-      
-      // 直接从数组中移动成员
-      groups[currentGroup].splice(memberIndex, 1);
-      
-      // 添加到目标小组
+    // 保存当前页面状态
+    updatePageState();
+    
+    // 直接从数组中移动成员
+    groups[currentGroup].splice(memberIndex, 1);
+    
+    // 添加到目标小组
       if (!groups.hasOwnProperty(targetGroup)) {
-        groups[targetGroup] = [];
-      }
-      groups[targetGroup].push(member);
-      
+      groups[targetGroup] = [];
+    }
+    groups[targetGroup].push(member);
+    
       // 注意：不修改历史签到记录，保持历史数据完整性
       // 历史签到记录应该保持原来的小组信息，反映当时的真实情况
       console.log(`ℹ️ 成员 ${member.name} 已移动，但历史签到记录保持原样以维护数据完整性`);
-      
-      // 更新未签到不统计列表中的成员信息（使用数据引用管理器）
-      ExcludedMembersManager.updateMemberGroup(member.name, currentGroup, targetGroup);
-      
-      // 重新生成所有成员的ID（因为移动后需要重新排序）
-      regenerateAllMemberIds();
-      
+    
+    // 更新未签到不统计列表中的成员信息（使用数据引用管理器）
+    ExcludedMembersManager.updateMemberGroup(member.name, currentGroup, targetGroup);
+    
+    // 重新生成所有成员的ID（因为移动后需要重新排序）
+    regenerateAllMemberIds();
+    
       // 保存到本地存储（使用更高的时间戳确保优先级）
       const moveTimestamp = Date.now() + 1000; // 增加1秒确保时间戳更新
-      localStorage.setItem('msh_groups', JSON.stringify(groups));
-      localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+    localStorage.setItem('msh_groups', JSON.stringify(groups));
+    localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
       localStorage.setItem('msh_groups_timestamp', moveTimestamp.toString());
       localStorage.setItem('msh_groupNames_timestamp', moveTimestamp.toString());
       localStorage.setItem('msh_member_move_flag', 'true'); // 设置移动标志
       
       console.log(`✅ 成员移动完成: ${member.name} 从 ${currentGroup} 到 ${targetGroup}`);
-      
-      // 同步到Firebase
-      try {
-        await window.utils.DataReferenceManager.directSyncToFirebase(groups, 'groups');
+    
+    // 同步到Firebase
+    try {
+      await window.utils.DataReferenceManager.directSyncToFirebase(groups, 'groups');
         console.log('✅ 成员移动数据已同步到Firebase');
-      } catch (error) {
+    } catch (error) {
         console.error('❌ 同步到Firebase失败:', error);
-      }
-      
-      // 记录日志
-      if (window.systemLogger) {
-        window.systemLogger.info(`移动成员: ${member.name}`, {
-          fromGroup: currentGroup,
-          toGroup: targetGroup,
-          memberName: member.name
-        });
-      }
-      
+    }
+    
+    // 记录日志
+    if (window.systemLogger) {
+      window.systemLogger.info(`移动成员: ${member.name}`, {
+        fromGroup: currentGroup,
+        toGroup: targetGroup,
+        memberName: member.name
+      });
+    }
+    
       // 直接重新加载当前小组的成员列表，而不是使用restorePageState
       if (groupSelect && groupSelect.value === currentGroup) {
         loadMembers(currentGroup);
@@ -1448,14 +1442,14 @@ function handleCancelGroup() {
         
         document.body.removeChild(dialog);
         if (window.systemLogger) {
-          window.systemLogger.success('新成员已添加', { 
-            group: selectedGroup, 
-            memberName: memberName, 
-            memberPhone: memberPhone,
-            memberGender: memberGender,
-            memberBaptized: memberBaptized,
-            memberAge: memberAge
-          });
+        window.systemLogger.success('新成员已添加', { 
+          group: selectedGroup, 
+          memberName: memberName, 
+          memberPhone: memberPhone,
+          memberGender: memberGender,
+          memberBaptized: memberBaptized,
+          memberAge: memberAge
+        });
         }
         alert('成员添加成功！');
       });
@@ -1515,7 +1509,7 @@ function handleCancelGroup() {
   if (attendanceRecordsButton) {
     attendanceRecordsButton.addEventListener('click', () => {
       window.location.href = "attendance-records.html";
-    });
+  });
   }
 
 
@@ -1558,14 +1552,14 @@ function handleCancelGroup() {
       console.log('创建新小组:', groupName);
       console.log('创建后的 groups:', groups);
       console.log('创建后的 groupNames:', groupNames);
-      
+
       saveData();
       
       // 恢复页面状态
       restorePageState();
       
       if (window.systemLogger) {
-        window.systemLogger.success('新小组已创建', { groupName: groupName });
+      window.systemLogger.success('新小组已创建', { groupName: groupName });
       }
       alert('小组添加成功！');
       
@@ -1629,10 +1623,10 @@ function handleCancelGroup() {
         // 恢复页面状态
         restorePageState();
         if (window.systemLogger) {
-          window.systemLogger.warning('小组已删除', { 
-            groupName: groupName, 
-            memberCount: memberCount 
-          });
+        window.systemLogger.warning('小组已删除', { 
+          groupName: groupName, 
+          memberCount: memberCount 
+        });
         }
         alert('小组删除成功！');
       }
@@ -1680,73 +1674,12 @@ function handleCancelGroup() {
     });
   }
 
-  // 数据导出导入功能
-  if (exportButton) {
-    exportButton.addEventListener('click', () => {
-      const data = { groups, groupNames, attendanceRecords };
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "msh-signin-data.json");
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
-    });
-  }
 
-  if (importButton && importFile) {
-    importButton.addEventListener('click', () => {
-      importFile.click();
-    });
-
-    importFile.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      if (!confirm("导入将覆盖现有数据，确定吗？")) return;
-      
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const data = JSON.parse(e.target.result);
-          if (data.groups) groups = data.groups;
-          if (data.groupNames) groupNames = data.groupNames;
-          if (data.attendanceRecords) attendanceRecords = data.attendanceRecords;
-          // 注意：管理员密码现在由Firebase Authentication管理，不再从导入数据中恢复
-          
-          saveData();
-          
-          // 恢复页面状态
-          restorePageState();
-          
-          alert('数据导入成功！');
-        } catch (error) {
-          alert('导入失败：文件格式错误或数据无效。' + error.message);
-        }
-      };
-      reader.readAsText(file);
-    });
-  }
-
-  // 日志功能
-  const viewLogsButton = document.getElementById('viewLogsButton');
-  const logsView = document.getElementById('logsView');
-  const refreshLogsButton = document.getElementById('refreshLogsButton');
-  const clearLogsButton = document.getElementById('clearLogsButton');
-  const exportLogsButton = document.getElementById('exportLogsButton');
-  const closeLogsButton = document.getElementById('closeLogsButton');
-  const logsList = document.getElementById('logsList');
   
   // 未签到不统计相关元素
   const excludeStatsButton = document.getElementById('excludeStatsButton');
   const excludeStatsView = document.getElementById('excludeStatsView');
   
-  // 管理员管理相关元素
-  const manageAdminsButton = document.getElementById('manageAdminsButton');
-  const adminManagementView = document.getElementById('adminManagementView');
-  const addAdminEmailInput = document.getElementById('adminEmailInput');
-  const addAdminButton = document.getElementById('addAdminButton');
-  const adminList = document.getElementById('adminList');
   const excludeSearchInput = document.getElementById('excludeSearchInput');
   const excludeSuggestions = document.getElementById('excludeSuggestions');
   const addToExcludeButton = document.getElementById('addToExcludeButton');
@@ -1754,16 +1687,6 @@ function handleCancelGroup() {
   const excludeList = document.getElementById('excludeList');
   const closeExcludeButton = document.getElementById('closeExcludeButton');
 
-  // 显示日志界面
-  viewLogsButton.addEventListener('click', () => {
-    logsView.classList.remove('hidden-form');
-    refreshLogs();
-  });
-
-  // 关闭日志界面
-  closeLogsButton.addEventListener('click', () => {
-    logsView.classList.add('hidden-form');
-  });
 
   // 未签到不统计功能
   let excludedMembers = []; // 存储不统计的人员列表
@@ -1775,131 +1698,6 @@ function handleCancelGroup() {
     loadExcludedMembers();
   });
 
-  // 管理员管理功能
-  let adminEmails = [];
-
-  // 显示管理员管理界面
-  manageAdminsButton.addEventListener('click', () => {
-    adminManagementView.classList.remove('hidden-form');
-    loadAdminEmails();
-  });
-
-  // 加载管理员邮箱列表
-  async function loadAdminEmails() {
-    try {
-      if (!db) {
-        throw new Error('Firebase数据库未初始化');
-      }
-      const adminEmailsRef = db.ref('adminEmails');
-      const snapshot = await adminEmailsRef.once('value');
-      
-      if (snapshot.exists()) {
-        const adminEmailsData = snapshot.val();
-        adminEmails = Object.keys(adminEmailsData).filter(email => adminEmailsData[email] === true);
-      } else {
-        adminEmails = [];
-      }
-      
-      displayAdminEmails();
-    } catch (error) {
-      console.error('加载管理员邮箱失败:', error);
-      alert('加载管理员邮箱失败: ' + error.message);
-    }
-  }
-
-  // 显示管理员邮箱列表
-  function displayAdminEmails() {
-    if (!adminList) return;
-    
-    adminList.innerHTML = '';
-    
-    if (adminEmails.length === 0) {
-      adminList.innerHTML = '<div class="empty-list">暂无管理员</div>';
-      return;
-    }
-    
-    adminEmails.forEach(email => {
-      const adminItem = document.createElement('div');
-      adminItem.className = 'admin-item';
-      adminItem.innerHTML = `
-        <span class="admin-email">${email}</span>
-        <button class="remove-admin-btn" onclick="removeAdmin('${email}')">移除</button>
-      `;
-      adminList.appendChild(adminItem);
-    });
-  }
-
-  // 添加管理员
-  addAdminButton.addEventListener('click', async () => {
-    const email = addAdminEmailInput.value.trim();
-    
-    if (!email) {
-      alert('请输入管理员邮箱');
-      return;
-    }
-    
-    // 验证邮箱格式
-    const emailValidation = window.securityManager.validateEmail(email);
-    if (!emailValidation.valid) {
-      alert(emailValidation.error);
-      return;
-    }
-    
-    if (adminEmails.includes(email)) {
-      alert('该邮箱已经是管理员');
-      return;
-    }
-    
-    try {
-      if (!db) {
-        throw new Error('Firebase数据库未初始化');
-      }
-      const adminEmailsRef = db.ref('adminEmails');
-      await adminEmailsRef.child(email).set(true);
-      
-      adminEmails.push(email);
-      displayAdminEmails();
-      addAdminEmailInput.value = '';
-      
-      alert('管理员添加成功');
-      
-      // 记录日志
-      if (window.systemLogger) {
-        window.systemLogger.info(`添加管理员: ${email}`);
-      }
-    } catch (error) {
-      console.error('添加管理员失败:', error);
-      alert('添加管理员失败: ' + error.message);
-    }
-  });
-
-  // 移除管理员
-  window.removeAdmin = async function(email) {
-    if (!confirm(`确定要移除管理员 ${email} 吗？`)) {
-      return;
-    }
-    
-    try {
-      if (!db) {
-        throw new Error('Firebase数据库未初始化');
-      }
-      const adminEmailsRef = db.ref('adminEmails');
-      await adminEmailsRef.child(email).remove();
-      
-      adminEmails = adminEmails.filter(e => e !== email);
-      displayAdminEmails();
-      
-      alert('管理员移除成功');
-      
-      // 记录日志
-      if (window.systemLogger) {
-        window.systemLogger.info(`移除管理员: ${email}`);
-      }
-    } catch (error) {
-      console.error('移除管理员失败:', error);
-      alert('移除管理员失败: ' + error.message);
-    }
-  };
 
   // 关闭未签到不统计界面
   closeExcludeButton.addEventListener('click', () => {
@@ -2106,10 +1904,10 @@ function handleCancelGroup() {
         }, 1000);
       } else {
         // 回退到旧方法
-        if (db) {
-          window.utils.safeSyncToFirebase(excludedMembers, 'excludedMembers').catch(error => {
-            console.error('安全同步不统计人员列表到Firebase失败:', error);
-          });
+      if (db) {
+        window.utils.safeSyncToFirebase(excludedMembers, 'excludedMembers').catch(error => {
+          console.error('安全同步不统计人员列表到Firebase失败:', error);
+        });
         }
       }
     } catch (error) {
@@ -2151,61 +1949,6 @@ function handleCancelGroup() {
     return excludedMembers;
   };
 
-  // 刷新日志
-  refreshLogsButton.addEventListener('click', () => {
-    refreshLogs();
-  });
-
-  // 清空日志
-  clearLogsButton.addEventListener('click', () => {
-    if (confirm('确定要清空所有日志吗？此操作不可逆！')) {
-      if (window.systemLogger) {
-        window.systemLogger.clearLogs();
-        refreshLogs();
-      }
-    }
-  });
-
-  // 导出日志
-  exportLogsButton.addEventListener('click', () => {
-    const format = confirm('选择导出格式：\n确定 = JSON格式\n取消 = 文本格式') ? 'json' : 'txt';
-    if (window.systemLogger) {
-      window.systemLogger.exportLogs(format);
-    }
-  });
-
-  // 刷新日志显示
-  function refreshLogs() {
-    if (!window.systemLogger) {
-      logsList.innerHTML = '<p>日志系统未初始化</p>';
-      return;
-    }
-    const logs = window.systemLogger.getAllLogs();
-    logsList.innerHTML = '';
-
-    if (logs.length === 0) {
-      logsList.innerHTML = '<div class="log-entry info"><div class="log-content">暂无日志记录</div></div>';
-      return;
-    }
-
-    logs.forEach(log => {
-      const logEntry = document.createElement('div');
-      logEntry.className = `log-entry ${log.type}`;
-      
-      const time = new Date(log.timestamp).toLocaleString('zh-CN');
-      const details = log.details ? ` - ${JSON.stringify(log.details)}` : '';
-      
-      logEntry.innerHTML = `
-        <div class="log-time">${time}</div>
-        <div class="log-content">
-          <span class="log-type ${log.type}">[${log.type.toUpperCase()}]</span>
-          ${log.message}${details}
-        </div>
-      `;
-      
-      logsList.appendChild(logEntry);
-    });
-  }
 
   // 初始加载数据 - 已禁用，使用NewDataManager
   console.log("管理页面正在连接Firebase数据库...");
@@ -2252,14 +1995,14 @@ function handleCancelGroup() {
           }
             
             console.log('管理页面 - 合并后的groups数据:', groups);
-            localStorage.setItem('msh_groups', JSON.stringify(groups));
+          localStorage.setItem('msh_groups', JSON.stringify(groups));
             
             // 重新加载页面显示
             loadGroups();
             loadMembers(groupSelect ? groupSelect.value : '');
-            break;
-          case 'groupNames':
-            groupNames = data;
+          break;
+        case 'groupNames':
+          groupNames = data;
           console.log('管理页面 - 接收到的groupNames数据:', groupNames);
           
           // 清理无效的数字键
@@ -2275,12 +2018,12 @@ function handleCancelGroup() {
 
     // 设置页面可见性监听（已禁用，避免覆盖NewDataManager的数据）
     if (false && window.utils.dataSyncManager.setupVisibilityListener) {
-      window.utils.dataSyncManager.setupVisibilityListener(() => {
-        console.log('管理页面重新可见，检查数据同步...');
+    window.utils.dataSyncManager.setupVisibilityListener(() => {
+      console.log('管理页面重新可见，检查数据同步...');
         // 已禁用，避免覆盖NewDataManager的数据
         return;
-        loadDataFromFirebase();
-      });
+      loadDataFromFirebase();
+    });
     }
 
     // 页面卸载时确保数据同步

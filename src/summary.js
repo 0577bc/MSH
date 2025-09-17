@@ -107,14 +107,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('✅ Firebase应用创建成功');
       }
       
-      await window.newDataManager.loadAllDataFromFirebase();
+      // 检查NewDataManager是否已经加载了数据
+      if (window.newDataManager.isDataLoaded) {
+        console.log("✅ 数据已通过NewDataManager自动加载，直接使用");
+      } else {
+        console.log("🔄 等待NewDataManager完成数据加载...");
+        // 等待NewDataManager完成数据加载
+        await window.newDataManager.loadAllDataFromFirebase();
+      }
       
       // 从全局变量获取数据
       groups = window.groups || {};
       groupNames = window.groupNames || {};
       attendanceRecords = window.attendanceRecords || [];
-      
-      // 数据已通过NewDataManager加载，无需额外操作
       
       console.log("✅ 汇总页面数据加载成功");
     } catch (error) {

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>签到原始记录 - MSH管理系统</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./src/style.css">
+  
+  <!-- 配置和工具 -->
+  <script src="./config.js"></script>
+  <script src="./src/config-manager.js"></script>
+  <script src="./src/csrf-protection.js"></script>
+  <script src="./src/cache-manager.js"></script>
+  <script src="./src/performance-monitor.js"></script>
+  <script src="./src/security.js"></script>
+  
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  
+  <!-- 核心功能 -->
+  <script src="./src/utils.js"></script>
+  <script src="./src/new-data-manager.js"></script>
+  <script src="./src/attendance-records.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="page-header">
+      <h1>签到原始记录</h1>
+      <div class="header-actions">
+        <button id="backButton" type="button" class="btn btn-secondary">返回</button>
+        <button id="exportButton" type="button" class="btn btn-primary">导出数据</button>
+        <div id="syncButtonContainer"></div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 日期选择 -->
+      <section class="date-selection">
+        <div class="form-group">
+          <label for="dateSelect">选择日期：</label>
+          <input type="date" id="dateSelect" class="form-control">
+          <button id="viewDateData" type="button" class="btn btn-primary">查看当日数据</button>
+        </div>
+      </section>
+
+      <!-- 签到记录表格 -->
+      <section class="records-section">
+        <table id="attendanceDataTable" class="attendance-table">
+          <thead>
+            <tr>
+              <th>序号</th>
+              <th>姓名</th>
+              <th>组别</th>
+              <th>签到时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceDataList">
+            <!-- 数据由JavaScript动态填充 -->
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <!-- 编辑模态框 -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>编辑签到记录</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="editForm">
+          <div class="form-group">
+            <label for="editName">姓名：</label>
+            <input type="text" id="editName" class="form-control" readonly>
+          </div>
+          <div class="form-group">
+            <label for="editGroup">组别：</label>
+            <select id="editGroup" class="form-control" required>
+              <!-- 选项由JavaScript动态填充 -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editTime">签到时间：</label>
+            <input type="datetime-local" id="editTime" class="form-control" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="cancelEdit">取消</button>
+        <button type="button" class="btn btn-primary" id="saveEdit">保存</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
