@@ -671,7 +671,9 @@ const SundayTrackingManager = {
   // 获取跟踪记录（支持多事件系统）
   getTrackingRecord: function(recordId) {
     const trackingRecords = this.getTrackingRecords();
-    return trackingRecords.find(record => record.recordId === recordId || record.memberUUID === recordId);
+    // 优先精确匹配recordId，如果没有找到，再尝试匹配memberUUID（向后兼容）
+    return trackingRecords.find(record => record.recordId === recordId) || 
+           trackingRecords.find(record => record.memberUUID === recordId);
   },
   
   // 获取成员的所有跟踪记录
@@ -695,13 +697,20 @@ const SundayTrackingManager = {
   saveTrackingRecord: function(record) {
     try {
       const records = this.getTrackingRecords();
-      const recordId = record.recordId || record.memberUUID;
-      const existingIndex = records.findIndex(r => r.recordId === recordId || r.memberUUID === recordId);
+      const recordId = record.recordId;
+      
+      // 优先精确匹配recordId，如果没有找到，再尝试匹配memberUUID（向后兼容）
+      let existingIndex = records.findIndex(r => r.recordId === recordId);
+      if (existingIndex === -1 && record.memberUUID) {
+        existingIndex = records.findIndex(r => r.memberUUID === record.memberUUID && !r.recordId);
+      }
       
       if (existingIndex >= 0) {
         records[existingIndex] = record;
+        console.log(`更新现有跟踪记录: ${recordId}`);
       } else {
         records.push(record);
+        console.log(`添加新跟踪记录: ${recordId}`);
       }
       
       localStorage.setItem('msh_sunday_tracking', JSON.stringify(records));
