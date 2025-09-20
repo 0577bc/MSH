@@ -117,13 +117,42 @@ function initializeEventListeners() {
       filterTrackingList();
     });
   }
+  
+  // 添加刷新按钮事件监听器
+  const refreshButton = document.getElementById('refreshButton');
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => {
+      console.log('🔄 用户点击刷新按钮');
+      loadSundayTracking(false, false, true); // 强制刷新
+    });
+  }
 
 }
 
 // ==================== 数据加载 ====================
 async function loadData() {
   try {
-    console.log('主日跟踪页面正在连接Firebase数据库...');
+    console.log('主日跟踪页面开始数据加载...');
+    
+    // 优先使用全局缓存数据
+    if (window.groups && window.attendanceRecords && window.groupNames) {
+      console.log('✅ 使用全局缓存数据，跳过Firebase加载');
+      groups = window.groups;
+      attendanceRecords = window.attendanceRecords;
+      groupNames = window.groupNames;
+      
+      // 更新UUID索引
+      if (window.utils && window.utils.UUIDIndex) {
+        window.utils.UUIDIndex.updateRecordIndex(attendanceRecords);
+        window.utils.UUIDIndex.updateMemberIndex(groups);
+      }
+      
+      console.log('主日跟踪页面数据从全局缓存加载成功');
+      return;
+    }
+    
+    // 如果全局数据不完整，尝试从Firebase加载
+    console.log('全局缓存数据不完整，从Firebase加载...');
     await loadDataFromFirebase();
   } catch (error) {
     console.error('Error loading data from Firebase:', error);
@@ -291,7 +320,7 @@ function startListening() {
 // ==================== 主日跟踪功能 ====================
 
 // 加载主日跟踪数据
-function loadSundayTracking(preserveFilters = false, skipFullReload = false) {
+function loadSundayTracking(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
   if (!window.utils || !window.utils.SundayTrackingManager) {
     console.error('主日跟踪管理器未加载');
     alert('主日跟踪功能暂不可用，请刷新页面重试！');
@@ -299,10 +328,17 @@ function loadSundayTracking(preserveFilters = false, skipFullReload = false) {
   }
 
   try {
+    const trackingManager = window.utils.SundayTrackingManager;
+    
+    // 如果强制刷新，清除缓存
+    if (forceRefresh) {
+      console.log('🔄 强制刷新，清除缓存');
+      trackingManager._clearCache();
+    }
+    
     // 如果跳过完整重新加载，只更新统计信息
     if (skipFullReload) {
       console.log('跳过完整重新加载，只更新统计信息');
-      const trackingManager = window.utils.SundayTrackingManager;
       const trackingList = trackingManager.generateTrackingList();
       updateTrackingSummary(trackingList);
       return;
@@ -318,8 +354,6 @@ function loadSundayTracking(preserveFilters = false, skipFullReload = false) {
       };
       console.log('保存当前筛选状态:', currentFilters);
     }
-
-    const trackingManager = window.utils.SundayTrackingManager;
     
     // 调试信息
     console.log('=== 主日跟踪调试信息 ===');
@@ -388,6 +422,13 @@ function updateTrackingSummary(trackingList) {
   // 更新统计显示
   const trackingCountEl = document.getElementById('trackingCount');
   if (trackingCountEl) trackingCountEl.textContent = trackingCount;
+  
+  // 显示缓存状态
+  const trackingManager = window.utils.SundayTrackingManager;
+  if (trackingManager && trackingManager._isCacheValid()) {
+    const cacheAge = Math.round((Date.now() - trackingManager._cache.lastUpdateTime) / 1000);
+    console.log(`📦 使用缓存数据，缓存年龄: ${cacheAge}秒`);
+  }
   
   // 更新小组筛选选项
   updateGroupFilterOptions(trackingList);
@@ -827,6 +868,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 初始化事件监听器
   initializeEventListeners();
+  
+  // 初始化数据变化监听器
+  if (window.utils && window.utils.SundayTrackingManager) {
+    window.utils.SundayTrackingManager._initDataChangeListener();
+  }
   
   // 自动加载跟踪数据
   loadSundayTracking();

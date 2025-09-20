@@ -288,6 +288,70 @@ const UUIDIndex = {
 
 // ==================== 主日跟踪管理器 ====================
 const SundayTrackingManager = {
+  // 缓存管理
+  _cache: {
+    trackingList: null,
+    lastUpdateTime: 0,
+    dataHash: null,
+    memberCalculations: new Map() // 成员计算缓存
+  },
+  
+  // 生成数据哈希值，用于检测数据变化
+  _generateDataHash: function() {
+    const groupsStr = JSON.stringify(window.groups || {});
+    const attendanceStr = JSON.stringify(window.attendanceRecords || []);
+    const excludedStr = JSON.stringify(window.excludedMembers || {});
+    
+    // 使用encodeURIComponent处理中文字符，然后使用btoa
+    const combinedStr = groupsStr + attendanceStr + excludedStr;
+    const encodedStr = encodeURIComponent(combinedStr);
+    return btoa(encodedStr).slice(0, 16);
+  },
+  
+  // 检查缓存是否有效
+  _isCacheValid: function() {
+    const currentHash = this._generateDataHash();
+    const cacheAge = Date.now() - this._cache.lastUpdateTime;
+    const maxCacheAge = 5 * 60 * 1000; // 5分钟缓存有效期
+    
+    return this._cache.trackingList && 
+           this._cache.dataHash === currentHash && 
+           cacheAge < maxCacheAge;
+  },
+  
+  // 清除缓存
+  _clearCache: function() {
+    this._cache.trackingList = null;
+    this._cache.lastUpdateTime = 0;
+    this._cache.dataHash = null;
+    this._cache.memberCalculations.clear();
+    console.log('📦 主日跟踪缓存已清除');
+  },
+  
+  // 初始化数据变化监听
+  _initDataChangeListener: function() {
+    // 监听localStorage变化
+    window.addEventListener('storage', (e) => {
+      if (e.key && (e.key.includes('msh_') || e.key.includes('groups') || e.key.includes('attendance'))) {
+        console.log('📦 检测到数据变化，清除缓存');
+        this._clearCache();
+      }
+    });
+    
+    // 监听全局数据变化
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function(key, value) {
+      originalSetItem.call(this, key, value);
+      if (key && (key.includes('msh_') || key.includes('groups') || key.includes('attendance'))) {
+        console.log('📦 检测到localStorage写入，清除缓存');
+        if (window.utils && window.utils.SundayTrackingManager) {
+          window.utils.SundayTrackingManager._clearCache();
+        }
+      }
+    };
+    
+    console.log('📦 数据变化监听器已初始化');
+  },
   // 判断是否为周日上午签到（9:00之前到10:40）
   isSundayAttendance: function(record) {
     const date = new Date(record.time);
@@ -351,7 +415,21 @@ const SundayTrackingManager = {
   
   // 计算连续缺勤情况（新版本 - 支持多事件管理和实时更新）
   calculateConsecutiveAbsences: function(memberUUID) {
+    // 检查成员计算缓存
+    const cacheKey = memberUUID;
+    if (this._cache.memberCalculations.has(cacheKey)) {
+      const cachedResult = this._cache.memberCalculations.get(cacheKey);
+      const cacheAge = Date.now() - cachedResult.timestamp;
+      const maxMemberCacheAge = 2 * 60 * 1000; // 2分钟成员缓存有效期
+      
+      if (cacheAge < maxMemberCacheAge) {
+        console.log(`📦 使用缓存的成员计算结果 - UUID: ${memberUUID}`);
+        return cachedResult.data;
+      }
+    }
+    
     console.log(`计算连续缺勤 - UUID: ${memberUUID}`);
+    const startTime = performance.now();
     
     // 获取该人员的所有跟踪记录，确定上次解决后的检查起点
     const memberTrackingRecords = this.getMemberTrackingRecords(memberUUID);
@@ -397,18 +475,29 @@ const SundayTrackingManager = {
     const trackingStartDate = latestEvent ? latestEvent.startDate : null;
     const lastAttendanceDate = getLastAttendanceDate(memberRecords);
     
-    console.log(`成员 ${memberUUID}: 识别到 ${updatedEvents.length} 个缺勤事件`);
-    console.log(`最新事件连续缺勤 ${maxConsecutiveAbsences} 次`);
-    console.log(`最后签到日期:`, lastAttendanceDate ? lastAttendanceDate.toISOString().split('T')[0] : '无');
-    console.log(`跟踪开始日期:`, trackingStartDate ? (typeof trackingStartDate === 'string' ? trackingStartDate : trackingStartDate.toISOString().split('T')[0]) : '无');
+    const endTime = performance.now();
+    const processingTime = endTime - startTime;
     
-    return { 
+    const result = { 
       consecutiveAbsences: maxConsecutiveAbsences, 
       lastAttendanceDate, 
       checkStartDate: checkStartDate,
       trackingStartDate: trackingStartDate,
       absenceEvents: updatedEvents // 返回所有更新后的缺勤事件
     };
+    
+    // 保存到成员计算缓存
+    this._cache.memberCalculations.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    console.log(`成员 ${memberUUID}: 识别到 ${updatedEvents.length} 个缺勤事件，耗时: ${processingTime.toFixed(2)}ms`);
+    console.log(`最新事件连续缺勤 ${maxConsecutiveAbsences} 次`);
+    console.log(`最后签到日期:`, lastAttendanceDate ? lastAttendanceDate.toISOString().split('T')[0] : '无');
+    console.log(`跟踪开始日期:`, trackingStartDate ? (typeof trackingStartDate === 'string' ? trackingStartDate : trackingStartDate.toISOString().split('T')[0]) : '无');
+    
+    return result;
   },
   
   // 获取人员的签到记录（优化版本，支持从指定日期开始）
@@ -634,6 +723,14 @@ const SundayTrackingManager = {
   
   // 生成跟踪列表
   generateTrackingList: function() {
+    // 检查缓存是否有效
+    if (this._isCacheValid()) {
+      console.log('📦 使用缓存的跟踪列表，跳过重新计算');
+      return this._cache.trackingList;
+    }
+    
+    console.log('🔄 开始生成新的跟踪列表...');
+    const startTime = performance.now();
     const trackingList = [];
     
     // 首先执行数据迁移，确保所有数据都有UUID
@@ -668,7 +765,20 @@ const SundayTrackingManager = {
         const eventConsecutiveAbsences = event.consecutiveAbsences;
         console.log(`成员 ${member.name} 事件${eventIndex + 1}: 连续缺勤 ${eventConsecutiveAbsences} 次`);
         
-        // 检查是否应该生成事件（基于时间节点判断和现有记录状态）
+        // 为每个事件创建唯一的记录ID
+        const eventRecordId = `${member.uuid}_event_${eventIndex + 1}`;
+        
+        // 检查是否已有该事件的跟踪记录
+        const existingEventRecord = this.getTrackingRecord(eventRecordId);
+        
+        // 如果已有记录（包括已终止的记录），直接添加到跟踪列表
+        if (existingEventRecord) {
+          console.log(`成员 ${member.name} 事件${eventIndex + 1}: 使用现有记录，状态: ${existingEventRecord.status}`);
+          trackingList.push(existingEventRecord);
+          return;
+        }
+        
+        // 检查是否应该生成新事件（基于时间节点判断）
         const currentDate = new Date();
         if (!shouldGenerateEvent(event, currentDate, member.uuid, eventIndex)) {
           console.log(`成员 ${member.name} 事件${eventIndex + 1}: 不满足生成条件，跳过`);
@@ -687,81 +797,52 @@ const SundayTrackingManager = {
           eventDescription = `连续缺勤 ${eventConsecutiveAbsences} 次（3周以上）`;
         }
         
-        // 为每个事件创建唯一的记录ID
-        const eventRecordId = `${member.uuid}_event_${eventIndex + 1}`;
+        // 创建新的事件跟踪记录
+        const newEventRecord = {
+          memberUUID: member.uuid,
+          recordId: eventRecordId,
+          memberName: member.name,
+          group: member.group,
+          originalGroup: member.group,
+          consecutiveAbsences: eventConsecutiveAbsences,
+          lastAttendanceDate: event.endDate || lastAttendanceDate,
+          checkStartDate: checkStartDate,
+          trackingStartDate: event.startDate instanceof Date ? event.startDate.toISOString().split('T')[0] : event.startDate,
+          status: event.status || 'tracking',
+          eventType: eventType,
+          eventDescription: eventDescription,
+          eventIndex: eventIndex + 1,
+          totalEvents: absenceEvents.length,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
         
-        // 检查是否已有该事件的跟踪记录
-        const existingEventRecord = this.getTrackingRecord(eventRecordId);
-        
-        if (existingEventRecord) {
-          // 更新现有记录
-          const updatedRecord = {
-            ...existingEventRecord,
-            memberName: member.name,
-            group: member.group,
-            originalGroup: member.group,
-            consecutiveAbsences: eventConsecutiveAbsences,
-            lastAttendanceDate: event.endDate || lastAttendanceDate,
-            checkStartDate: checkStartDate,
-            trackingStartDate: event.startDate instanceof Date ? event.startDate.toISOString().split('T')[0] : event.startDate,
-            eventType: eventType,
-            eventDescription: eventDescription,
-            eventIndex: eventIndex + 1,
-            totalEvents: absenceEvents.length,
-            updatedAt: new Date().toISOString()
-          };
-          
-          // 如果事件已结束，更新状态
-          if (event.endDate && !existingEventRecord.endDate) {
-            updatedRecord.status = 'resolved';
-            updatedRecord.endDate = event.endDate;
-            updatedRecord.endedBy = event.endedBy;
-            updatedRecord.endReason = event.endReason;
-          }
-          
-          // 保存更新后的记录
-          this.saveTrackingRecord(updatedRecord);
-          
-          trackingList.push(updatedRecord);
-        } else {
-          // 创建新的事件跟踪记录
-          const newEventRecord = {
-            memberUUID: member.uuid,
-            recordId: eventRecordId,
-            memberName: member.name,
-            group: member.group,
-            originalGroup: member.group,
-            consecutiveAbsences: eventConsecutiveAbsences,
-            lastAttendanceDate: event.endDate || lastAttendanceDate,
-            checkStartDate: checkStartDate,
-            trackingStartDate: event.startDate instanceof Date ? event.startDate.toISOString().split('T')[0] : event.startDate,
-            status: event.status || 'tracking',
-            eventType: eventType,
-            eventDescription: eventDescription,
-            eventIndex: eventIndex + 1,
-            totalEvents: absenceEvents.length,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          
-          // 如果事件已结束，设置结束信息
-          if (event.endDate) {
-            newEventRecord.status = 'resolved';
-            newEventRecord.endDate = event.endDate;
-            newEventRecord.endedBy = event.endedBy;
-            newEventRecord.endReason = event.endReason;
-          }
-          
-          // 保存新记录
-          this.saveTrackingRecord(newEventRecord);
-          
-          trackingList.push(newEventRecord);
+        // 如果事件已结束，设置结束信息
+        if (event.endDate) {
+          newEventRecord.status = 'resolved';
+          newEventRecord.endDate = event.endDate;
+          newEventRecord.endedBy = event.endedBy;
+          newEventRecord.endReason = event.endReason;
         }
+        
+        // 保存新记录
+        this.saveTrackingRecord(newEventRecord);
+        
+        trackingList.push(newEventRecord);
       });
     });
     
     // 保存修改后的数据（包含新生成的UUID和memberUUID）
     this.saveModifiedData();
+    
+    // 保存到缓存
+    this._cache.trackingList = trackingList;
+    this._cache.lastUpdateTime = Date.now();
+    this._cache.dataHash = this._generateDataHash();
+    
+    const endTime = performance.now();
+    const processingTime = endTime - startTime;
+    console.log(`✅ 跟踪列表生成完成，耗时: ${processingTime.toFixed(2)}ms，共 ${trackingList.length} 个事件`);
     
     return trackingList;
   },
