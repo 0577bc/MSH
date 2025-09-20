@@ -1919,12 +1919,12 @@ function shouldGenerateEvent(absenceEvent, currentDate, memberUUID, eventIndex) 
 
 // 判断是否在主日上午10:40之后
 function isAfterSundayCutoff(date) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = new Date();
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   
   // 如果不是今天，直接返回true
-  if (targetDate.getTime() !== today.getTime()) return true;
+  if (targetDate.getTime() !== todayDate.getTime()) return true;
   
   // 如果是今天，检查是否是主日（星期日）
   const todayDayOfWeek = today.getDay(); // 0=星期日, 1=星期一, ..., 6=星期六
@@ -1933,10 +1933,10 @@ function isAfterSundayCutoff(date) {
   if (todayDayOfWeek !== 0) return true;
   
   // 如果是主日，检查时间是否在10:40之后
-  const cutoffTime = new Date(today);
+  const cutoffTime = new Date(todayDate);
   cutoffTime.setHours(10, 40, 0, 0);
   
-  return now >= cutoffTime;
+  return today >= cutoffTime;
 }
 
 // ==================== 页面同步配置 ====================
