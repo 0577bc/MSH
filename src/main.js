@@ -61,10 +61,14 @@ function initializeFirebase() {
   try {
     app = firebase.app();
     db = firebase.database();
+    // 设置全局变量，供utils.js使用
+    window.db = db;
   } catch (error) {
     if (window.firebaseConfig) {
       app = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
+      // 设置全局变量，供utils.js使用
+      window.db = db;
     } else {
       console.error('Firebase配置未找到');
       alert('Firebase配置错误，请检查config.js文件');

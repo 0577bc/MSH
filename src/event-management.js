@@ -19,6 +19,8 @@ async function initializeFirebase() {
     if (firebase.apps.length > 0) {
       firebaseApp = firebase.app();
       db = firebase.database();
+      // 设置全局变量，供utils.js使用
+      window.db = db;
       console.log('✅ 使用已存在的Firebase应用');
       return true;
     }
@@ -27,6 +29,8 @@ async function initializeFirebase() {
     if (window.firebaseConfig) {
       firebaseApp = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
+      // 设置全局变量，供utils.js使用
+      window.db = db;
       console.log('✅ 使用全局Firebase配置初始化成功');
       return true;
     }
@@ -35,6 +39,8 @@ async function initializeFirebase() {
     if (typeof firebaseConfig !== 'undefined') {
       firebaseApp = firebase.initializeApp(firebaseConfig);
       db = firebase.database();
+      // 设置全局变量，供utils.js使用
+      window.db = db;
       console.log('✅ 使用config.js配置初始化成功');
       return true;
     }

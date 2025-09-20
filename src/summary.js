@@ -29,12 +29,16 @@ async function initializeFirebase() {
 try {
   app = firebase.app();
   db = firebase.database();
+  // 设置全局变量，供utils.js使用
+  window.db = db;
     console.log('✅ 使用已存在的Firebase应用');
     return true;
 } catch (error) {
   if (window.firebaseConfig) {
     app = firebase.initializeApp(window.firebaseConfig);
     db = firebase.database();
+    // 设置全局变量，供utils.js使用
+    window.db = db;
       console.log('✅ 创建新的Firebase应用');
       return true;
   } else {

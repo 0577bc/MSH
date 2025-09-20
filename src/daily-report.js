@@ -21,11 +21,15 @@ async function initializeFirebase() {
   try {
     app = firebase.app();
     db = firebase.database();
+    // 设置全局变量，供utils.js使用
+    window.db = db;
     return true;
   } catch (error) {
     if (window.firebaseConfig) {
       app = firebase.initializeApp(window.firebaseConfig);
       db = firebase.database();
+      // 设置全局变量，供utils.js使用
+      window.db = db;
       return true;
     } else {
       console.error('❌ Firebase配置未找到');

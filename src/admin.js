@@ -26,11 +26,15 @@ function initializeFirebase() {
 try {
   app = firebase.app();
   db = firebase.database();
+  // 设置全局变量，供utils.js使用
+  window.db = db;
     console.log('✅ 管理页面Firebase初始化成功');
 } catch (error) {
   if (window.firebaseConfig) {
     app = firebase.initializeApp(window.firebaseConfig);
     db = firebase.database();
+    // 设置全局变量，供utils.js使用
+    window.db = db;
       console.log('✅ 管理页面Firebase应用创建成功');
   } else {
       console.error('❌ Firebase配置未找到');
