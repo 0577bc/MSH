@@ -115,6 +115,10 @@ button:hover {
   display: none !important;
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* 当元素被JavaScript显示时，覆盖hidden-form的隐藏 */
 .report-section:not(.hidden-form) {
   display: block !important;
@@ -973,13 +977,16 @@ button:hover {
 /* 姓名检索建议框样式 */
 .suggestions-box {
   position: relative;
-  display: none;
   background-color: white;
   border: 1px solid #ddd;
   border-top: none;
   max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
+}
+
+.suggestions-box.hidden {
+  display: none;
 }
 
 .suggestion-item {
@@ -1347,6 +1354,39 @@ button:hover {
   color: #2c3e50;
   font-size: 16px;
   margin-bottom: 10px;
+}
+
+.exclude-list-search {
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.exclude-list-search label {
+  font-weight: 500;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.exclude-list-search input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.exclude-list-search input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .exclude-list {
@@ -2892,4 +2932,449 @@ button:hover {
   #memberTable td {
     padding: 6px 4px;
   }
+}
+
+/* ==================== 个人页面签到日历样式 ==================== */
+
+/* 日历控制区域 */
+.calendar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.calendar-controls button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.calendar-controls button:hover {
+  background-color: #0056b3;
+}
+
+.calendar-controls button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.month-display {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* 日历主体 */
+.attendance-calendar {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+}
+
+.calendar-header-cell {
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: bold;
+  color: #666;
+  border-right: 1px solid #ddd;
+}
+
+.calendar-header-cell:last-child {
+  border-right: none;
+}
+
+.calendar-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-day {
+  min-height: 60px;
+  padding: 8px;
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.calendar-day:nth-child(7n) {
+  border-right: none;
+}
+
+.calendar-day:hover {
+  background-color: #f8f9fa;
+}
+
+.calendar-day.other-month {
+  background-color: #f8f9fa;
+  color: #999;
+}
+
+.calendar-day.today {
+  background-color: #e3f2fd;
+  border: 2px solid #2196f3;
+}
+
+.calendar-day.sunday {
+  background-color: #fff3e0;
+}
+
+.calendar-day.sunday.today {
+  background-color: #e1f5fe;
+  border: 2px solid #ff9800;
+}
+
+.calendar-day.present {
+  background-color: #e8f5e8;
+  border-left: 4px solid #4caf50;
+}
+
+.calendar-day.absent {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+}
+
+.calendar-day.sunday.present {
+  background-color: #e8f5e8;
+  border-left: 4px solid #4caf50;
+}
+
+.calendar-day.sunday.absent {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+}
+
+.day-number {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.day-info {
+  font-size: 10px;
+  color: #666;
+  line-height: 1.2;
+}
+
+.day-info.present {
+  color: #2e7d32;
+  font-weight: bold;
+}
+
+.day-info.absent {
+  color: #c62828;
+  font-weight: bold;
+}
+
+/* 日历图例 */
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  border: 1px solid #ddd;
+}
+
+.legend-color.present {
+  background-color: #4caf50;
+}
+
+.legend-color.absent {
+  background-color: #f44336;
+}
+
+.legend-color.sunday {
+  background-color: #ff9800;
+}
+
+.legend-color.today {
+  background-color: #2196f3;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .calendar-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .calendar-controls button {
+    width: 100%;
+    max-width: 120px;
+  }
+  
+  .calendar-day {
+    min-height: 50px;
+    padding: 6px;
+  }
+  
+  .day-number {
+    font-size: 14px;
+  }
+  
+  .day-info {
+    font-size: 9px;
+  }
+  
+  .calendar-legend {
+    gap: 15px;
+  }
+  
+  .legend-item {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-day {
+    min-height: 45px;
+    padding: 4px;
+  }
+  
+  .day-number {
+    font-size: 12px;
+  }
+  
+  .day-info {
+    font-size: 8px;
+  }
+  
+  .calendar-legend {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+/* ==================== 多选人员管理样式 ==================== */
+
+/* 已选择人员区域 */
+.selected-members-section {
+  margin: 15px 0;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.selected-members-section h4 {
+  margin: 0 0 10px 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.selected-members-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.selected-member-item {
+  display: flex;
+  align-items: center;
+  background: #007bff;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  gap: 8px;
+  animation: slideIn 0.2s ease-out;
+}
+
+.selected-member-item .member-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.selected-member-item .member-name {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.selected-member-item .member-group {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  line-height: 1.2;
+}
+
+.selected-member-item .remove-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: background 0.2s;
+}
+
+.selected-member-item .remove-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 建议列表中的多选支持 */
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.suggestion-item:hover {
+  background: #f8f9fa;
+}
+
+.suggestion-item.selected {
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+}
+
+.suggestion-item .member-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.suggestion-item .member-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.suggestion-item .member-group {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.suggestion-item .select-checkbox {
+  margin-left: 10px;
+  width: 18px;
+  height: 18px;
+  accent-color: #007bff;
+}
+
+/* 小组搜索高亮 */
+.suggestion-item.group-item {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+}
+
+.suggestion-item.group-item .group-name {
+  font-weight: 600;
+  color: #856404;
+}
+
+.suggestion-item.group-item .group-members-count {
+  font-size: 0.8rem;
+  color: #856404;
+  margin-top: 2px;
+}
+
+/* 动画效果 */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.selected-member-item.removing {
+  animation: slideOut 0.2s ease-in forwards;
+}
+
+/* 空状态提示 */
+.selected-members-list:empty::before {
+  content: "暂无选择的人员";
+  color: #6c757d;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+}
+
+/* 按钮样式调整 */
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.secondary-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.secondary-button:hover {
+  background: #5a6268;
 }

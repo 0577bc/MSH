@@ -76,7 +76,11 @@ class NewDataManager {
     const isGroupsValid = hasLocalGroups && hasLocalGroups !== null && typeof hasLocalGroups === 'object' && !Array.isArray(hasLocalGroups) && Object.keys(hasLocalGroups).length > 0;
     const isGroupNamesValid = hasLocalGroupNames && hasLocalGroupNames !== null && typeof hasLocalGroupNames === 'object' && !Array.isArray(hasLocalGroupNames) && Object.keys(hasLocalGroupNames).length > 0;
     const isAttendanceValid = hasLocalAttendance && Array.isArray(hasLocalAttendance);
-    const isExcludedMembersValid = hasLocalExcludedMembers && Array.isArray(hasLocalExcludedMembers);
+    // 修复excludedMembers验证逻辑：支持对象和数组两种格式
+    const isExcludedMembersValid = hasLocalExcludedMembers && (
+      Array.isArray(hasLocalExcludedMembers) || 
+      (typeof hasLocalExcludedMembers === 'object' && Object.keys(hasLocalExcludedMembers).length > 0)
+    );
     
     // 修改验证逻辑：只要groups和groupNames有效就认为数据有效，attendanceRecords和excludedMembers可以为空
     const isLocalDataValid = isGroupsValid && isGroupNamesValid;
@@ -91,7 +95,11 @@ class NewDataManager {
       groupsKeys: hasLocalGroups ? Object.keys(hasLocalGroups).length : 0,
       groupNamesKeys: hasLocalGroupNames ? Object.keys(hasLocalGroupNames).length : 0,
       attendanceLength: hasLocalAttendance ? hasLocalAttendance.length : 0,
-      excludedMembersLength: hasLocalExcludedMembers ? hasLocalExcludedMembers.length : 0
+      excludedMembersLength: hasLocalExcludedMembers ? (
+        Array.isArray(hasLocalExcludedMembers) ? 
+          hasLocalExcludedMembers.length : 
+          Object.keys(hasLocalExcludedMembers).length
+      ) : 0
     });
     
     if (isLocalDataValid) {
@@ -169,7 +177,49 @@ class NewDataManager {
       window.groups = hasLocalGroups;
       window.attendanceRecords = hasLocalAttendance;
       window.groupNames = hasLocalGroupNames;
-      window.excludedMembers = hasLocalExcludedMembers;
+      
+      // 特别处理excludedMembers：检查是否需要从Firebase更新
+      console.log('🔍 设置excludedMembers全局变量:');
+      const localDataLength = hasLocalExcludedMembers ? (
+        Array.isArray(hasLocalExcludedMembers) ? 
+          hasLocalExcludedMembers.length : 
+          Object.keys(hasLocalExcludedMembers).length
+      ) : 0;
+      console.log('🔍 本地excludedMembers数据:', localDataLength, '个');
+      console.log('🔍 本地excludedMembers详情:', hasLocalExcludedMembers);
+      
+      // 检查Firebase是否有更新的数据
+      if (firebase.apps.length > 0) {
+        try {
+          const db = firebase.database();
+          const firebaseSnapshot = await db.ref('excludedMembers').once('value');
+          const firebaseExcludedMembers = firebaseSnapshot.val() || [];
+          
+          console.log('🔍 Firebase excludedMembers数据:', firebaseExcludedMembers.length, '个');
+          
+          // 如果Firebase数据更多，使用Firebase数据
+          if (firebaseExcludedMembers.length > localDataLength) {
+            console.log('🔍 使用Firebase数据（数据更多）');
+            // 确保Firebase数据转换为对象格式
+            const firebaseExcludedMembersObj = {};
+            firebaseExcludedMembers.forEach((member, index) => {
+              firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
+            });
+            window.excludedMembers = firebaseExcludedMembersObj;
+            // 更新本地存储
+            this.saveToLocalStorage('excludedMembers', firebaseExcludedMembersObj);
+          } else {
+            console.log('🔍 使用本地数据');
+            window.excludedMembers = hasLocalExcludedMembers;
+          }
+        } catch (error) {
+          console.error('🔍 检查Firebase数据失败，使用本地数据:', error);
+          window.excludedMembers = hasLocalExcludedMembers;
+        }
+      } else {
+        console.log('🔍 Firebase未初始化，使用本地数据');
+        window.excludedMembers = hasLocalExcludedMembers;
+      }
       
       console.log('🔍 调试 - NewDataManager设置全局变量:', {
         'window.groups': window.groups ? Object.keys(window.groups) : 'undefined',
@@ -205,6 +255,16 @@ class NewDataManager {
         const firebaseAttendance = attendanceSnapshot.val() || {};
         const firebaseExcludedMembers = excludedMembersSnapshot.val() || [];
         
+        console.log('🔍 Firebase数据恢复检查:');
+        console.log('🔍 Firebase excludedMembers:', firebaseExcludedMembers.length, '个');
+        const localDataLength = hasLocalExcludedMembers ? (
+          Array.isArray(hasLocalExcludedMembers) ? 
+            hasLocalExcludedMembers.length : 
+            Object.keys(hasLocalExcludedMembers).length
+        ) : 0;
+        console.log('🔍 本地 excludedMembers:', localDataLength, '个');
+        console.log('🔍 isExcludedMembersValid:', isExcludedMembersValid);
+        
         // 检查Firebase数据是否有效
         const firebaseGroupsValid = Object.keys(firebaseGroups).length > 0;
         const firebaseGroupNamesValid = Object.keys(firebaseGroupNames).length > 0;
@@ -226,9 +286,17 @@ class NewDataManager {
             this.saveToLocalStorage('attendanceRecords', attendanceArray);
             console.log('✅ 已恢复attendanceRecords数据');
           }
+          // 只有在本地数据无效且Firebase有数据时才恢复
           if (!isExcludedMembersValid && Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
             this.saveToLocalStorage('excludedMembers', firebaseExcludedMembers);
             console.log('✅ 已恢复excludedMembers数据');
+          } else if (isExcludedMembersValid) {
+            // 如果本地数据有效，确保本地数据被正确设置
+            console.log('✅ 使用本地excludedMembers数据，无需恢复');
+            // 添加保护：如果本地数据比Firebase数据更新，不要被覆盖
+            if (Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
+              console.log('⚠️ 检测到Firebase有excludedMembers数据，但本地数据有效，保持本地数据');
+            }
           }
           
           // 更新全局变量
@@ -237,8 +305,26 @@ class NewDataManager {
           if (Object.keys(firebaseAttendance).length > 0) {
             window.attendanceRecords = Object.values(firebaseAttendance);
           }
-          if (Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
-            window.excludedMembers = firebaseExcludedMembers;
+          // 只有在本地数据无效时才使用Firebase数据
+          if (!isExcludedMembersValid && Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
+            console.log('🔍 使用Firebase excludedMembers数据:', firebaseExcludedMembers.length, '个');
+            // 确保Firebase数据转换为对象格式
+            const firebaseExcludedMembersObj = {};
+            firebaseExcludedMembers.forEach((member, index) => {
+              firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
+            });
+            window.excludedMembers = firebaseExcludedMembersObj;
+          } else if (isExcludedMembersValid) {
+            // 如果本地数据有效，使用本地数据
+            const localDataLength = Array.isArray(hasLocalExcludedMembers) ? 
+              hasLocalExcludedMembers.length : 
+              Object.keys(hasLocalExcludedMembers).length;
+            console.log('🔍 使用本地 excludedMembers数据:', localDataLength, '个');
+            console.log('🔍 本地 excludedMembers数据详情:', hasLocalExcludedMembers);
+            window.excludedMembers = hasLocalExcludedMembers;
+          } else {
+            console.log('🔍 没有有效的excludedMembers数据，设置为空对象');
+            window.excludedMembers = {};
           }
           
           console.log('✅ 数据恢复完成，跳过重新拉取');
@@ -738,11 +824,13 @@ class NewDataManager {
     
     // 设置3秒后自动同步
     this.autoSyncTimer = setTimeout(() => {
-      if (this.hasLocalChanges) {
+      if (this.hasLocalChanges && !this.isSyncing) {
         console.log('🔄 自动同步到Firebase...');
         console.log('🔍 调试 - 当前数据变更标志:', this.dataChangeFlags);
         console.log('🔍 调试 - 是否有本地变更:', this.hasLocalChanges);
         this.performManualSync();
+      } else if (this.isSyncing) {
+        console.log('⚠️ 正在同步中，跳过自动同步');
       } else {
         console.log('⚠️ 没有检测到数据变更，跳过自动同步');
       }
@@ -837,6 +925,12 @@ class NewDataManager {
 
   // 执行手动同步
   async performManualSync() {
+    // 防止重复同步
+    if (this.isSyncing) {
+      console.log('⚠️ 正在同步中，跳过重复同步请求');
+      return;
+    }
+
     if (!this.hasLocalChanges) {
       console.log('⚠️ 没有检测到数据变更，但强制同步当前数据');
       // 强制同步当前数据，即使没有检测到变更
@@ -979,7 +1073,7 @@ class NewDataManager {
         const dailyNewcomers = this.loadFromLocalStorage('dailyNewcomers');
         if (dailyNewcomers) {
           console.log('🔄 同步dailyNewcomers数据...');
-          await db.ref('dailyNewcomers').update(dailyNewcomers);
+          await db.ref('dailyNewcomers').set(dailyNewcomers);
           
           // 验证同步结果
           const verifySnapshot = await db.ref('dailyNewcomers').once('value');
@@ -1065,7 +1159,15 @@ class NewDataManager {
           .join('、');
         
         console.log('❌ 手动同步失败，保持变更标识');
-        alert(`数据同步失败：${failedTypes}。请检查网络连接后重试。`);
+        console.log('❌ 同步失败详情:', syncResults);
+        
+        // 特别处理excludedMembers同步失败
+        if (failedTypes.includes('excludedMembers')) {
+          console.log('❌ excludedMembers同步失败，可能数据被覆盖');
+          alert(`数据同步失败：${failedTypes}。\n\n特别提醒：排除人员列表同步失败，可能数据被其他操作覆盖。请重新添加排除人员。`);
+        } else {
+          alert(`数据同步失败：${failedTypes}。请检查网络连接后重试。`);
+        }
       }
 
     } catch (error) {
@@ -1129,12 +1231,30 @@ class NewDataManager {
         // 检查键的数量差异（允许本地数据有更多键，即新增数据）
         if (localKeys.length < remoteKeys.length) {
           console.log('🔍 验证失败：本地数据键数量少于远程数据');
+          console.log('🔍 本地键:', localKeys);
+          console.log('🔍 远程键:', remoteKeys);
           return false;
         }
         
         // 如果本地数据有更多键，这是正常的（新增数据）
         if (localKeys.length > remoteKeys.length) {
           console.log('🔍 验证通过：本地数据有新增键，这是正常的');
+          console.log('🔍 本地键:', localKeys);
+          console.log('🔍 远程键:', remoteKeys);
+        }
+        
+        // 如果键数量相同，检查是否有不同的键
+        if (localKeys.length === remoteKeys.length) {
+          const localSet = new Set(localKeys);
+          const remoteSet = new Set(remoteKeys);
+          const localOnly = localKeys.filter(key => !remoteSet.has(key));
+          const remoteOnly = remoteKeys.filter(key => !localSet.has(key));
+          
+          if (localOnly.length > 0 || remoteOnly.length > 0) {
+            console.log('🔍 键数量相同但内容不同:');
+            console.log('🔍 本地独有键:', localOnly);
+            console.log('🔍 远程独有键:', remoteOnly);
+          }
         }
         
         // 检查关键字段（只验证远程数据中存在的键）
@@ -1186,7 +1306,7 @@ class NewDataManager {
         }
         return true;
         
-      } else if (dataType === 'attendanceRecords' || dataType === 'excludedMembers') {
+      } else if (dataType === 'attendanceRecords') {
         // 数组类型验证：只验证记录数量
         const localLength = Array.isArray(localData) ? localData.length : 0;
         const remoteLength = Array.isArray(remoteData) ? remoteData.length : 0;
@@ -1198,6 +1318,65 @@ class NewDataManager {
         console.log(`🔍 ${dataType}数据验证${isValid ? '通过' : '失败'}`);
         
         return isValid;
+        
+      } else if (dataType === 'excludedMembers') {
+        // excludedMembers需要更严格的验证：检查内容一致性
+        // 支持对象和数组两种格式
+        const localLength = Array.isArray(localData) ? localData.length : Object.keys(localData).length;
+        const remoteLength = Array.isArray(remoteData) ? remoteData.length : Object.keys(remoteData).length;
+        
+        console.log(`🔍 验证${dataType}数据: 本地长度=${localLength}, 远程长度=${remoteLength}`);
+        
+        // 首先检查长度
+        if (Math.abs(localLength - remoteLength) > 1) {
+          console.log(`🔍 ${dataType}数据验证失败：长度差异过大`);
+          return false;
+        }
+        
+        // 检查内容一致性（如果长度相同）
+        if (localLength === remoteLength && localLength > 0) {
+          // 创建本地和远程数据的映射，用于比较
+          const localMap = new Map();
+          const remoteMap = new Map();
+          
+          // 构建本地数据映射
+          const localItems = Array.isArray(localData) ? localData : Object.values(localData);
+          localItems.forEach((item, index) => {
+            if (item && item.name) {
+              const key = `${item.name}_${item.group || 'unknown'}`;
+              localMap.set(key, item);
+            }
+          });
+          
+          // 构建远程数据映射
+          const remoteItems = Array.isArray(remoteData) ? remoteData : Object.values(remoteData);
+          remoteItems.forEach((item, index) => {
+            if (item && item.name) {
+              const key = `${item.name}_${item.group || 'unknown'}`;
+              remoteMap.set(key, item);
+            }
+          });
+          
+          // 检查是否有本地数据在远程数据中缺失
+          for (const [key, localItem] of localMap) {
+            if (!remoteMap.has(key)) {
+              console.log(`🔍 ${dataType}数据验证失败：远程数据缺失本地项目 ${key}`);
+              return false;
+            }
+          }
+          
+          // 检查是否有远程数据在本地数据中缺失
+          for (const [key, remoteItem] of remoteMap) {
+            if (!localMap.has(key)) {
+              console.log(`🔍 ${dataType}数据验证失败：本地数据缺失远程项目 ${key}`);
+              return false;
+            }
+          }
+          
+          console.log(`🔍 ${dataType}数据验证通过：内容一致性检查通过`);
+        }
+        
+        return true;
       }
       
       return false;

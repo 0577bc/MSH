@@ -40,14 +40,7 @@ try {
 }
 
 // ==================== 页面同步管理器初始化 ====================
-function initializePageSyncManager() {
-  if (window.utils && window.utils.PageSyncManager) {
-    pageSyncManager = new window.utils.PageSyncManager('admin');
-    console.log('管理页面同步管理器初始化完成');
-  } else {
-    console.error('页面同步管理器未找到');
-  }
-}
+// initializePageSyncManager函数已移至utils.js，使用window.utils.initializePageSyncManager('admin')
 
 // ==================== DOM元素初始化 ====================
 function initializeDOMElements() {
@@ -74,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeFirebase();
   
   // 初始化页面同步管理器
-  initializePageSyncManager();
+  pageSyncManager = window.utils.initializePageSyncManager('admin');
   
   // 初始化DOM元素
   initializeDOMElements();
@@ -116,7 +109,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       groups = window.groups || {};
       groupNames = window.groupNames || {};
       attendanceRecords = window.attendanceRecords || [];
-      excludedMembers = window.excludedMembers || [];
+      // 确保excludedMembers是数组形式
+      const excludedMembersData = window.excludedMembers || [];
+      excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData);
       
       console.log('🔍 管理页面数据检查:', {
         'groups': groups ? Object.keys(groups) : 'undefined',
@@ -252,11 +247,6 @@ function initializeEventListeners() {
     summaryButton.addEventListener('click', () => window.location.href = 'summary.html');
   }
 
-  // 签到原始记录按钮事件
-  const attendanceRecordsButton = document.getElementById('attendanceRecordsButton');
-  if (attendanceRecordsButton) {
-    attendanceRecordsButton.addEventListener('click', () => window.location.href = 'attendance-records.html');
-  }
 
   // 成员管理按钮事件
   const groupManagementButton = document.getElementById('groupManagementButton');
@@ -606,82 +596,7 @@ function handleCancelGroup() {
   }
 
   // 数据同步初始化（已移除，使用文件末尾的统一监听器）
-  function initializeDataSync_DELETED() {
-    // 已删除的监听器函数
-    return;
-    console.log("管理页面正在连接Firebase数据库...");
-    
-    // 禁用旧的数据同步监听器，因为现在使用NewDataManager
-    if (false && window.utils && window.utils.dataSyncManager) {
-      window.utils.dataSyncManager.startListening((dataType, data) => {
-        console.log(`管理页面收到${dataType}数据更新:`, data);
-        
-        switch (dataType) {
-          case 'attendanceRecords':
-            // 合并数据，保留本地UUID字段
-            if (data && Array.isArray(data)) {
-              attendanceRecords = data.map(remoteRecord => {
-                // 查找本地是否有相同记录（通过姓名和时间匹配）
-                const localRecord = attendanceRecords.find(local => 
-                  local.name === remoteRecord.name && 
-                  local.time === remoteRecord.time
-                );
-                // 如果本地记录有memberUUID，则保留
-                if (localRecord && localRecord.memberUUID) {
-                  return { ...remoteRecord, memberUUID: localRecord.memberUUID };
-                }
-                return remoteRecord;
-              });
-            } else {
-              attendanceRecords = [];
-            }
-            window.attendanceRecords = attendanceRecords;
-            localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
-            break;
-            
-          case 'groups':
-            // 合并数据，保留本地UUID字段
-            if (data && typeof data === 'object') {
-              const mergedGroups = {};
-              Object.keys(data).forEach(groupKey => {
-                const remoteMembers = data[groupKey] || [];
-                const localMembers = groups[groupKey] || [];
-                
-                mergedGroups[groupKey] = remoteMembers.map(remoteMember => {
-                  // 查找本地是否有相同成员（通过姓名匹配）
-                  const localMember = localMembers.find(local => 
-                    local.name === remoteMember.name
-                  );
-                  // 如果本地成员有UUID，则保留
-                  if (localMember && localMember.uuid) {
-                    return { ...remoteMember, uuid: localMember.uuid };
-                  }
-                  return remoteMember;
-                });
-              });
-              groups = mergedGroups;
-            } else {
-              groups = {};
-            }
-            window.groups = groups;
-            localStorage.setItem('msh_groups', JSON.stringify(groups));
-            loadGroups(); // 重新加载小组显示
-            break;
-            
-          case 'groupNames':
-            groupNames = data || {};
-            window.groupNames = groupNames;
-            localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
-            loadGroups(); // 重新加载小组显示
-            break;
-        }
-      });
-      
-      console.log('管理页面数据同步监听已启动');
-    } else {
-      console.log('数据同步管理器未加载，跳过数据同步');
-    }
-  }
+  // initializeDataSync_DELETED函数已删除，现在使用NewDataManager
 
   // 本地存储备选方案
   function loadFromLocalStorage() {
@@ -1504,13 +1419,6 @@ function handleCancelGroup() {
   });
   }
 
-  // 签到原始记录按钮事件
-  const attendanceRecordsButton = document.getElementById('attendanceRecordsButton');
-  if (attendanceRecordsButton) {
-    attendanceRecordsButton.addEventListener('click', () => {
-      window.location.href = "attendance-records.html";
-  });
-  }
 
 
   // 小组管理功能

@@ -8,14 +8,18 @@ let groups = {};
 let groupNames = {};
 let attendanceRecords = {};
 let excludedMembers = {};
-let selectedMember = null;
+let selectedMembers = []; // 多选已选择的成员列表
+let filteredExcludedMembers = []; // 过滤后的排除列表
 
 // DOM元素引用
 let groupSelect, memberList, addMemberButton, regenerateIdsButton;
 let addGroupButton, excludeStatsButton, excludeStatsView;
 let excludeSearchInput, excludeSuggestions, addToExcludeButton, excludeList, closeExcludeButton;
+let excludeListSearchInput, clearExcludeListSearch;
 let memberSearch, memberSuggestions;
 let uuidEditorButton;
+// 多选相关元素
+let selectedMembersList, selectedCount, clearSelectedButton;
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
@@ -32,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 // 初始化页面
 async function initializePage() {
   console.log('小组管理页面：开始初始化...');
+  
+  // 初始化Firebase
+  initializeFirebase();
   
   // 初始化DOM元素
   initializeDOMElements();
@@ -50,6 +57,28 @@ async function initializePage() {
   
   // 防止表单提交刷新页面
   preventFormSubmission();
+}
+
+// 初始化Firebase
+function initializeFirebase() {
+  try {
+    if (window.firebaseConfig && typeof firebase !== 'undefined') {
+      // 检查Firebase是否已经初始化
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.firebaseConfig);
+        console.log('✅ Firebase初始化成功');
+      } else {
+        console.log('✅ Firebase已初始化');
+      }
+      return true;
+    } else {
+      console.log('⚠️ Firebase配置或SDK未找到');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Firebase初始化失败:', error);
+    return false;
+  }
 }
 
 // 初始化DOM元素
@@ -74,12 +103,21 @@ function initializeDOMElements() {
   excludeList = document.getElementById('excludeList');
   closeExcludeButton = document.getElementById('closeExcludeButton');
   
+  // 排除列表搜索元素
+  excludeListSearchInput = document.getElementById('excludeListSearchInput');
+  clearExcludeListSearch = document.getElementById('clearExcludeListSearch');
+  
   // 人员检索元素
   memberSearch = document.getElementById('memberSearch');
   memberSuggestions = document.getElementById('memberSuggestions');
   
   // UUID编辑器元素
   uuidEditorButton = document.getElementById('uuidEditorButton');
+  
+  // 多选相关元素
+  selectedMembersList = document.getElementById('selectedMembersList');
+  selectedCount = document.getElementById('selectedCount');
+  clearSelectedButton = document.getElementById('clearSelectedButton');
   
   const domElements = {
     groupSelect: !!groupSelect,
@@ -128,7 +166,7 @@ async function loadData() {
     const timeout = 200;
     
     while (attempts < maxAttempts) {
-      if (window.groups && window.groupNames && window.attendanceRecords) {
+      if (window.groups && window.groupNames && window.attendanceRecords && window.excludedMembers !== undefined) {
         console.log('✅ 从NewDataManager获取到数据');
         break;
       }
@@ -172,7 +210,15 @@ async function loadData() {
     groups = window.groups || {};
     groupNames = window.groupNames || {};
     attendanceRecords = window.attendanceRecords || {};
+    console.log('🔍 group-management.js - 检查window.excludedMembers:', window.excludedMembers);
+    console.log('🔍 group-management.js - window.excludedMembers类型:', typeof window.excludedMembers);
+    console.log('🔍 group-management.js - window.excludedMembers是否为数组:', Array.isArray(window.excludedMembers));
+    if (window.excludedMembers && typeof window.excludedMembers === 'object') {
+      console.log('🔍 group-management.js - window.excludedMembers键数量:', Object.keys(window.excludedMembers).length);
+    }
     excludedMembers = window.excludedMembers || {};
+    console.log('🔍 group-management.js - 最终excludedMembers:', excludedMembers);
+    console.log('🔍 group-management.js - 最终excludedMembers键数量:', Object.keys(excludedMembers).length);
     
     // 确保数据格式正确（从数组转换为对象）
     if (Array.isArray(groups)) {
@@ -291,24 +337,48 @@ function initializeEventListeners() {
     });
   }
   
-  // 未签到不统计搜索
+  // 未签到不统计搜索 - 按照index页面标准实现
   if (excludeSearchInput) {
+    // 移除之前的事件监听器（如果存在）
+    excludeSearchInput.removeEventListener('input', handleExcludeSearch);
+    
+    // 添加新的事件监听器
     excludeSearchInput.addEventListener('input', handleExcludeSearch);
     excludeSearchInput.addEventListener('focus', () => {
       if (excludeSearchInput.value.trim()) {
         handleExcludeSearch();
       }
     });
+    console.log('✅ 未签到不统计搜索事件监听器已添加');
+  } else {
+    console.error('❌ excludeSearchInput元素未找到');
   }
   
   if (addToExcludeButton) {
     addToExcludeButton.addEventListener('click', addToExcludeList);
   }
   
+  // 清空选择按钮
+  if (clearSelectedButton) {
+    clearSelectedButton.addEventListener('click', clearSelectedMembers);
+  }
+  
+  // 排除列表搜索
+  if (excludeListSearchInput) {
+    excludeListSearchInput.addEventListener('input', handleExcludeListSearch);
+    console.log('✅ 排除列表搜索事件监听器已添加');
+  } else {
+    console.error('❌ excludeListSearchInput元素未找到');
+  }
+  
+  if (clearExcludeListSearch) {
+    clearExcludeListSearch.addEventListener('click', clearExcludeListSearchInput);
+  }
+  
   // UUID编辑器按钮
   if (uuidEditorButton) {
     uuidEditorButton.addEventListener('click', () => {
-      window.location.href = 'uuid_editor.html';
+      window.location.href = 'tools/uuid_editor.html';
     });
   }
   
@@ -504,8 +574,10 @@ async function handleSaveGroup() {
     
     // 保存到NewDataManager
     if (window.newDataManager) {
-      await window.newDataManager.saveData('groups', groups);
-      await window.newDataManager.saveData('groupNames', groupNames);
+      window.newDataManager.saveToLocalStorage('groups', groups);
+        window.newDataManager.markDataChange('groups', 'modified', 'member_edit');
+      window.newDataManager.saveToLocalStorage('groupNames', groupNames);
+        window.newDataManager.markDataChange('groupNames', 'modified', 'group_edit');
     }
     
     // 更新显示
@@ -595,13 +667,14 @@ async function handleSaveMember() {
   }
   
   // 防止重复提交
-  if (window.utils && window.utils.preventDuplicateExecution) {
-    const isExecuting = window.utils.preventDuplicateExecution('saveMember');
-    if (isExecuting) {
-      console.log('保存成员操作正在进行中，跳过重复执行');
-      return;
-    }
+  const flagName = 'isExecuting_saveMember';
+  if (window[flagName]) {
+    console.log('保存成员操作正在进行中，跳过重复执行');
+    return;
   }
+  
+  // 设置执行标志
+  window[flagName] = true;
   
   const memberData = {
     name: document.getElementById('addMemberName').value.trim(),
@@ -610,7 +683,7 @@ async function handleSaveMember() {
     gender: document.getElementById('addMemberGender').value,
     baptized: document.getElementById('addMemberBaptized').value,
     age: document.getElementById('addMemberAge').value,
-    uuid: generateUUID(),
+    uuid: window.utils.generateUUID(),
     group: selectedGroup,
     createdAt: new Date().toISOString()
   };
@@ -629,7 +702,8 @@ async function handleSaveMember() {
     
     // 保存到NewDataManager
     if (window.newDataManager) {
-      await window.newDataManager.saveData('groups', groups);
+      window.newDataManager.saveToLocalStorage('groups', groups);
+        window.newDataManager.markDataChange('groups', 'modified', 'member_edit');
     }
     
     // 更新显示
@@ -651,6 +725,9 @@ async function handleSaveMember() {
   } catch (error) {
     console.error('保存成员失败:', error);
     alert('保存成员失败，请重试！');
+  } finally {
+    // 清除防重复提交标识符
+    window[flagName] = false;
   }
 }
 
@@ -687,13 +764,14 @@ async function handleSaveEditMember() {
   }
   
   // 防止重复提交
-  if (window.utils && window.utils.preventDuplicateExecution) {
-    const isExecuting = window.utils.preventDuplicateExecution('saveEditMember');
-    if (isExecuting) {
-      console.log('保存编辑成员操作正在进行中，跳过重复执行');
-      return;
-    }
+  const flagName = 'isExecuting_saveEditMember';
+  if (window[flagName]) {
+    console.log('保存编辑成员操作正在进行中，跳过重复执行');
+    return;
   }
+  
+  // 设置执行标志
+  window[flagName] = true;
   
   const memberData = {
     name: document.getElementById('editMemberName').value.trim(),
@@ -723,7 +801,8 @@ async function handleSaveEditMember() {
       
       // 保存到NewDataManager
       if (window.newDataManager) {
-        await window.newDataManager.saveData('groups', groups);
+        window.newDataManager.saveToLocalStorage('groups', groups);
+        window.newDataManager.markDataChange('groups', 'modified', 'member_edit');
       }
       
       // 更新显示
@@ -748,6 +827,9 @@ async function handleSaveEditMember() {
   } catch (error) {
     console.error('更新成员失败:', error);
     alert('更新成员失败，请重试！');
+  } finally {
+    // 清除防重复提交标识符
+    window[flagName] = false;
   }
 }
 
@@ -779,7 +861,8 @@ async function handleDeleteMember() {
       
       // 保存到NewDataManager
       if (window.newDataManager) {
-        await window.newDataManager.saveData('groups', groups);
+        window.newDataManager.saveToLocalStorage('groups', groups);
+        window.newDataManager.markDataChange('groups', 'modified', 'member_edit');
       }
       
       // 更新显示
@@ -827,7 +910,8 @@ async function handleRegenerateIds() {
     
     // 保存到NewDataManager
     if (window.newDataManager) {
-      await window.newDataManager.saveData('groups', groups);
+      window.newDataManager.saveToLocalStorage('groups', groups);
+        window.newDataManager.markDataChange('groups', 'modified', 'member_edit');
     }
     
     // 更新显示
@@ -928,7 +1012,13 @@ function showExcludeStatsView() {
   if (excludeStatsView) {
     excludeStatsView.classList.remove('hidden-form');
     loadExcludedMembers();
-    excludeSearchInput.focus();
+    
+    // 确保搜索输入框获得焦点
+    if (excludeSearchInput) {
+      setTimeout(() => {
+        excludeSearchInput.focus();
+      }, 100);
+    }
   }
 }
 
@@ -938,116 +1028,186 @@ function hideExcludeStatsView() {
     excludeStatsView.classList.add('hidden-form');
     excludeSearchInput.value = '';
     hideExcludeSuggestions();
+    
+    // 清除排除列表搜索状态
+    if (excludeListSearchInput) {
+      excludeListSearchInput.value = '';
+    }
+    filteredExcludedMembers = [];
+    
+    // 清空多选状态
+    clearSelectedMembers();
   }
 }
 
-// 处理排除搜索
+// 处理排除搜索 - 支持人员姓名和小组名称搜索
 function handleExcludeSearch() {
-  const searchTerm = excludeSearchInput.value.trim().toLowerCase();
+  const query = excludeSearchInput.value.trim();
   
-  if (!searchTerm) {
+  // 清空建议列表
+  if (excludeSuggestions) {
+    excludeSuggestions.innerHTML = '';
+    excludeSuggestions.classList.add('hidden');
+  }
+  
+  if (query.length < 1) {
     hideExcludeSuggestions();
     return;
   }
   
-  // 搜索所有成员
-  const allMembers = [];
+  // 验证数据源
+  if (!groups || Object.keys(groups).length === 0) {
+    console.error('groups数据未加载或为空');
+    return;
+  }
+  
+  if (!groupNames || Object.keys(groupNames).length === 0) {
+    console.error('groupNames数据未加载或为空');
+    return;
+  }
+  
+  const lowerQuery = query.toLowerCase();
+  const suggestions = [];
+  
+  // 1. 搜索小组名称
   Object.keys(groups).forEach(groupKey => {
-    const members = groups[groupKey] || [];
-    members.forEach(member => {
-      allMembers.push({
-        ...member,
-        groupKey: groupKey,
-        groupName: groupNames[groupKey] || groupKey
+    const groupDisplayName = (groupNames[groupKey] || groupKey).toLowerCase();
+    if (groupDisplayName.includes(lowerQuery)) {
+      const groupMembers = groups[groupKey] || [];
+      const availableMembers = groupMembers.filter(member => {
+        if (!member || !member.name) return false;
+        // 检查是否已经在排除列表中
+        const isExcluded = Object.values(excludedMembers).some(excluded => 
+          excluded.name === member.name && excluded.group === groupKey
+        );
+        return !isExcluded;
       });
-    });
+      
+      if (availableMembers.length > 0) {
+        suggestions.push({
+          type: 'group',
+          groupKey: groupKey,
+          groupName: groupNames[groupKey] || groupKey,
+          members: availableMembers,
+          memberCount: availableMembers.length
+        });
+      }
+    }
   });
   
-  // 过滤匹配的成员
-  const matches = allMembers.filter(member => 
-    member.name.toLowerCase().includes(searchTerm) ||
-    (member.nickname && member.nickname.toLowerCase().includes(searchTerm))
-  );
+  // 2. 搜索个人成员
+  Object.keys(groups).forEach(groupKey => {
+    if (groups[groupKey] && Array.isArray(groups[groupKey])) {
+      groups[groupKey].forEach(member => {
+        if (member && member.name) {
+          const memberName = member.name.toLowerCase();
+          const nickname = (member.nickname || '').toLowerCase();
+          
+          // 检查姓名或花名是否匹配
+          if (memberName.includes(lowerQuery) || nickname.includes(lowerQuery)) {
+            // 检查是否已经在排除列表中
+            const isExcluded = Object.values(excludedMembers).some(excluded => 
+              excluded.name === member.name && excluded.group === groupKey
+            );
+            
+            if (!isExcluded) {
+              // 检查是否已经选择
+              const isSelected = selectedMembers.some(selected => 
+                selected.name === member.name && selected.groupKey === groupKey
+              );
+              
+              suggestions.push({
+                type: 'member',
+                ...member,
+                groupKey: groupKey,
+                groupName: groupNames[groupKey] || groupKey,
+                isSelected: isSelected
+              });
+            }
+          }
+        }
+      });
+    }
+  });
   
-  if (matches.length > 0) {
-    showExcludeSuggestions(matches);
+  // 显示建议
+  if (suggestions.length > 0) {
+    showExcludeSuggestions(suggestions);
   } else {
     hideExcludeSuggestions();
   }
 }
 
-// 显示排除建议
-function showExcludeSuggestions(matches) {
-  if (!excludeSuggestions) return;
+// 显示排除建议 - 支持小组和成员多选
+function showExcludeSuggestions(suggestions) {
+  if (!excludeSuggestions) {
+    console.error('excludeSuggestions元素未找到');
+    return;
+  }
+  
+  if (!Array.isArray(suggestions)) {
+    console.error('suggestions不是数组');
+    return;
+  }
   
   excludeSuggestions.innerHTML = '';
   excludeSuggestions.classList.remove('hidden');
   
-  matches.slice(0, 10).forEach(member => {
-    const item = document.createElement('div');
-    item.className = 'suggestion-item';
-    item.textContent = `${member.name} (${member.groupName})`;
-    item.addEventListener('click', () => {
-      selectExcludeMember(member);
-    });
-    excludeSuggestions.appendChild(item);
+  suggestions.slice(0, 15).forEach(item => {
+    if (!item) return;
+    
+    const div = document.createElement('div');
+    
+    if (item.type === 'group') {
+      // 小组项
+      div.className = 'suggestion-item group-item';
+      div.innerHTML = `
+        <div class="member-info">
+          <div class="group-name">${item.groupName}</div>
+          <div class="group-members-count">${item.memberCount} 个成员</div>
+        </div>
+        <input type="checkbox" class="select-checkbox" ${isGroupSelected(item.groupKey) ? 'checked' : ''}>
+      `;
+      div.addEventListener('click', (e) => {
+        if (e.target.type !== 'checkbox') {
+          toggleGroupSelection(item);
+        }
+      });
+    } else if (item.type === 'member') {
+      // 成员项
+      div.className = `suggestion-item ${item.isSelected ? 'selected' : ''}`;
+      const name = item.name || item.Name || item.姓名 || item.fullName;
+      const nickname = item.nickname || item.Nickname || item.花名 || item.alias;
+      
+      div.innerHTML = `
+        <div class="member-info">
+          <div class="member-name">${name}${nickname ? ` (${nickname})` : ''}</div>
+          <div class="member-group">${item.groupName}</div>
+        </div>
+        <input type="checkbox" class="select-checkbox" ${item.isSelected ? 'checked' : ''}>
+      `;
+      div.addEventListener('click', (e) => {
+        if (e.target.type !== 'checkbox') {
+          toggleMemberSelection(item);
+        }
+      });
+    }
+    
+    excludeSuggestions.appendChild(div);
   });
 }
 
-// 隐藏排除建议
+// 隐藏排除建议 - 按照index页面标准实现
 function hideExcludeSuggestions() {
   if (excludeSuggestions) {
     excludeSuggestions.classList.add('hidden');
+    excludeSuggestions.innerHTML = '';
   }
 }
 
-// 选择排除成员
-function selectExcludeMember(member) {
-  selectedMember = member;
-  excludeSearchInput.value = `${member.name} (${member.groupName})`;
-  hideExcludeSuggestions();
-}
+// 旧的单选功能已移除，现在使用多选功能
 
-// 添加到排除列表
-async function addToExcludeList() {
-  if (!selectedMember) {
-    alert('请先选择要排除的成员！');
-    return;
-  }
-  
-  try {
-    // 添加到排除列表
-    excludedMembers[selectedMember.uuid] = {
-      name: selectedMember.name,
-      group: selectedMember.groupKey,
-      groupName: selectedMember.groupName,
-      addedAt: new Date().toISOString()
-    };
-    
-    // 保存到NewDataManager
-    if (window.newDataManager) {
-      await window.newDataManager.saveData('excludedMembers', excludedMembers);
-    }
-    
-    // 更新显示
-    loadExcludedMembers();
-    
-    // 清空选择
-    selectedMember = null;
-    excludeSearchInput.value = '';
-    
-    // 后台同步
-    if (window.newDataManager) {
-      window.newDataManager.performManualSync();
-    }
-    
-    alert('成员已添加到排除列表！');
-    
-  } catch (error) {
-    console.error('添加到排除列表失败:', error);
-    alert('添加到排除列表失败，请重试！');
-  }
-}
+// 旧的单选添加功能已移除，现在使用多选功能
 
 // 从排除列表移除
 async function removeFromExcludeList(memberUUID) {
@@ -1061,7 +1221,8 @@ async function removeFromExcludeList(memberUUID) {
     
     // 保存到NewDataManager
     if (window.newDataManager) {
-      await window.newDataManager.saveData('excludedMembers', excludedMembers);
+      window.newDataManager.saveToLocalStorage('excludedMembers', excludedMembers);
+        window.newDataManager.markDataChange('excludedMembers', 'modified', 'exclude_edit');
     }
     
     // 更新显示
@@ -1088,12 +1249,30 @@ function loadExcludedMembers() {
   
   if (excludedList.length === 0) {
     excludeList.innerHTML = '<div class="no-data">暂无排除成员</div>';
+    filteredExcludedMembers = [];
+    return;
+  }
+  
+  // 如果没有搜索条件，显示所有成员
+  if (!excludeListSearchInput || !excludeListSearchInput.value.trim()) {
+    filteredExcludedMembers = excludedList;
+  }
+  
+  displayExcludedMembers(filteredExcludedMembers);
+}
+
+// 显示排除成员列表
+function displayExcludedMembers(membersToShow) {
+  if (!excludeList) return;
+  
+  if (membersToShow.length === 0) {
+    excludeList.innerHTML = '<div class="no-data">没有找到匹配的排除成员</div>';
     return;
   }
   
   excludeList.innerHTML = '';
   
-  excludedList.forEach(member => {
+  membersToShow.forEach(member => {
     const item = document.createElement('div');
     item.className = 'exclude-item';
     item.innerHTML = `
@@ -1104,16 +1283,53 @@ function loadExcludedMembers() {
   });
 }
 
+// ==================== 排除列表搜索功能 ====================
+
+// 处理排除列表搜索
+function handleExcludeListSearch() {
+  const query = excludeListSearchInput.value.trim().toLowerCase();
+  
+  if (!query) {
+    // 如果没有搜索条件，显示所有排除成员
+    filteredExcludedMembers = Object.values(excludedMembers);
+    displayExcludedMembers(filteredExcludedMembers);
+    return;
+  }
+  
+  // 过滤排除成员
+  const allExcludedMembers = Object.values(excludedMembers);
+  filteredExcludedMembers = allExcludedMembers.filter(member => {
+    if (!member || !member.name) return false;
+    
+    // 支持多种字段名搜索
+    const name = member.name || member.Name || member.姓名 || member.fullName;
+    const nickname = member.nickname || member.Nickname || member.花名 || member.alias;
+    const groupName = member.groupName || member.group;
+    
+    // 搜索姓名、花名和组别
+    const nameMatch = name && name.toLowerCase().includes(query);
+    const nicknameMatch = nickname && nickname.toLowerCase().includes(query);
+    const groupMatch = groupName && groupName.toLowerCase().includes(query);
+    
+    return nameMatch || nicknameMatch || groupMatch;
+  });
+  
+  displayExcludedMembers(filteredExcludedMembers);
+}
+
+// 清除排除列表搜索
+function clearExcludeListSearchInput() {
+  if (excludeListSearchInput) {
+    excludeListSearchInput.value = '';
+    filteredExcludedMembers = Object.values(excludedMembers);
+    displayExcludedMembers(filteredExcludedMembers);
+  }
+}
+
 // ==================== 工具函数 ====================
 
 // 生成UUID
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// generateUUID函数已移至utils.js，使用window.utils.generateUUID()
 
 // 清空添加成员表单
 function clearAddMemberForm() {
@@ -1152,7 +1368,188 @@ function preventFormSubmission() {
   });
 }
 
+// ==================== 多选功能 ====================
+
+// 切换成员选择状态
+function toggleMemberSelection(member) {
+  const existingIndex = selectedMembers.findIndex(selected => 
+    selected.name === member.name && selected.groupKey === member.groupKey
+  );
+  
+  if (existingIndex >= 0) {
+    // 取消选择
+    selectedMembers.splice(existingIndex, 1);
+  } else {
+    // 添加选择
+    selectedMembers.push({
+      name: member.name,
+      groupKey: member.groupKey,
+      groupName: member.groupName,
+      uuid: member.uuid,
+      nickname: member.nickname
+    });
+  }
+  
+  updateSelectedMembersDisplay();
+  updateSearchSuggestions();
+}
+
+// 切换小组选择状态
+function toggleGroupSelection(group) {
+  const groupMembers = group.members || [];
+  const allSelected = groupMembers.every(member => 
+    selectedMembers.some(selected => 
+      selected.name === member.name && selected.groupKey === group.groupKey
+    )
+  );
+  
+  if (allSelected) {
+    // 取消选择整个小组
+    selectedMembers = selectedMembers.filter(selected => 
+      selected.groupKey !== group.groupKey
+    );
+  } else {
+    // 选择整个小组
+    groupMembers.forEach(member => {
+      const exists = selectedMembers.some(selected => 
+        selected.name === member.name && selected.groupKey === group.groupKey
+      );
+      if (!exists) {
+        selectedMembers.push({
+          name: member.name,
+          groupKey: group.groupKey,
+          groupName: group.groupName,
+          uuid: member.uuid,
+          nickname: member.nickname
+        });
+      }
+    });
+  }
+  
+  updateSelectedMembersDisplay();
+  updateSearchSuggestions();
+}
+
+// 检查小组是否已选择
+function isGroupSelected(groupKey) {
+  const groupMembers = groups[groupKey] || [];
+  return groupMembers.every(member => 
+    selectedMembers.some(selected => 
+      selected.name === member.name && selected.groupKey === groupKey
+    )
+  );
+}
+
+// 更新已选择成员显示
+function updateSelectedMembersDisplay() {
+  if (!selectedMembersList || !selectedCount) return;
+  
+  selectedCount.textContent = selectedMembers.length;
+  selectedMembersList.innerHTML = '';
+  
+  selectedMembers.forEach(member => {
+    const item = document.createElement('div');
+    item.className = 'selected-member-item';
+    item.innerHTML = `
+      <div class="member-info">
+        <div class="member-name">${member.name}${member.nickname ? ` (${member.nickname})` : ''}</div>
+        <div class="member-group">${member.groupName}</div>
+      </div>
+      <button class="remove-btn" onclick="removeSelectedMember('${member.name}', '${member.groupKey}')">×</button>
+    `;
+    selectedMembersList.appendChild(item);
+  });
+}
+
+// 移除已选择的成员
+function removeSelectedMember(name, groupKey) {
+  selectedMembers = selectedMembers.filter(member => 
+    !(member.name === name && member.groupKey === groupKey)
+  );
+  updateSelectedMembersDisplay();
+  updateSearchSuggestions();
+}
+
+// 清空所有选择
+function clearSelectedMembers() {
+  selectedMembers = [];
+  updateSelectedMembersDisplay();
+  updateSearchSuggestions();
+  if (excludeSearchInput) {
+    excludeSearchInput.value = '';
+  }
+  hideExcludeSuggestions();
+}
+
+// 更新搜索建议的选中状态
+function updateSearchSuggestions() {
+  if (excludeSuggestions && !excludeSuggestions.classList.contains('hidden')) {
+    // 重新触发搜索以更新选中状态
+    handleExcludeSearch();
+  }
+}
+
+// 更新添加到排除列表的函数
+async function addToExcludeList() {
+  if (selectedMembers.length === 0) {
+    alert('请先选择要排除的成员！');
+    return;
+  }
+  
+  try {
+    let addedCount = 0;
+    
+    // 批量添加选中的成员
+    selectedMembers.forEach(member => {
+      // 检查是否已经在排除列表中
+      const isExcluded = Object.values(excludedMembers).some(excluded => 
+        excluded.name === member.name && excluded.group === member.groupKey
+      );
+      
+      if (!isExcluded) {
+        excludedMembers[member.uuid] = {
+          name: member.name,
+          group: member.groupKey,
+          groupName: member.groupName,
+          addedAt: new Date().toISOString()
+        };
+        addedCount++;
+      }
+    });
+    
+    if (addedCount === 0) {
+      alert('所选成员已全部在排除列表中！');
+      return;
+    }
+    
+    // 保存到NewDataManager
+    if (window.newDataManager) {
+      window.newDataManager.saveToLocalStorage('excludedMembers', excludedMembers);
+      window.newDataManager.markDataChange('excludedMembers', 'modified', 'exclude_edit');
+    }
+    
+    // 更新显示
+    loadExcludedMembers();
+    
+    // 清空选择
+    clearSelectedMembers();
+    
+    // 后台同步
+    if (window.newDataManager) {
+      window.newDataManager.performManualSync();
+    }
+    
+    alert(`已成功添加 ${addedCount} 个成员到排除列表！`);
+    
+  } catch (error) {
+    console.error('添加到排除列表失败:', error);
+    alert('添加到排除列表失败，请重试！');
+  }
+}
+
 // 全局函数（供HTML调用）
 window.editMember = editMember;
 window.deleteMember = deleteMember;
 window.removeFromExcludeList = removeFromExcludeList;
+window.removeSelectedMember = removeSelectedMember;
+window.clearSelectedMembers = clearSelectedMembers;

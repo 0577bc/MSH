@@ -30,6 +30,37 @@
       </div>
     </section>
     
+    <!-- 签到记录日历 -->
+    <section id="attendanceCalendarSection" class="report-section">
+      <h2>签到记录</h2>
+      <div class="calendar-controls">
+        <button id="prevMonthButton" type="button" aria-label="上一个月">‹ 上月</button>
+        <span id="currentMonthDisplay" class="month-display">2025年1月</span>
+        <button id="nextMonthButton" type="button" aria-label="下一个月">下月 ›</button>
+      </div>
+      <div id="attendanceCalendar" class="attendance-calendar">
+        <!-- 动态生成日历 -->
+      </div>
+      <div class="calendar-legend">
+        <div class="legend-item">
+          <span class="legend-color present"></span>
+          <span>已签到</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color absent"></span>
+          <span>未签到</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color sunday"></span>
+          <span>主日</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color today"></span>
+          <span>今天</span>
+        </div>
+      </div>
+    </section>
+    
     <!-- 跟踪记录 -->
     <section id="trackingRecordsSection" class="report-section">
       <h2>跟踪记录</h2>

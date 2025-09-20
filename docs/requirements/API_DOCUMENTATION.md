@@ -5,7 +5,7 @@
 **系统名称**：MSH签到系统  
 **API版本**：2.0  
 **文档版本**：1.0  
-**最后更新**：2025-01-11  
+**最后更新**：2025-01-18  
 **维护者**：MSH技术团队  
 
 ## 🎯 API设计原则
@@ -416,6 +416,70 @@ const db = firebase.database()
 
 // 获取认证引用
 const auth = firebase.auth()
+```
+
+## 🛠️ 工具函数API
+
+### **1. 通用工具函数**
+```javascript
+// Firebase初始化
+const { app, db, success } = window.utils.initializeFirebase()
+
+// UUID生成
+const uuid = window.utils.generateUUID()
+
+// 日期格式化
+const formattedDate = window.utils.formatDateForDisplay(dateInput)
+
+// 状态文本获取
+const statusText = window.utils.getStatusText(status)
+
+// 页面同步管理器初始化
+const pageSyncManager = window.utils.initializePageSyncManager(pageName)
+```
+
+### **2. 数据处理工具**
+```javascript
+// 排除成员管理
+const excludedMembers = window.utils.loadExcludedMembers()
+const isExcluded = window.utils.isMemberExcluded(member, group, excludedMembers)
+
+// 小组排序
+const sortedGroups = window.utils.sortGroups(groups, groupNames)
+const sortedMembers = window.utils.sortMembersByName(members)
+
+// 成员显示名称
+const displayName = window.utils.getDisplayName(member)
+
+// 出勤类型判断
+const attendanceType = window.utils.getAttendanceType(date)
+```
+
+### **3. 数据验证工具**
+```javascript
+// 深度比较
+const isEqual = window.utils.deepEqual(obj1, obj2)
+
+// 数据验证
+const isValid = window.utils.validateGroupsData(sentData, receivedData)
+
+// 成员差异检查
+const hasDifference = window.utils.hasSignificantMemberDifference(member1, member2)
+```
+
+### **4. 安全工具函数**
+```javascript
+// 防重复执行
+const safeFunction = window.utils.preventDuplicateExecution(originalFunction, key)
+
+// 安全保存函数
+const safeSave = window.utils.createSafeSaveFunction(saveFunction, operationName)
+
+// 安全同步函数
+const safeSync = window.utils.createSafeSyncFunction(syncFunction, operationName)
+
+// 安全删除函数
+const safeDelete = window.utils.createSafeDeleteFunction(deleteFunction, operationName)
 ```
 
 ## 📊 监控API

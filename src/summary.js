@@ -107,13 +107,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('✅ Firebase应用创建成功');
       }
       
+      // 等待NewDataManager完成初始化
+      let attempts = 0;
+      const maxAttempts = 10;
+      while (attempts < maxAttempts && (!window.newDataManager || !window.newDataManager.isDataLoaded)) {
+        console.log(`⏳ 等待NewDataManager初始化... (${attempts + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
       // 检查NewDataManager是否已经加载了数据
-      if (window.newDataManager.isDataLoaded) {
+      if (window.newDataManager && window.newDataManager.isDataLoaded) {
         console.log("✅ 数据已通过NewDataManager自动加载，直接使用");
       } else {
-        console.log("🔄 等待NewDataManager完成数据加载...");
-        // 等待NewDataManager完成数据加载
-        await window.newDataManager.loadAllDataFromFirebase();
+        // 检查是否有本地数据可以直接使用
+        const hasLocalData = window.groups && Object.keys(window.groups).length > 0;
+        console.log("🔍 调试 - 检查本地数据状态:", {
+          hasNewDataManager: !!window.newDataManager,
+          isDataLoaded: window.newDataManager?.isDataLoaded,
+          hasWindowGroups: !!window.groups,
+          groupsKeys: window.groups ? Object.keys(window.groups).length : 0,
+          hasLocalData: hasLocalData
+        });
+        
+        if (hasLocalData) {
+          console.log("📋 检测到本地数据，直接使用，跳过Firebase拉取");
+        } else {
+          console.log("🔄 等待NewDataManager完成数据加载...");
+          // 等待NewDataManager完成数据加载
+          await window.newDataManager.loadAllDataFromFirebase();
+        }
       }
       
       // 从全局变量获取数据
@@ -615,7 +638,10 @@ function initializeEventListeners() {
     });
 
     // 统计未签到人数（排除未签到的不统计人员）
-    const excludedMembers = window.utils.loadExcludedMembers();
+    const excludedMembersData = window.utils.loadExcludedMembers();
+    // 确保excludedMembers是数组形式
+    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
+    
     const allMembers = Object.keys(groups).flatMap(group => 
       groups[group].map(member => ({ 
         group, 
@@ -756,7 +782,9 @@ function initializeEventListeners() {
       const groupSigned = dayRecords.filter(record => record.group === group);
       const signedUUIDs = groupSigned.map(record => record.memberUUID || record.name);
       // 获取不统计人员列表
-      const excludedMembers = window.utils.loadExcludedMembers();
+      const excludedMembersData = window.utils.loadExcludedMembers();
+      // 确保excludedMembers是数组形式
+      const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
       
       // 过滤掉未签到的不统计人员（已签到的不统计人员仍然统计）
       const unsignedMembers = groupMembers.filter(member => 
@@ -812,7 +840,9 @@ function initializeEventListeners() {
     });
 
     // 获取不统计人员列表
-    const excludedMembers = window.utils.loadExcludedMembers();
+    const excludedMembersData = window.utils.loadExcludedMembers();
+    // 确保excludedMembers是数组形式
+    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
@@ -871,7 +901,9 @@ function initializeEventListeners() {
     });
 
     // 获取不统计人员列表
-    const excludedMembers = window.utils.loadExcludedMembers();
+    const excludedMembersData = window.utils.loadExcludedMembers();
+    // 确保excludedMembers是数组形式
+    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};

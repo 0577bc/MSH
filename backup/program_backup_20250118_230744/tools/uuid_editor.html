@@ -14,192 +14,15 @@
     <script src="src/utils.js"></script>
     <script src="src/new-data-manager.js"></script>
     
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e9ecef;
-        }
-        .stats {
-            display: flex;
-            gap: 20px;
-            margin: 20px 0;
-        }
-        .stat-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            text-align: center;
-            min-width: 120px;
-        }
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-        .filters {
-            display: flex;
-            gap: 15px;
-            margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            align-items: center;
-        }
-        .filters select, .filters input {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .table-container {
-            overflow-x: auto;
-            margin: 20px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-            font-size: 12px;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            position: sticky;
-            top: 0;
-        }
-        .uuid-cell {
-            font-family: monospace;
-            font-size: 10px;
-            max-width: 200px;
-            word-break: break-all;
-        }
-        .missing-uuid {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .has-uuid {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .edit-button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .edit-button:hover {
-            background: #0056b3;
-        }
-        .save-button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .save-button:hover {
-            background: #1e7e34;
-        }
-        .cancel-button {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .cancel-button:hover {
-            background: #545b62;
-        }
-        .actions {
-            margin: 20px 0;
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .danger-button {
-            background: #dc3545;
-        }
-        .danger-button:hover {
-            background: #c82333;
-        }
-        .success-button {
-            background: #28a745;
-        }
-        .success-button:hover {
-            background: #1e7e34;
-        }
-        .log {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            padding: 15px;
-            border-radius: 6px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 12px;
-            margin-top: 20px;
-        }
-        .editing {
-            background-color: #e3f2fd;
-        }
-        .input-field {
-            width: 100%;
-            padding: 4px;
-            border: 1px solid #007bff;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 10px;
-        }
-    </style>
+    <!-- 外部样式文件 -->
+    <link rel="stylesheet" href="src/uuid-editor.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🔧 UUID编辑器 - 签到记录管理</h1>
             <div>
+                <button onclick="goBackToGroupManagement()" class="back-button">成员管理</button>
                 <button onclick="loadData()">🔄 刷新数据</button>
                 <button onclick="checkSystemStatus()">🔍 检查系统状态</button>
                 <button onclick="initializeSystem()">⚙️ 初始化系统</button>
@@ -207,7 +30,7 @@
             </div>
         </div>
         
-        <div class="warning" id="saveWarning" style="display: none;">
+        <div class="warning hidden" id="saveWarning">
             <h4>⚠️ 重要提醒</h4>
             <p>您有未保存的更改！请点击"保存所有更改"按钮将数据同步到Firebase，否则数据仅保存在本地。</p>
         </div>
@@ -249,9 +72,8 @@
         </div>
         
         <div class="actions">
-            <button onclick="selectAllMissing()">选择所有缺少UUID的记录</button>
             <button onclick="autoFillUUIDs()" class="success-button">自动填充UUID</button>
-            <button onclick="exportMissingUUIDs()">导出缺少UUID的记录</button>
+            <button onclick="detectDuplicateNames()" class="warning-button">🔍 同名检测</button>
             <button onclick="clearFilters()">清除筛选</button>
         </div>
         
@@ -633,17 +455,6 @@
             }
         }
         
-        // 选择所有缺少UUID的记录
-        function selectAllMissing() {
-            const checkboxes = document.querySelectorAll('#recordsBody input[type="checkbox"]');
-            checkboxes.forEach((checkbox, index) => {
-                const record = filteredRecords[index];
-                if (!record.memberUUID) {
-                    checkbox.checked = true;
-                }
-            });
-            log('已选择所有缺少UUID的记录');
-        }
         
         // 自动填充UUID
         function autoFillUUIDs() {
@@ -694,36 +505,6 @@
             }
         }
         
-        // 导出缺少UUID的记录
-        function exportMissingUUIDs() {
-            const missingRecords = allRecords.filter(record => !record.memberUUID);
-            
-            if (missingRecords.length === 0) {
-                log('没有缺少UUID的记录', 'info');
-                return;
-            }
-            
-            const csvContent = [
-                '日期,时间,组别,成员姓名,记录ID',
-                ...missingRecords.map(record => {
-                    const date = new Date(record.time).toLocaleDateString('zh-CN');
-                    const time = new Date(record.time).toLocaleTimeString('zh-CN');
-                    return `${date},${time},${record.group},${record.name},${record.recordId}`;
-                })
-            ].join('\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `missing_uuids_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            log(`已导出 ${missingRecords.length} 条缺少UUID的记录`, 'success');
-        }
         
         // 清除筛选
         function clearFilters() {
@@ -734,7 +515,7 @@
             filterRecords();
         }
         
-        // 保存所有更改
+        // 保存所有更改 - 使用直接Firebase同步机制
         async function saveAllChanges() {
             if (!hasChanges) {
                 log('没有需要保存的更改', 'info');
@@ -742,53 +523,40 @@
             }
             
             try {
-                log('开始保存所有更改...');
+                log('开始直接同步所有更改到Firebase...');
                 
-                // 保存到本地存储
+                // 1. 保存到本地存储
                 localStorage.setItem('msh_attendanceRecords', JSON.stringify(allRecords));
+                localStorage.setItem('msh_attendanceRecords_timestamp', Date.now().toString());
                 log('✅ 数据已保存到本地存储');
                 
-                // 更新全局变量
+                // 2. 更新全局变量
                 window.attendanceRecords = allRecords;
                 log('✅ 全局变量已更新');
                 
-                // 如果有NewDataManager，标记数据变更并同步
-                if (window.newDataManager) {
-                    window.newDataManager.markDataChange('attendanceRecords', 'modified', 'uuid_editor_batch_update');
-                    log('✅ 已标记数据变更给NewDataManager');
-                    
-                    // 使用NewDataManager同步到Firebase
-                    log('🔄 正在通过NewDataManager同步到Firebase...');
+                // 3. 直接Firebase同步
+                if (window.db) {
                     try {
-                        await window.newDataManager.performManualSync();
-                        log('✅ 数据已通过NewDataManager同步到Firebase', 'success');
-                    } catch (syncError) {
-                        log(`⚠️ NewDataManager同步失败: ${syncError.message}`, 'error');
-                        
-                        // 尝试直接使用Firebase
-                        if (window.db) {
-                            log('🔄 尝试直接同步到Firebase...');
-                            await window.db.ref('attendanceRecords').set(allRecords);
-                            log('✅ 数据已直接同步到Firebase', 'success');
-                        } else {
-                            log('❌ 无法同步到Firebase，数据仅保存在本地', 'error');
-                        }
+                        log('🔄 正在直接同步到Firebase...');
+                        await window.db.ref('attendanceRecords').set(allRecords);
+                        log('✅ 数据已直接同步到Firebase', 'success');
+                    } catch (firebaseError) {
+                        log(`❌ Firebase同步失败: ${firebaseError.message}`, 'error');
+                        throw firebaseError;
                     }
-                } else if (window.db) {
-                    // 如果没有NewDataManager但有Firebase，直接同步
-                    log('🔄 正在直接同步到Firebase...');
-                    await window.db.ref('attendanceRecords').set(allRecords);
-                    log('✅ 数据已直接同步到Firebase', 'success');
                 } else {
-                    log('⚠️ 未找到NewDataManager或Firebase，数据仅保存在本地', 'info');
+                    log('❌ Firebase未初始化，无法同步', 'error');
+                    throw new Error('Firebase未初始化');
                 }
                 
+                // 4. 清除变更标志
                 hasChanges = false;
                 hideSaveWarning();
-                log('🎉 所有更改已保存完成！', 'success');
+                log('🎉 所有更改已同步完成！', 'success');
                 
             } catch (error) {
                 log(`❌ 保存失败: ${error.message}`, 'error');
+                // 保存失败时，数据仍然在本地存储中，用户可以重试
             }
         }
         
@@ -797,23 +565,19 @@
             log('🔍 检查系统状态...');
             
             const status = {
-                newDataManager: !!window.newDataManager,
-                newDataManagerClass: !!(window.utils && window.utils.NewDataManager),
                 firebase: !!window.db,
                 firebaseConfig: !!window.firebaseConfig,
                 attendanceRecords: !!window.attendanceRecords,
                 groups: !!window.groups
             };
             
-            log(`NewDataManager实例: ${status.newDataManager ? '✅ 可用' : '❌ 不可用'}`);
-            log(`NewDataManager类: ${status.newDataManagerClass ? '✅ 可用' : '❌ 不可用'}`);
             log(`Firebase: ${status.firebase ? '✅ 可用' : '❌ 不可用'}`);
             log(`Firebase配置: ${status.firebaseConfig ? '✅ 可用' : '❌ 不可用'}`);
             log(`签到记录: ${status.attendanceRecords ? '✅ 可用' : '❌ 不可用'}`);
             log(`成员数据: ${status.groups ? '✅ 可用' : '❌ 不可用'}`);
             
-            if (!status.newDataManager && !status.firebase) {
-                log('⚠️ 警告: 没有可用的数据同步方式，数据将仅保存在本地', 'error');
+            if (!status.firebase) {
+                log('⚠️ 警告: Firebase未初始化，数据将仅保存在本地', 'error');
             }
             
             return status;
@@ -847,26 +611,16 @@
             }
         }
         
-        // 初始化NewDataManager
-        async function initializeNewDataManager() {
-            try {
-                // 检查NewDataManager是否已经存在实例
-                if (window.newDataManager) {
-                    log('✅ NewDataManager实例已存在');
-                    return true;
-                }
-                
-                // 尝试从window.utils获取NewDataManager类
-                if (window.utils && window.utils.NewDataManager) {
-                    window.newDataManager = new window.utils.NewDataManager();
-                    log('✅ NewDataManager初始化成功');
-                    return true;
-                } else {
-                    log('❌ NewDataManager类未找到', 'error');
-                    return false;
-                }
-            } catch (error) {
-                log(`❌ NewDataManager初始化失败: ${error.message}`, 'error');
+        // 初始化完成检查
+        function checkInitializationComplete() {
+            const firebaseOk = !!window.db;
+            const dataOk = !!window.attendanceRecords;
+            
+            if (firebaseOk && dataOk) {
+                log('✅ 系统初始化完成，所有组件可用', 'success');
+                return true;
+            } else {
+                log('⚠️ 系统初始化未完成，部分组件不可用', 'error');
                 return false;
             }
         }
@@ -879,12 +633,11 @@
             await waitForFirebase();
             
             const firebaseOk = initializeFirebase();
-            const newDataManagerOk = await initializeNewDataManager();
             
-            if (firebaseOk && newDataManagerOk) {
+            if (firebaseOk) {
                 log('🎉 系统初始化完成！', 'success');
             } else {
-                log('⚠️ 系统初始化部分失败，请检查依赖文件', 'error');
+                log('⚠️ 系统初始化失败，请检查Firebase配置', 'error');
             }
             
             // 重新检查系统状态
@@ -918,13 +671,80 @@
             
             // 初始化系统组件
             const firebaseOk = initializeFirebase();
-            const newDataManagerOk = await initializeNewDataManager();
             
             setTimeout(() => {
                 checkSystemStatus();
                 loadData();
             }, 1000);
         });
+        
+        // 返回成员管理页面
+        function goBackToGroupManagement() {
+            if (hasChanges) {
+                const confirmLeave = confirm('您有未保存的更改，确定要离开吗？');
+                if (!confirmLeave) {
+                    return;
+                }
+            }
+            window.location.href = 'group-management.html';
+        }
+        
+        // 同名检测功能
+        function detectDuplicateNames() {
+            log('🔍 开始检测同名记录...');
+            
+            // 按姓名分组
+            const nameGroups = {};
+            allRecords.forEach(record => {
+                if (!nameGroups[record.name]) {
+                    nameGroups[record.name] = [];
+                }
+                nameGroups[record.name].push(record);
+            });
+            
+            // 找出有多个UUID的同名记录
+            const duplicates = [];
+            Object.keys(nameGroups).forEach(name => {
+                const records = nameGroups[name];
+                const uuids = new Set();
+                
+                records.forEach(record => {
+                    if (record.memberUUID) {
+                        uuids.add(record.memberUUID);
+                    }
+                });
+                
+                // 如果有多个不同的UUID，则认为是重复
+                if (uuids.size > 1) {
+                    duplicates.push({
+                        name: name,
+                        records: records,
+                        uuids: Array.from(uuids)
+                    });
+                }
+            });
+            
+            if (duplicates.length === 0) {
+                log('✅ 未发现同名不同UUID的记录', 'success');
+                alert('✅ 检测完成！未发现同名不同UUID的异常数据，数据一致性良好。');
+                return;
+            }
+            
+            log(`⚠️ 发现 ${duplicates.length} 个同名不同UUID的情况:`, 'error');
+            duplicates.forEach(duplicate => {
+                log(`- ${duplicate.name}: ${duplicate.uuids.join(', ')}`, 'error');
+            });
+            
+            // 筛选显示重复记录
+            const duplicateRecords = [];
+            duplicates.forEach(duplicate => {
+                duplicateRecords.push(...duplicate.records);
+            });
+            
+            filteredRecords = duplicateRecords;
+            displayRecords();
+            log(`已筛选显示 ${duplicateRecords.length} 条重复记录`);
+        }
         
         // 页面卸载前提醒保存
         window.addEventListener('beforeunload', (e) => {

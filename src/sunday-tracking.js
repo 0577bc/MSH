@@ -13,7 +13,7 @@ let attendanceRecords = [];
 let pageSyncManager; // 页面同步管理器
 
 // DOM元素引用
-let backToSummaryButton, backToSigninButton, exportButton;
+let backToSummaryButton, backToSigninButton, eventManagementButton, exportButton;
 let sundayTrackingSection, sundayTrackingList, groupFilter;
 
 // ==================== Firebase初始化 ====================
@@ -50,6 +50,7 @@ function initializePageSyncManager() {
 function initializeDOMElements() {
   backToSummaryButton = document.getElementById('backToSummaryButton');
   backToSigninButton = document.getElementById('backToSigninButton');
+  eventManagementButton = document.getElementById('eventManagementButton');
   exportButton = document.getElementById('exportButton');
   
   sundayTrackingSection = document.getElementById('sundayTrackingSection');
@@ -66,6 +67,11 @@ function initializeEventListeners() {
 
   if (backToSigninButton) {
     backToSigninButton.addEventListener('click', () => window.location.href = 'index.html');
+  }
+
+  // 事件管理按钮事件
+  if (eventManagementButton) {
+    eventManagementButton.addEventListener('click', () => window.location.href = 'event-management.html');
   }
 
   // 导出按钮事件
@@ -281,7 +287,7 @@ function startListening() {
 // ==================== 主日跟踪功能 ====================
 
 // 加载主日跟踪数据
-function loadSundayTracking() {
+function loadSundayTracking(preserveFilters = false, skipFullReload = false) {
   if (!window.utils || !window.utils.SundayTrackingManager) {
     console.error('主日跟踪管理器未加载');
     alert('主日跟踪功能暂不可用，请刷新页面重试！');
@@ -289,6 +295,26 @@ function loadSundayTracking() {
   }
 
   try {
+    // 如果跳过完整重新加载，只更新统计信息
+    if (skipFullReload) {
+      console.log('跳过完整重新加载，只更新统计信息');
+      const trackingManager = window.utils.SundayTrackingManager;
+      const trackingList = trackingManager.generateTrackingList();
+      updateTrackingSummary(trackingList);
+      return;
+    }
+
+    // 保存当前筛选状态
+    let currentFilters = null;
+    if (preserveFilters) {
+      currentFilters = {
+        groupFilter: document.getElementById('groupFilter')?.value || '',
+        statusFilter: document.getElementById('statusFilter')?.value || '',
+        searchTerm: document.getElementById('searchInput')?.value || ''
+      };
+      console.log('保存当前筛选状态:', currentFilters);
+    }
+
     const trackingManager = window.utils.SundayTrackingManager;
     
     // 调试信息
@@ -317,14 +343,33 @@ function loadSundayTracking() {
     // 显示跟踪列表
     displayTrackingList(trackingList);
     
-    // 检查数据保留期限
-    trackingManager.checkDataRetention();
-    
-    // 初始化数据保留管理
-    if (!window.sundayTrackingInitialized) {
-      trackingManager.initializeDataRetention();
-      window.sundayTrackingInitialized = true;
+    // 恢复筛选状态
+    if (preserveFilters && currentFilters) {
+      setTimeout(() => {
+        if (currentFilters.groupFilter && document.getElementById('groupFilter')) {
+          document.getElementById('groupFilter').value = currentFilters.groupFilter;
+        }
+        if (currentFilters.statusFilter && document.getElementById('statusFilter')) {
+          document.getElementById('statusFilter').value = currentFilters.statusFilter;
+        }
+        if (currentFilters.searchTerm && document.getElementById('searchInput')) {
+          document.getElementById('searchInput').value = currentFilters.searchTerm;
+        }
+        
+        // 重新应用筛选
+        filterTrackingList();
+        console.log('已恢复筛选状态:', currentFilters);
+      }, 100);
     }
+    
+    // 检查数据保留期限 - 已禁用自动清理功能
+    // trackingManager.checkDataRetention();
+    
+    // 初始化数据保留管理 - 已禁用自动清理功能
+    // if (!window.sundayTrackingInitialized) {
+    //   trackingManager.initializeDataRetention();
+    //   window.sundayTrackingInitialized = true;
+    // }
     
   } catch (error) {
     console.error('加载主日跟踪数据失败:', error);
@@ -512,25 +557,25 @@ function generateExportContent(groupedData) {
       
       // 根据事件类型设置不同的样式
       let rowClass = '';
-      let eventTypeText = '';
       
       if (item.eventType === 'extended_absence') {
         rowClass = 'extended-absence-row';
-        eventTypeText = '4周以上缺勤';
       } else if (item.eventType === 'severe_absence') {
         rowClass = 'severe-absence-row';
-        eventTypeText = '3周以上缺勤';
       } else {
         rowClass = 'normal-absence-row';
-        eventTypeText = '2周缺勤';
       }
+      
+      // 计算缺勤周数范围显示
+      const weekRange = getAbsenceWeekRange(item.trackingStartDate, item.consecutiveAbsences);
+      const absenceDisplay = weekRange ? `(${weekRange})` : '';
       
       row.className = rowClass;
       row.innerHTML = `
         <td>${item.memberName}</td>
         <td>${groupNames[item.originalGroup || item.group] || (item.originalGroup || item.group)}</td>
-        <td>${item.consecutiveAbsences}次 <span class="event-type">(${eventTypeText})</span></td>
-        <td>${item.lastAttendanceDate ? formatDateForDisplay(item.lastAttendanceDate) : '无'}</td>
+        <td>${item.consecutiveAbsences}次 <span class="event-type">${absenceDisplay}</span></td>
+        <td>${item.lastAttendanceDate ? window.utils.formatDateForDisplay(item.lastAttendanceDate) : '无'}</td>
         <td>
           <button class="resolve-btn" onclick="resolveTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">跟踪</button>
           <button class="ignore-btn" onclick="ignoreTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">事件终止</button>
@@ -541,28 +586,52 @@ function generateExportContent(groupedData) {
     });
   }
 
-// 格式化日期显示
-function formatDateForDisplay(dateInput) {
-  if (!dateInput) return '无';
+// 计算缺勤周数范围显示
+function getAbsenceWeekRange(startDate, consecutiveAbsences) {
+  if (!startDate || !consecutiveAbsences) return '';
   
-  // 处理 Date 对象或日期字符串
-  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  
-  // 检查日期是否有效
-  if (isNaN(date.getTime())) return '无';
-  
-  return date.toLocaleDateString('zh-CN');
-}
-
-// 获取状态文本
-function getStatusText(status) {
-  switch (status) {
-    case 'tracking': return '跟踪中';
-    case 'resolved': return '已解决';
-    case 'removed': return '已移除';
-    default: return '未知';
+  try {
+    const start = new Date(startDate);
+    const startMonth = start.getMonth() + 1; // 月份从0开始，需要+1
+    const startWeek = Math.ceil(start.getDate() / 7); // 计算是第几周
+    
+    // 如果只有1周缺勤，只显示开始周
+    if (consecutiveAbsences === 1) {
+      return `${startMonth}月${startWeek}周`;
+    }
+    
+    // 计算结束周
+    const endWeek = startWeek + consecutiveAbsences - 1;
+    
+    // 如果结束周超过4，需要处理跨月情况
+    if (endWeek > 4) {
+      const endDate = new Date(start);
+      endDate.setDate(start.getDate() + (consecutiveAbsences - 1) * 7);
+      const endMonth = endDate.getMonth() + 1;
+      const actualEndWeek = Math.ceil(endDate.getDate() / 7);
+      
+      if (startMonth === endMonth) {
+        // 同一个月内
+        return `${startMonth}月${startWeek}周-${actualEndWeek}周`;
+      } else {
+        // 跨月
+        return `${startMonth}月${startWeek}周-${endMonth}月${actualEndWeek}周`;
+      }
+    } else {
+      // 同一个月内
+      return `${startMonth}月${startWeek}周-${endWeek}周`;
+    }
+  } catch (error) {
+    console.error('计算缺勤周数范围时出错:', error);
+    return '';
   }
 }
+
+// 格式化日期显示
+// formatDateForDisplay函数已移至utils.js，使用window.utils.formatDateForDisplay()
+
+// 获取状态文本
+// getStatusText函数已移至utils.js，使用window.utils.getStatusText()
 
 // 跟踪
 function resolveTracking(recordId, memberName) {
@@ -619,8 +688,8 @@ function resolveTracking(recordId, memberName) {
         alert(`已记录 ${memberName} 的跟踪情况！`);
         dialog.classList.add('hidden-dialog');
         
-        // 重新加载跟踪数据
-        loadSundayTracking();
+        // 重新加载跟踪数据，保持筛选状态，跳过完整重新加载
+        loadSundayTracking(true, true);
       } else {
         alert('记录跟踪情况失败，请重试！');
       }
@@ -695,8 +764,8 @@ function ignoreTracking(recordId, memberName) {
         alert(`已终止 ${memberName} 的跟踪事件！`);
         dialog.classList.add('hidden-dialog');
         
-        // 重新加载跟踪数据
-        loadSundayTracking();
+        // 重新加载跟踪数据，保持筛选状态，跳过完整重新加载
+        loadSundayTracking(true, true);
       } else {
         alert('终止跟踪失败，请重试！');
       }

@@ -71,12 +71,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('✅ Firebase应用创建成功');
       }
       
-      await window.newDataManager.loadAllDataFromFirebase();
+      // 等待NewDataManager完成初始化
+      let attempts = 0;
+      const maxAttempts = 10;
+      while (attempts < maxAttempts && (!window.newDataManager || !window.newDataManager.isDataLoaded)) {
+        console.log(`⏳ 等待NewDataManager初始化... (${attempts + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
       
-      // 从全局变量获取数据
-      groups = window.groups || {};
-      groupNames = window.groupNames || {};
-      attendanceRecords = window.attendanceRecords || [];
+      // 检查NewDataManager是否已经加载了数据
+      if (window.newDataManager && window.newDataManager.isDataLoaded) {
+        console.log('📋 数据已通过NewDataManager加载，直接使用');
+        groups = window.groups || {};
+        groupNames = window.groupNames || {};
+        attendanceRecords = window.attendanceRecords || [];
+      } else {
+        // 检查是否有本地数据可以直接使用
+        const hasLocalData = window.groups && Object.keys(window.groups).length > 0;
+        if (hasLocalData) {
+          console.log('📋 检测到本地数据，直接使用，跳过Firebase拉取');
+          groups = window.groups;
+          groupNames = window.groupNames || {};
+          attendanceRecords = window.attendanceRecords || [];
+        } else {
+          console.log('🔄 首次加载，从Firebase拉取数据');
+          await window.newDataManager.loadAllDataFromFirebase();
+          
+          // 从全局变量获取数据
+          groups = window.groups || {};
+          groupNames = window.groupNames || {};
+          attendanceRecords = window.attendanceRecords || [];
+        }
+      }
       
       console.log("🔍 日报表页面数据加载:", {
         groups: Object.keys(groups).length,
@@ -177,7 +204,9 @@ function initializeEventListeners() {
         const groupRecords = todayRecords.filter(record => record.group === group);
         
         // 获取不统计人员列表
-        const excludedMembers = window.utils.loadExcludedMembers();
+        const excludedMembersData = window.utils.loadExcludedMembers();
+        // 确保excludedMembers是数组形式
+        const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
         
         
         // 按时间段分类签到记录，并过滤掉不统计的人员
@@ -319,7 +348,9 @@ function initializeEventListeners() {
     const totalCount = earlyCount + onTimeCount + lateCount;
     
     // 计算应到人数（所有组员总数，排除不统计人员）
-    const excludedMembers = window.utils.loadExcludedMembers();
+    const excludedMembersData = window.utils.loadExcludedMembers();
+    // 确保excludedMembers是数组形式
+    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
     let expectedCount = 0;
     Object.keys(groups).forEach(group => {
       const groupMembers = groups[group] || [];

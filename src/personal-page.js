@@ -11,10 +11,13 @@ let groups = {};
 let groupNames = {};
 let attendanceRecords = [];
 let currentMemberUUID = null;
+let currentCalendarDate = new Date(); // 当前日历显示的日期
 
 // DOM元素引用
 let backToTrackingButton, backToSummaryButton, backToSigninButton;
 let personalInfoSection, personalInfo, trackingRecordsSection, trackingRecords;
+let attendanceCalendarSection, attendanceCalendar, currentMonthDisplay;
+let prevMonthButton, nextMonthButton;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
@@ -46,6 +49,13 @@ function initializeDOMElements() {
   personalInfo = document.getElementById('personalInfo');
   trackingRecordsSection = document.getElementById('trackingRecordsSection');
   trackingRecords = document.getElementById('trackingRecords');
+  
+  // 日历相关元素
+  attendanceCalendarSection = document.getElementById('attendanceCalendarSection');
+  attendanceCalendar = document.getElementById('attendanceCalendar');
+  currentMonthDisplay = document.getElementById('currentMonthDisplay');
+  prevMonthButton = document.getElementById('prevMonthButton');
+  nextMonthButton = document.getElementById('nextMonthButton');
 }
 
 // ==================== 事件监听器初始化 ====================
@@ -61,6 +71,21 @@ function initializeEventListeners() {
 
   if (backToSigninButton) {
     backToSigninButton.addEventListener('click', () => window.location.href = 'index.html');
+  }
+  
+  // 日历控制按钮事件
+  if (prevMonthButton) {
+    prevMonthButton.addEventListener('click', () => {
+      currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+      displayAttendanceCalendar();
+    });
+  }
+  
+  if (nextMonthButton) {
+    nextMonthButton.addEventListener('click', () => {
+      currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+      displayAttendanceCalendar();
+    });
   }
 }
 
@@ -140,8 +165,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   currentMemberUUID = urlParams.get('uuid');
   
   if (currentMemberUUID) {
-    // 显示个人信息和跟踪记录
+    // 显示个人信息、签到日历和跟踪记录
     displayPersonalInfo();
+    displayAttendanceCalendar();
     displayTrackingRecords();
   } else {
     console.error('未找到成员UUID参数');
@@ -234,7 +260,7 @@ function displayTrackingRecords() {
     recordsHTML += `
       <div class="tracking-record-item">
         <div class="record-header">
-          <span class="record-date">${formatDateForDisplay(record.date)}</span>
+          <span class="record-date">${window.utils.formatDateForDisplay(record.date)}</span>
           <span class="record-category">${record.category}</span>
         </div>
         <div class="record-content">
@@ -249,19 +275,182 @@ function displayTrackingRecords() {
   trackingRecords.innerHTML = recordsHTML;
 }
 
-// ==================== 工具函数 ====================
-function formatDateForDisplay(dateInput) {
-  if (!dateInput) return '无';
+// ==================== 显示签到日历 ====================
+function displayAttendanceCalendar() {
+  if (!attendanceCalendar || !currentMemberUUID) return;
   
-  try {
-    const date = new Date(dateInput);
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  } catch (error) {
-    return dateInput;
+  // 更新月份显示
+  if (currentMonthDisplay) {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth() + 1;
+    currentMonthDisplay.textContent = `${year}年${month}月`;
   }
+  
+  // 获取该成员的签到记录
+  const memberAttendanceRecords = getMemberAttendanceRecords(currentMemberUUID);
+  
+  // 生成日历HTML
+  const calendarHTML = generateCalendarHTML(currentCalendarDate, memberAttendanceRecords);
+  attendanceCalendar.innerHTML = calendarHTML;
 }
+
+// ==================== 获取成员签到记录 ====================
+function getMemberAttendanceRecords(memberUUID) {
+  if (!attendanceRecords || !Array.isArray(attendanceRecords)) return [];
+  
+  // 首先尝试通过 memberUUID 匹配
+  let filteredRecords = attendanceRecords.filter(record => 
+    record.memberUUID === memberUUID
+  );
+  
+  // 如果没有找到，尝试通过 name 匹配
+  if (filteredRecords.length === 0) {
+    const member = findMemberByUUID(memberUUID);
+    if (member && member.name) {
+      filteredRecords = attendanceRecords.filter(record => 
+        record.name === member.name
+      );
+    }
+  }
+  
+  return filteredRecords;
+}
+
+// ==================== 查找成员信息 ====================
+function findMemberByUUID(memberUUID) {
+  for (const group in groups) {
+    const members = groups[group];
+    const member = members.find(m => m.uuid === memberUUID);
+    if (member) return member;
+  }
+  return null;
+}
+
+// ==================== 生成日历HTML ====================
+function generateCalendarHTML(date, attendanceRecords) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const today = new Date();
+  
+  // 获取当月第一天和最后一天
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  
+  // 获取第一天是星期几（0=周日，1=周一...）
+  const firstDayOfWeek = firstDay.getDay();
+  
+  // 获取当月天数
+  const daysInMonth = lastDay.getDate();
+  
+  // 获取上个月的最后几天
+  const prevMonth = new Date(year, month, 0);
+  const daysInPrevMonth = prevMonth.getDate();
+  
+  let calendarHTML = `
+    <div class="calendar-header">
+      <div class="calendar-header-cell">日</div>
+      <div class="calendar-header-cell">一</div>
+      <div class="calendar-header-cell">二</div>
+      <div class="calendar-header-cell">三</div>
+      <div class="calendar-header-cell">四</div>
+      <div class="calendar-header-cell">五</div>
+      <div class="calendar-header-cell">六</div>
+    </div>
+    <div class="calendar-body">
+  `;
+  
+  // 添加上个月的日期
+  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const dayDate = new Date(year, month - 1, day);
+    calendarHTML += generateDayHTML(day, dayDate, true, attendanceRecords);
+  }
+  
+  // 添加当月的日期
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayDate = new Date(year, month, day);
+    calendarHTML += generateDayHTML(day, dayDate, false, attendanceRecords);
+  }
+  
+  // 添加下个月的日期（填满6行）
+  const totalCells = firstDayOfWeek + daysInMonth;
+  const remainingCells = 42 - totalCells; // 6行 × 7列 = 42个单元格
+  
+  for (let day = 1; day <= remainingCells; day++) {
+    const dayDate = new Date(year, month + 1, day);
+    calendarHTML += generateDayHTML(day, dayDate, true, attendanceRecords);
+  }
+  
+  calendarHTML += `
+    </div>
+  `;
+  
+  return calendarHTML;
+}
+
+// ==================== 生成单日HTML ====================
+function generateDayHTML(day, dayDate, isOtherMonth, attendanceRecords) {
+  const today = new Date();
+  const isToday = isSameDate(dayDate, today);
+  const isSunday = dayDate.getDay() === 0;
+  
+  // 检查是否有签到记录
+  const hasAttendance = checkAttendanceForDate(dayDate, attendanceRecords);
+  
+  let dayClasses = ['calendar-day'];
+  let dayInfo = '';
+  
+  if (isOtherMonth) {
+    dayClasses.push('other-month');
+  }
+  
+  if (isToday) {
+    dayClasses.push('today');
+  }
+  
+  if (isSunday) {
+    dayClasses.push('sunday');
+  }
+  
+  if (hasAttendance) {
+    dayClasses.push('present');
+    dayInfo = '<div class="day-info present">已签到</div>';
+  } else if (isSunday) {
+    dayClasses.push('absent');
+    dayInfo = '<div class="day-info absent">未签到</div>';
+  }
+  
+  return `
+    <div class="${dayClasses.join(' ')}" data-date="${dayDate.toISOString().split('T')[0]}">
+      <div class="day-number">${day}</div>
+      ${dayInfo}
+    </div>
+  `;
+}
+
+// ==================== 检查指定日期的签到情况 ====================
+function checkAttendanceForDate(date, attendanceRecords) {
+  if (!attendanceRecords || !Array.isArray(attendanceRecords)) return false;
+  
+  return attendanceRecords.some(record => {
+    if (!record.time) return false;
+    
+    try {
+      const recordDate = new Date(record.time);
+      return isSameDate(recordDate, date);
+    } catch (error) {
+      return false;
+    }
+  });
+}
+
+// ==================== 判断是否为同一天 ====================
+function isSameDate(date1, date2) {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+}
+
+// ==================== 工具函数 ====================
+// formatDateForDisplay函数已移至utils.js，使用window.utils.formatDateForDisplay()
 

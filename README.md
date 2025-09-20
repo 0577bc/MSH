@@ -15,203 +15,93 @@ npx http-server -p 8000
 
 访问 `http://localhost:8000` 开始使用。
 
-## ✨ 最新更新 (2025-01-18)
+## 📁 系统结构
 
-### 🎯 成员管理页面小组选择控件修复
-- **小组选择控件**: 修复小组选择控件显示数字索引而不是实际小组名称的问题
-- **数据格式转换**: 修复数组格式数据到对象格式的转换逻辑
-- **sortGroups函数调用**: 修复utils.sortGroups函数调用参数错误的问题
-- **小组名称映射**: 正确显示小组名称映射关系（如"乐清1组"显示为"静静组"）
-- **选项排序**: 小组选项按正确顺序排列，"未分组"排在最后
+### 核心页面
+- **index.html** - 主签到页面
+- **admin.html** - 管理页面
+- **group-management.html** - 成员管理页面
+- **summary.html** - 签到汇总页面
+- **sunday-tracking.html** - 主日跟踪页面
+- **daily-report.html** - 日报页面
+- **attendance-records.html** - 签到记录页面
+- **delete-management.html** - 数据删除管理页面
+- **firebase-monitor.html** - Firebase监控页面
+- **personal-page.html** - 个人页面
 
-## ✨ 历史更新 (2025-01-16)
+### 工具页面
+- **tools/uuid_editor.html** - UUID编辑器
+- **tools/batch_signin_fix.html** - 批量签到修复工具
+- **tools/export_missing_uuids.html** - 导出工具
+- **debug-tool.html** - 综合调试工具
 
-### 🎯 成员管理页面恢复
-- **页面恢复**: 重新创建完整的成员管理页面和功能
-- **界面优化**: 页面标题改为"成员管理"，按钮布局优化
-- **功能完整**: 恢复所有成员管理功能，包括添加、编辑、删除、搜索
-- **花名管理**: 恢复成员花名编辑功能
-- **未签到不统计**: 恢复排除成员管理功能
-- **UUID编辑器**: 恢复UUID管理页面，支持UUID查看、编辑和管理
+### 源代码
+- **src/** - 所有JavaScript和CSS源文件
+- **config.js** - 系统配置文件
+- **manifest.json** - PWA配置
 
-### 🎯 主日跟踪逻辑修复
-- **事件终止机制**: 修复缺勤事件不会因签到自动结束，需要手动终止
-- **组别名称显示**: 修复表格中显示正确的组别名称（如"静静组"）
-- **多事件系统**: 完善多缺勤事件识别和管理系统
-- **按钮名称更新**: "忽略"按钮改为"事件终止"
+### 文档
+- **docs/** - 所有系统文档
+  - **docs/README.md** - 详细文档
+  - **docs/requirements/** - 需求文档
+  - **docs/reports/** - 报告文档
+  - **docs/commands/** - 命令文档
+  - **docs/guides/** - 指南文档
 
-### 🎯 主日跟踪功能优化
-- **筛选逻辑修复**: 修复连续缺勤计算逻辑，确保准确识别连续2次以上缺勤
-- **事件类型分类**: 根据缺勤周数分类显示（2周、3周、4周以上缺勤）
-- **小组筛选功能**: 可以筛选显示特定小组的跟踪事件
-- **智能导出**: 按小组分组导出跟踪记录，包含序号和详细信息
-- **界面优化**: 去掉不必要的控件，添加实时统计功能
+### 备份
+- **backup/** - 系统备份文件
 
-### 🎯 用户体验优化
-- **保存流程优化**: 编辑完成后立即关闭页面，数据同步在后台执行
-- **同步机制改进**: 修复重复同步问题，减少同步弹窗次数
-- **人员检索功能**: 在成员管理页面添加智能搜索功能
-- **界面控件优化**: 统一控件样式，调整大小和布局
-- **导航逻辑完善**: 修正页面间导航链接
+## ✨ 最新功能
 
-### 🔧 技术改进
-- **连续缺勤算法**: 修复从最新主日向前计算连续缺勤的逻辑
-- **事件分类系统**: 实现2周、3周、4周以上缺勤的分类显示
-- **防重复提交**: 应用防重复提交机制到所有保存操作
-- **表单保护**: 增强表单提交防护，防止页面意外刷新
-- **后台同步**: 优化数据同步流程，提升用户体验
+### Firebase数据拉取优化
+- 页面切换速度提升约80%
+- 网络请求减少约90%
+- 统一数据状态管理
 
-## 📁 项目结构
+### 成员管理
+- 完整的成员管理功能
+- 花名管理
+- 未签到不统计功能
+- UUID管理
 
-```
-MSH/
-├── index.html                    # 主页面
-├── admin.html                    # 管理页面
-├── group-management.html         # 成员管理页面
-├── summary.html                  # 签到汇总页面
-├── sunday-tracking.html          # 主日跟踪页面
-├── daily-report.html             # 日报页面
-├── attendance-records.html       # 签到记录页面
-├── delete-management.html        # 数据删除管理页面
-├── config.js                     # 系统配置
-├── manifest.json                 # PWA配置
-├── favicon.ico                   # 网站图标
-├── src/                          # 源代码目录
-│   ├── main.js                   # 主逻辑
-│   ├── admin.js                  # 管理逻辑
-│   ├── group-management.js       # 成员管理逻辑
-│   ├── summary.js                # 汇总逻辑
-│   ├── sunday-tracking.js        # 主日跟踪逻辑
-│   ├── daily-report.js           # 日报逻辑
-│   ├── attendance-records.js     # 签到记录逻辑
-│   ├── utils.js                  # 工具函数
-│   ├── new-data-manager.js       # 新数据管理器
-│   ├── data-manager.js           # 数据管理
-│   ├── session-storage-manager.js # SessionStorage管理
-│   ├── independent-backup-manager.js # 独立备份管理
-│   ├── style.css                 # 主样式
-│   ├── virtual-scroll.css        # 虚拟滚动样式
-│   ├── virtual-scroll.js         # 虚拟滚动功能
-│   ├── security.js               # 安全模块
-│   ├── performance-monitor.js    # 性能监控
-│   ├── csrf-protection.js        # CSRF保护
-│   ├── cache-manager.js          # 缓存管理
-│   ├── config-manager.js         # 配置管理
-│   └── service-worker.js         # 服务工作者
+### 主日跟踪
+- 连续缺勤事件管理
+- 多事件支持
+- 事件终止机制
+- 事件管理页面
+
+### 代码优化
+- 重复函数合并，减少约200行重复代码
+- 统一工具函数接口，提高代码复用性
+- 清理未使用代码，提升系统性能
+- 优化调试工具，简化开发流程
+
+## 📖 详细文档
+
+更多详细信息请查看：
+- [系统需求文档](docs/requirements/SYSTEM_REQUIREMENTS.md)
+- [更新日志](docs/reports/CHANGELOG.md)
+- [API文档](docs/requirements/API_DOCUMENTATION.md)
+- [故障排除](docs/troubleshooting/TROUBLESHOOTING.md)
+- [代码清理报告](CLEANUP_REPORT.md)
+
+## 🔧 维护
+
+### 文件清理
+```bash
+# 运行清理检查
+./protect_documents.sh
 ```
 
-## 🔧 核心功能
+### 备份策略
+系统自动备份重要数据到 `backup/` 目录。
 
-### 数据存储架构
-- **SessionStorage**: 会话级本地存储，浏览器关闭后自动清除
-- **Firebase**: 云端实时数据库，永久保存和同步
-- **独立备份**: 24小时自动备份，保留10天，与操作数据完全隔离
+## 📞 支持
 
-### 主要功能
-- ✅ 多小组签到管理
-- ✅ 实时数据同步
-- ✅ 自动备份系统
-- ✅ 签到汇总统计
-- ✅ 日报生成
-- ✅ 管理员权限控制
-- ✅ 数据导入导出
-- ✅ 离线支持
-
-## 🛠️ 管理工具
-
-### 存储备份管理
-
-## ⚙️ 配置
-
-### Firebase配置
-在 `config.js` 中配置Firebase连接信息：
-```javascript
-window.firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  databaseURL: "https://your-project.firebaseio.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id"
-};
-```
-
-### 系统配置
-在 `config.js` 中配置系统参数：
-- 小组名称和成员
-- 管理员设置
-- 系统选项
-
-## 🔒 安全特性
-
-- **CSRF保护**: 防止跨站请求伪造
-- **输入验证**: 所有用户输入都经过验证
-- **权限控制**: 基于Firebase安全规则
-- **数据加密**: 敏感数据加密存储
-- **备份隔离**: 备份系统与操作数据完全独立
-
-## 📊 性能优化
-
-- **智能缓存**: 5分钟缓存减少网络请求
-- **虚拟滚动**: 大数据量高效渲染
-- **异步处理**: 非阻塞数据操作
-- **压缩存储**: 自动数据压缩
-- **性能监控**: 实时性能统计
-
-## 🚀 部署
-
-### GitHub Pages
-1. 将代码推送到GitHub仓库
-2. 在仓库设置中启用GitHub Pages
-3. 选择部署分支
-4. 访问生成的URL
-
-### 其他静态托管
-- Netlify
-- Vercel
-- Firebase Hosting
-- 任何支持静态文件的服务器
-
-## 📝 使用说明
-
-### 管理员登录
-- 访问 `admin.html`
-- 输入管理员密码
-- 进行系统管理操作
-
-### 签到操作
-- 访问主页面
-- 选择小组
-- 点击成员进行签到
-
-### 查看汇总
-- 访问 `summary.html`
-- 选择日期查看签到统计
-- 导出数据或生成报告
-
-## 🔧 故障排除
-
-### 常见问题
-1. **Firebase连接失败**: 检查网络连接和配置
-2. **数据同步问题**: 使用管理工具检查状态
-3. **备份恢复失败**: 验证备份文件完整性
-4. **性能问题**: 检查缓存和网络状态
-
-### 技术支持
-- 使用内置的诊断工具
-- 查看浏览器控制台错误
-- 检查网络连接状态
-- 验证Firebase配置
-
-## 📄 许可证
-
-本项目采用MIT许可证。
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request来改进项目。
+如有问题，请查看：
+- [故障排除指南](docs/troubleshooting/TROUBLESHOOTING.md)
+- [保护文件清单](docs/PROTECTED_FILES.md)
 
 ---
 
-**注意**: 请确保在生产环境中正确配置Firebase安全规则和API密钥。
+**MSH签到系统** - 高效、可靠的签到管理解决方案
