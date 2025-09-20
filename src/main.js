@@ -5,6 +5,25 @@
  * 版本：2.0
  */
 
+// ==================== 浏览器扩展错误处理 ====================
+// 处理浏览器扩展连接错误，避免控制台错误日志
+window.addEventListener('error', function(event) {
+  if (event.message && event.message.includes('Could not establish connection')) {
+    // 忽略浏览器扩展连接错误
+    event.preventDefault();
+    return false;
+  }
+});
+
+// 处理未捕获的Promise错误
+window.addEventListener('unhandledrejection', function(event) {
+  if (event.reason && event.reason.message && event.reason.message.includes('Could not establish connection')) {
+    // 忽略浏览器扩展连接错误
+    event.preventDefault();
+    return false;
+  }
+});
+
 // ==================== 全局变量和初始化 ====================
 let app, db;
 // 使用NewDataManager设置的全局变量，如果没有则使用默认值
