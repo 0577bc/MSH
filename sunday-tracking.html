@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH主日跟踪</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./src/style.css">
+  <style>
+    /* 已终止事件的样式 */
+    .terminated-event {
+      background-color: #f5f5f5 !important;
+      color: #999 !important;
+      opacity: 0.7;
+    }
+    
+    .terminated-event td {
+      color: #999 !important;
+    }
+    
+    .terminated-event .restart-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    
+    .terminated-event .restart-btn:hover {
+      background-color: #218838;
+    }
+    
+    .terminated-event .personal-btn {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    .terminated-event .personal-btn:hover {
+      background-color: #5a6268;
+    }
+  </style>
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入 Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+  <main>
+    <h1>MSH主日跟踪</h1>
+    
+    <!-- 导航按钮 -->
+    <section class="button-row">
+      <button id="backToSummaryButton" type="button" aria-label="返回汇总页面">返回汇总页面</button>
+      <button id="backToSigninButton" type="button" aria-label="返回签到页面">返回签到页面</button>
+      <button id="refreshButton" type="button" aria-label="刷新数据" title="清除缓存并重新计算数据">🔄 刷新数据</button>
+      <button id="exportButton" type="button" aria-label="导出跟踪记录">导出跟踪记录</button>
+    </section>
+    
+    <!-- 主日跟踪页面 -->
+    <section id="sundayTrackingSection" class="report-section">
+      <h2>主日跟踪</h2>
+      <div class="tracking-summary">
+        <div class="summary-item">
+          <span class="label">跟踪事件统计：</span>
+          <span id="trackingCount">0</span>
+        </div>
+        <div class="summary-item">
+          <label for="groupFilter">筛选小组：</label>
+          <select id="groupFilter" class="group-filter-select">
+            <option value="">--全部小组--</option>
+          </select>
+        </div>
+      </div>
+      <table id="sundayTrackingTable" class="attendance-table">
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>组别</th>
+            <th>连续缺勤次数</th>
+            <th>最后签到日期</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="sundayTrackingList">
+        </tbody>
+      </table>
+    </section>
+  </main>
+  
+  <!-- 跟踪对话框 -->
+  <div id="resolveTrackingDialog" class="edit-dialog hidden-dialog">
+    <div class="dialog-content">
+      <h3>跟踪</h3>
+      <div class="form-group">
+        <label for="trackingDate">日期：</label>
+        <input type="date" id="trackingDate" required>
+      </div>
+      <div class="form-group">
+        <label for="trackingContent">内容：</label>
+        <textarea id="trackingContent" placeholder="请说明跟踪情况..." required></textarea>
+      </div>
+      <div class="form-group">
+        <label for="trackingCategory">类别：</label>
+        <select id="trackingCategory" required>
+          <option value="">--请选择类别--</option>
+          <option value="电话联系">电话联系</option>
+          <option value="微信联系">微信联系</option>
+          <option value="上门拜访">上门拜访</option>
+          <option value="小组聚会">小组聚会</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="trackingPerson">回馈人员：</label>
+        <input type="text" id="trackingPerson" placeholder="请输入回馈人员姓名" required>
+      </div>
+      <div class="dialog-buttons">
+        <button id="confirmResolve" class="save-btn">确认跟踪</button>
+        <button id="cancelResolve" class="cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 忽略对话框 -->
+  <div id="ignoreTrackingDialog" class="edit-dialog hidden-dialog">
+    <div class="dialog-content">
+      <h3>终止跟踪事件</h3>
+      <div class="form-group">
+        <label for="ignoreReason">终止原因：</label>
+        <textarea id="ignoreReason" placeholder="请说明终止原因..." required></textarea>
+      </div>
+      <div class="form-group">
+        <label for="ignoreDate">终止日期：</label>
+        <input type="date" id="ignoreDate" required>
+      </div>
+      <div class="dialog-buttons">
+        <button id="confirmIgnore" class="save-btn">确认终止</button>
+        <button id="cancelIgnore" class="cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="./src/utils.js"></script>
+  <script src="./src/navigation-utils.js"></script>
+  <script src="./src/sunday-tracking.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员页面</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./src/style.css">
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入 Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+</head>
+<body>
+  <!-- 管理员登录界面（已禁用） -->
+  <div id="passwordDialog" class="password-dialog hidden-form">
+    <div class="dialog-content">
+      <h2>管理员登录</h2>
+      <p>请输入管理员密码：</p>
+      <div class="form-group">
+        <label for="adminPasswordInput">密码：</label>
+        <input type="password" id="adminPasswordInput" placeholder="请输入管理员密码" autocomplete="current-password" required>
+      </div>
+      <div class="dialog-buttons">
+        <button id="loginBtn" type="button">登录</button>
+        <button id="cancelLoginBtn" type="button">取消</button>
+      </div>
+      <div id="loginError" class="error-message hidden-form"></div>
+    </div>
+  </div>
+
+  <main id="adminContent">
+    <h1>管理员页面</h1>
+    
+    <section class="admin-section">
+      <h2>系统管理</h2>
+      <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
+      <button id="summaryButton" type="button" aria-label="查看签到汇总">查看签到汇总</button>
+      <button id="groupManagementButton" type="button" aria-label="成员管理" class="primary-button">成员管理</button>
+      <button id="deleteManagementButton" type="button" aria-label="数据删除管理" class="delete-management-btn">🗑️ 数据删除管理</button>
+      <div id="syncButtonContainer"></div>
+      
+      
+
+      
+    </section>
+  </main>
+  <script src="./src/utils.js"></script>
+  <script src="./src/navigation-utils.js"></script>
+  <script src="./src/new-data-manager.js"></script>
+  <script src="./src/admin.js"></script>
+</body>
+</html>

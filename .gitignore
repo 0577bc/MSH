@@ -1,0 +1,79 @@
+# MSH签到系统 - 文件保护规则
+# 此文件定义了哪些文件应该被保护，不被自动清理
+
+# ==================== 保护的重要文档 ====================
+# 系统需求文档 - 必须保护
+!SYSTEM_REQUIREMENTS.md
+!OPTIMIZATION_REPORT.md
+!CHANGELOG.md
+!API_DOCUMENTATION.md
+
+# 备份文件 - 必须保护
+!backup/
+!backup/**/*
+
+# 配置文件备份 - 必须保护
+!config.backup.js
+!config.example.js
+
+# 部署和运维文档 - 必须保护
+!DEPLOYMENT.md
+!MAINTENANCE.md
+!TROUBLESHOOTING.md
+
+# ==================== 临时文件（可清理）====================
+# 测试文件
+test-*.html
+debug-*.html
+temp-*.html
+
+# 临时备份
+temp_backup/
+*.tmp
+*.temp
+
+# 日志文件
+*.log
+logs/
+
+# 缓存文件
+.cache/
+cache/
+
+# ==================== 开发文件（可清理）====================
+# 开发工具生成的文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE文件
+.vscode/
+.idea/
+*.sublime-*
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# 受保护的重要文档
+!SYSTEM_REQUIREMENTS.md
+!OPTIMIZATION_REPORT.md
+!CHANGELOG.md
+!API_DOCUMENTATION.md
+!DEPLOYMENT.md
+!MAINTENANCE.md
+!TROUBLESHOOTING.md
+!PROTECTED_FILES.md
+!DOCUMENTATION_GUIDE.md
+!CLEANUP_CHECKLIST.md
+!CLEANUP_COMMANDS.md
+!CODE_OPTIMIZATION_GUIDE.md
+!FILE_ORGANIZATION_GUIDE.md
+!AUTO_DOCUMENT_UPDATE.md
+!SAFE_OPERATION_COMMANDS.md
+!protect_documents.sh
+!backup/
+!backup/**/*

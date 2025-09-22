@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSH签到系统</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="./src/style.css">
+  <link rel="manifest" href="manifest.json">
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入安全模块 -->
+  <script src="./src/security.js"></script>
+  <!-- 引入 Firebase SDK v8 (兼容模式) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+</head>
+<body>
+  <main>
+    <h1>MSH签到系统</h1>
+    <section class="selection-row">
+      <form id="selectionForm">
+        <label for="groupSelect">小组：</label>
+        <select id="groupSelect" aria-label="选择小组" required>
+          <option value="">--请选择小组--</option>
+        </select>
+        <label for="memberSelect">姓名：</label>
+        <select id="memberSelect" aria-label="选择成员" required>
+          <option value="">--请选择成员--</option>
+        </select>
+      </form>
+    </section>
+    <section class="search-row">
+      <form id="searchForm">
+        <label for="memberSearch">姓名检索：</label>
+        <input type="text" id="memberSearch" placeholder="输入姓名检索" aria-label="搜索成员姓名">
+        <div id="suggestions" class="suggestions-box"></div>
+      </form>
+    </section>
+    <section class="button-row">
+      <button id="signinButton" type="button" class="main-button signin-button" aria-label="签到">签到</button>
+      <button id="addNewcomerButton" type="button" class="main-button new-member-button" aria-label="新朋友">新朋友</button>
+      <button id="dailyReportButton" type="button" class="main-button" aria-label="查看日报表">日报表</button>
+      <button id="adminButton" type="button" class="main-button" aria-label="进入管理页面">管理</button>
+    </section>
+    <section id="addMemberForm" class="form-group hidden-form">
+      <h3>新朋友登记</h3>
+      <form id="newMemberForm">
+        <div class="form-row">
+          <label for="newGroupSelect">选择小组：</label>
+          <select id="newGroupSelect" name="newGroupSelect" aria-label="选择新人小组" required>
+            <option value="">--请选择小组--</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="newMemberName">新朋友姓名：</label>
+          <input type="text" id="newMemberName" name="newMemberName" placeholder="请输入新朋友姓名" aria-label="新朋友姓名" required>
+        </div>
+        <div class="form-row">
+          <label for="newMemberPhone">联系号码：</label>
+          <input type="text" id="newMemberPhone" name="newMemberPhone" placeholder="请输入联系号码" aria-label="新朋友联系号码" autocomplete="off" required>
+        </div>
+        <div class="form-row">
+          <label for="newMemberGender">性别：</label>
+          <select id="newMemberGender" name="newMemberGender" aria-label="新朋友性别" required>
+            <option value="">--请选择性别--</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="newMemberBaptized">是否受洗：</label>
+          <select id="newMemberBaptized" name="newMemberBaptized" aria-label="是否受洗" required>
+            <option value="">--请选择--</option>
+            <option value="是">是</option>
+            <option value="否">否</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="newMemberAge">年龄段：</label>
+          <select id="newMemberAge" name="newMemberAge" aria-label="年龄段" required>
+            <option value="">--请选择年龄段--</option>
+            <option value="10后">10后</option>
+            <option value="05后">05后</option>
+            <option value="00后">00后</option>
+            <option value="95后">95后</option>
+            <option value="90后">90后</option>
+            <option value="85后">85后</option>
+            <option value="80后">80后</option>
+            <option value="70后">70后</option>
+            <option value="60后">60后</option>
+            <option value="50后">50后</option>
+          </select>
+        </div>
+        <div class="form-buttons">
+          <button id="saveNewMemberButton" type="submit" class="primary-button" aria-label="保存新朋友信息">保存</button>
+          <button id="cancelNewMemberButton" type="button" class="primary-button" aria-label="取消新朋友登记">取消</button>
+        </div>
+      </form>
+    </section>
+    <h2>签到名单</h2>
+    <section class="tables-container">
+      <table id="earlyTable" class="attendance-table" aria-label="早到签到名单">
+        <caption>早到</caption>
+        <thead>
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+            <th>时间</th>
+          </tr>
+        </thead>
+        <tbody id="earlyList">
+          <!-- 由 main.js 动态填充，建议添加"加载中..."提示 -->
+        </tbody>
+      </table>
+      <table id="onTimeTable" class="attendance-table" aria-label="准时签到名单">
+        <caption>准时</caption>
+        <thead>
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+            <th>时间</th>
+          </tr>
+        </thead>
+        <tbody id="onTimeList">
+          <!-- 由 main.js 动态填充，建议添加"加载中..."提示 -->
+        </tbody>
+      </table>
+      <table id="lateTable" class="attendance-table" aria-label="迟到签到名单">
+        <caption>迟到</caption>
+        <thead>
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+            <th>时间</th>
+          </tr>
+        </thead>
+        <tbody id="lateList">
+          <!-- 由 main.js 动态填充，建议添加"加载中..."提示 -->
+        </tbody>
+      </table>
+    </section>
+    
+    <!-- 当日新增人员表格 -->
+    <section class="newcomer-section">
+      <h3>当日新增人员</h3>
+      <table id="newcomerTable" class="newcomer-table">
+        <thead>
+          <tr>
+            <th>组别</th>
+            <th>姓名</th>
+          </tr>
+        </thead>
+        <tbody id="newcomerList">
+          <!-- 由 main.js 动态填充 -->
+        </tbody>
+      </table>
+    </section>
+    
+    <!-- 签到人数统计 -->
+    <section class="signin-count-section">
+      <p class="signin-count">签到人数：<span id="signinCount">0</span>人</p>
+    </section>
+  </main>
+  <script src="./src/utils.js"></script>
+  <script src="./src/navigation-utils.js"></script>
+  <script src="./src/new-data-manager.js"></script>
+  <script src="./src/main.js"></script>
+</body>
+</html>

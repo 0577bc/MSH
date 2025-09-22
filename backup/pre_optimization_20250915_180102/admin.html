@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员页面</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <!-- 引入配置文件 -->
+  <script src="./config.js"></script>
+  <!-- 引入配置管理器 -->
+  <script src="./src/config-manager.js"></script>
+  <!-- 引入CSRF保护 -->
+  <script src="./src/csrf-protection.js"></script>
+  <!-- 引入缓存管理器 -->
+  <script src="./src/cache-manager.js"></script>
+  <!-- 引入性能监控 -->
+  <script src="./src/performance-monitor.js"></script>
+  <!-- 引入 Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+</head>
+<body>
+  <!-- 管理员登录界面（已禁用） -->
+  <div id="passwordDialog" class="password-dialog hidden-form">
+    <div class="dialog-content">
+      <h2>管理员登录</h2>
+      <p>请输入管理员密码：</p>
+      <div class="form-group">
+        <label for="adminPasswordInput">密码：</label>
+        <input type="password" id="adminPasswordInput" placeholder="请输入管理员密码" autocomplete="current-password" required>
+      </div>
+      <div class="dialog-buttons">
+        <button id="loginBtn" type="button">登录</button>
+        <button id="cancelLoginBtn" type="button">取消</button>
+      </div>
+      <div id="loginError" class="error-message hidden-form"></div>
+    </div>
+  </div>
+
+  <main id="adminContent">
+    <h1>管理员页面</h1>
+    <section class="admin-section">
+      <h2>小组成员管理</h2>
+      <form id="memberForm">
+        <div class="group-selection-row">
+          <label for="groupSelect">选择小组：</label>
+          <select id="groupSelect" aria-label="选择小组" required>
+            <option value="">--请选择小组--</option>
+          </select>
+          <button id="editGroupNameButton" type="button" aria-label="修改名称">修改名称</button>
+          <button id="deleteGroupButton" type="button" aria-label="删除小组">删除小组</button>
+        </div>
+        <table id="memberTable" aria-label="小组成员列表">
+          <caption>小组成员列表</caption>
+          <thead>
+            <tr>
+              <th>序号</th>
+              <th>姓名</th>
+              <th>花名</th>
+              <th>性别</th>
+              <th>联系方式</th>
+              <th>是否受洗</th>
+              <th>年龄段</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="memberList">
+            <!-- 动态内容由 admin.js 填充，建议添加“加载中...”提示 -->
+          </tbody>
+        </table>
+        <button id="addMemberButton" type="button" aria-label="添加成员">添加</button>
+        <button id="regenerateIdsButton" type="button" class="success-button" aria-label="重新生成序号">重新生成序号</button>
+      </form>
+    </section>
+    <section class="admin-section">
+      <h2>小组管理</h2>
+      <button id="addGroupButton" type="button" aria-label="添加小组">添加小组</button>
+      
+      <!-- 添加小组表单 -->
+      <div id="addGroupForm" class="form-group hidden-form">
+        <h3>添加小组</h3>
+        <form>
+          <div class="form-group">
+            <label for="newGroupName">小组名称：</label>
+            <input type="text" id="newGroupName" placeholder="请输入小组名称" required>
+          </div>
+          <div class="dialog-buttons">
+            <button id="saveGroupButton" type="button">保存</button>
+            <button id="cancelGroupButton" type="button">取消</button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- 修改小组名称表单 -->
+      <div id="editGroupForm" class="form-group hidden-form">
+        <h3>修改小组名称</h3>
+        <form>
+          <label for="editGroupName">新小组名称：</label>
+          <input type="text" id="editGroupName" placeholder="请输入新的小组名称" required>
+          <button id="saveEditGroupButton" type="button">保存</button>
+          <button id="cancelEditGroupButton" type="button">取消</button>
+        </form>
+      </div>
+    </section>
+    
+    <section class="admin-section">
+      <h2>系统管理</h2>
+      <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
+      <button id="summaryButton" type="button" aria-label="查看签到汇总">查看签到汇总</button>
+      <button id="attendanceRecordsButton" type="button" aria-label="查看签到原始记录">查看签到原始记录</button>
+      <button id="exportButton" type="button" aria-label="导出数据">导出数据</button>
+      <button id="importButton" type="button" aria-label="导入数据">导入数据</button>
+      <button id="viewLogsButton" type="button" aria-label="查看日志">查看日志</button>
+      <button id="excludeStatsButton" type="button" aria-label="未签到不统计">未签到不统计</button>
+      <button id="manageAdminsButton" type="button" aria-label="管理员管理">管理员管理</button>
+      <button id="deleteManagementButton" type="button" aria-label="数据删除管理" class="delete-management-btn">🗑️ 数据删除管理</button>
+      <input type="file" id="importFile" accept=".json" class="hidden-form" aria-label="选择要导入的JSON文件">
+      
+      
+      <!-- 管理员管理界面 -->
+      <div id="adminManagementView" class="form-group hidden-form">
+        <h3>管理员管理</h3>
+        <div class="admin-controls">
+          <div class="search-section">
+            <label for="adminEmailInput">添加管理员邮箱：</label>
+            <input type="email" id="adminEmailInput" placeholder="输入管理员邮箱" aria-label="管理员邮箱">
+            <button id="addAdminButton" type="button" class="primary-button">添加管理员</button>
+          </div>
+          <div class="admin-list-section">
+            <h4>当前管理员列表：</h4>
+            <div id="adminList" class="admin-list">
+              <!-- 管理员列表将在这里显示 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 未签到不统计管理界面 -->
+      <div id="excludeStatsView" class="form-group hidden-form">
+        <h3>未签到不统计人员管理</h3>
+        <div class="exclude-controls">
+          <div class="search-section">
+            <form id="excludeSearchForm">
+              <label for="excludeSearchInput">姓名检索：</label>
+              <input type="text" id="excludeSearchInput" placeholder="输入姓名检索" aria-label="搜索成员姓名" autocomplete="off">
+              <div id="excludeSuggestions" class="suggestions-box"></div>
+            </form>
+          </div>
+          <div class="exclude-actions">
+            <button id="addToExcludeButton" type="button" class="success-button">添加到不统计列表</button>
+            <button id="removeFromExcludeButton" type="button" class="danger-button">从列表中移除</button>
+          </div>
+        </div>
+        <div class="exclude-list-section">
+          <h4>当前不统计人员列表：</h4>
+          <div id="excludeList" class="exclude-list">
+            <!-- 动态生成的不统计人员列表 -->
+          </div>
+        </div>
+        <div class="exclude-buttons">
+          <button id="closeExcludeButton" type="button">关闭</button>
+        </div>
+      </div>
+      
+      <!-- 日志查看界面 -->
+      <div id="logsView" class="form-group hidden-form">
+        <h3>系统日志</h3>
+        <div class="logs-controls">
+          <button id="refreshLogsButton" type="button">刷新日志</button>
+          <button id="clearLogsButton" type="button" class="danger-button">清空日志</button>
+          <button id="exportLogsButton" type="button" class="success-button">导出日志</button>
+          <button id="closeLogsButton" type="button">关闭</button>
+        </div>
+        <div class="logs-container">
+          <div id="logsList" class="logs-list">
+            <!-- 日志内容将在这里显示 -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="./src/utils.js"></script>
+  <script src="./src/new-data-manager.js"></script>
+  <script src="./src/admin.js"></script>
+</body>
+</html>
