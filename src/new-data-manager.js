@@ -32,6 +32,10 @@ class NewDataManager {
       excludedMembers: { added: [], modified: [], deleted: [] }
     };
     this.syncButton = null;
+    
+    // 初始化预加载标志
+    this.sundayTrackingPreloaded = false;
+    this.sundayTrackingPreloadTime = null;
     this.autoSyncTimer = null; // 自动同步定时器
     this.originalData = {
       groups: null,
@@ -535,6 +539,10 @@ class NewDataManager {
       this.enablePageOperations();
       
       console.log('✅ 数据完整拉取完成，页面已启用操作');
+      
+      // 预加载Sunday Tracking数据
+      this.preloadSundayTrackingData();
+      
       return true;
 
     } catch (error) {
@@ -603,6 +611,10 @@ class NewDataManager {
       this.enablePageOperations();
       
       console.log('✅ 智能合并完成，页面已启用操作');
+      
+      // 预加载Sunday Tracking数据
+      this.preloadSundayTrackingData();
+      
       return true;
 
     } catch (error) {
@@ -2529,6 +2541,71 @@ window.emergencyDataRecovery = () => {
     window.newDataManager.emergencyDataRecovery();
   } else {
     alert('数据管理器未初始化，无法进行数据恢复');
+  }
+};
+
+// 预加载Sunday Tracking数据
+NewDataManager.prototype.preloadSundayTrackingData = async function() {
+  try {
+    console.log('🔄 开始预加载Sunday Tracking数据...');
+    
+    // 检查是否已经预加载过
+    if (this.sundayTrackingPreloaded) {
+      console.log('📋 Sunday Tracking数据已预加载，跳过');
+      return true;
+    }
+    
+    // 确保基础数据已加载
+    if (!window.groups || !window.attendanceRecords || !window.groupNames) {
+      console.log('📋 基础数据未加载，跳过Sunday Tracking预加载');
+      return false;
+    }
+    
+    // 预加载跟踪记录数据
+    if (window.db) {
+      try {
+        // 并行加载跟踪记录和个人跟踪记录
+        const [trackingSnapshot, personalTrackingSnapshot] = await Promise.all([
+          window.db.ref('trackingRecords').once('value'),
+          window.db.ref('personalTracking').once('value')
+        ]);
+        
+        if (trackingSnapshot.exists()) {
+          const trackingRecords = trackingSnapshot.val() || {};
+          localStorage.setItem('msh_tracking_records', JSON.stringify(trackingRecords));
+          console.log('✅ 跟踪记录已预加载到localStorage');
+        }
+        
+        if (personalTrackingSnapshot.exists()) {
+          const personalTracking = personalTrackingSnapshot.val() || {};
+          localStorage.setItem('msh_personal_tracking', JSON.stringify(personalTracking));
+          console.log('✅ 个人跟踪记录已预加载到localStorage');
+        }
+      } catch (error) {
+        console.error('❌ 预加载跟踪记录失败:', error);
+      }
+    }
+    
+    // 预计算Sunday Tracking数据
+    if (window.utils && window.utils.SundayTrackingManager) {
+      try {
+        const trackingList = window.utils.SundayTrackingManager.generateTrackingList();
+        console.log('✅ Sunday Tracking数据预计算完成');
+        
+        // 标记预加载完成
+        this.sundayTrackingPreloaded = true;
+        this.sundayTrackingPreloadTime = Date.now();
+        
+        return true;
+      } catch (error) {
+        console.error('❌ Sunday Tracking数据预计算失败:', error);
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('❌ 预加载Sunday Tracking数据失败:', error);
+    return false;
   }
 };
 

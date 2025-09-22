@@ -288,12 +288,14 @@ const UUIDIndex = {
 
 // ==================== 主日跟踪管理器 ====================
 const SundayTrackingManager = {
-  // 缓存管理
+  // 缓存管理 (优化版本)
   _cache: {
     trackingList: null,
     lastUpdateTime: 0,
     dataHash: null,
-    memberCalculations: new Map() // 成员计算缓存
+    memberCalculations: new Map(), // 成员计算缓存
+    cacheExpiry: 30 * 60 * 1000, // 30分钟缓存有效期
+    lastFirebaseSync: null // 记录最后Firebase同步时间
   },
   
   // 生成数据哈希值，用于检测数据变化
@@ -312,31 +314,52 @@ const SundayTrackingManager = {
     return btoa(encodedStr).slice(0, 16);
   },
   
-  // 检查缓存是否有效
+  // 检查缓存是否有效 (优化版本)
   _isCacheValid: function() {
     // 如果缓存被清除，直接返回false
     if (!this._cache || !this._cache.trackingList || this._cache.lastUpdateTime === 0) {
+      console.log('📋 缓存无效：缓存未设置或跟踪列表为空');
       return false;
     }
     
     const currentHash = this._generateDataHash();
-    const cacheAge = Date.now() - this._cache.lastUpdateTime;
-    const maxCacheAge = 5 * 60 * 1000; // 5分钟缓存有效期
+    if (this._cache.dataHash !== currentHash) {
+      console.log('📋 数据变化，缓存失效');
+      return false;
+    }
     
-    return this._cache.trackingList && 
-           this._cache.dataHash === currentHash && 
-           cacheAge < maxCacheAge;
+    const cacheAge = Date.now() - this._cache.lastUpdateTime;
+    const maxCacheAge = this._cache.cacheExpiry || 30 * 60 * 1000; // 30分钟缓存有效期
+    
+    if (cacheAge >= maxCacheAge) {
+      console.log('📋 缓存超时，需要重新生成');
+      return false;
+    }
+    
+    // 检查Firebase同步状态
+    if (this._cache.lastFirebaseSync && window.db) {
+      // 如果Firebase同步时间早于缓存时间，可能需要更新
+      if (this._cache.lastFirebaseSync < this._cache.lastUpdateTime) {
+        console.log('📋 Firebase同步时间早于缓存时间，缓存可能过期');
+        return false;
+      }
+    }
+    
+    console.log('✅ 缓存有效，使用缓存数据');
+    return true;
   },
   
-  // 清除缓存
+  // 清除缓存 (优化版本)
   _clearCache: function() {
     this._cache = {
       trackingList: null,
       lastUpdateTime: 0,
       dataHash: null,
-      memberCalculations: new Map()
+      memberCalculations: new Map(),
+      cacheExpiry: 30 * 60 * 1000, // 30分钟缓存有效期
+      lastFirebaseSync: null
     };
-    console.log('📦 主日跟踪缓存已清除');
+    console.log('🧹 主日跟踪缓存已清除');
   },
   
   // 初始化数据变化监听
@@ -498,8 +521,8 @@ const SundayTrackingManager = {
       console.log('签到记录示例:', memberRecords[0]);
     }
     
-    // 识别所有独立的缺勤事件
-    const absenceEvents = identifyAbsenceEvents(sundayDates, memberRecords);
+    // 识别所有独立的缺勤事件 (传递memberUUID用于优化)
+    const absenceEvents = identifyAbsenceEvents(sundayDates, memberRecords, memberUUID);
     
     // 更新现有事件的状态（实时更新连续缺勤周数）
     const updatedEvents = updateExistingEvents(absenceEvents, memberUUID);
@@ -1186,21 +1209,15 @@ const SundayTrackingManager = {
     }
   },
 
-  // 终止跟踪事件
-  terminateTracking: function(recordId, terminationRecord) {
+  // 终止跟踪事件 (同时保存到localStorage和Firebase)
+  terminateTracking: async function(recordId, terminationRecord) {
     try {
       console.log(`🔍 尝试终止跟踪记录: ${recordId}`);
-      
-      // 获取所有跟踪记录用于调试
-      const allRecords = this.getTrackingRecords();
-      console.log(`📋 当前所有跟踪记录数量: ${allRecords.length}`);
-      console.log(`📋 所有记录ID:`, allRecords.map(r => r.recordId));
       
       // 获取跟踪记录
       const trackingRecord = this.getTrackingRecord(recordId);
       if (!trackingRecord) {
         console.error(`❌ 跟踪记录未找到: ${recordId}`);
-        console.log(`🔍 尝试匹配的记录ID:`, recordId);
         return false;
       }
       
@@ -1210,22 +1227,38 @@ const SundayTrackingManager = {
       trackingRecord.status = 'terminated';
       trackingRecord.terminationRecord = terminationRecord;
       trackingRecord.terminatedAt = new Date().toISOString();
-      trackingRecord.updatedAt = new Date().toISOString(); // 添加更新时间，确保排序正确
+      trackingRecord.updatedAt = new Date().toISOString();
       
       // 设置下次检查日期为终止日期
       trackingRecord.nextCheckDate = terminationRecord.terminationDate;
       
       console.log(`🔄 更新后的记录状态:`, trackingRecord);
       
-      // 保存更新后的记录
+      // 1. 保存到localStorage
       const saveResult = this.saveTrackingRecord(trackingRecord);
-      console.log(`💾 保存结果: ${saveResult}`);
+      console.log(`💾 localStorage保存结果: ${saveResult}`);
       
-      if (saveResult) {
-        // 清除缓存，确保下次生成跟踪列表时使用最新数据
-        this._clearCache();
-        console.log(`🧹 已清除缓存，确保下次生成最新跟踪列表`);
+      if (!saveResult) {
+        console.error('❌ localStorage保存失败');
+        return false;
       }
+      
+      // 2. 同步到Firebase
+      if (window.db) {
+        try {
+          await window.db.ref(`trackingRecords/${recordId}`).set(trackingRecord);
+          console.log(`✅ 事件终止已同步到Firebase: ${recordId}`);
+          // 记录Firebase同步时间
+          this._cache.lastFirebaseSync = Date.now();
+        } catch (firebaseError) {
+          console.error('❌ Firebase同步失败:', firebaseError);
+          // Firebase同步失败不影响本地保存
+        }
+      }
+      
+      // 3. 清除缓存，确保下次生成跟踪列表时使用最新数据
+      this._clearCache();
+      console.log(`🧹 已清除缓存，确保下次生成最新跟踪列表`);
       
       console.log(`✅ 已终止跟踪: ${recordId}`);
       return true;
@@ -1235,8 +1268,8 @@ const SundayTrackingManager = {
     }
   },
 
-  // 重启跟踪事件
-  restartEvent: function(recordId, restartRecord) {
+  // 重启跟踪事件 (同时保存到localStorage和Firebase)
+  restartEvent: async function(recordId, restartRecord) {
     try {
       console.log(`🔄 开始重启事件: ${recordId}`);
       console.log(`🔄 重启记录:`, restartRecord);
@@ -1272,21 +1305,36 @@ const SundayTrackingManager = {
       
       console.log(`🔄 更新后的记录:`, trackingRecord);
       
-      // 保存更新后的记录
+      // 1. 保存到localStorage
       const saveResult = this.saveTrackingRecord(trackingRecord);
+      console.log(`💾 localStorage保存结果: ${saveResult}`);
       
-      console.log(`🔄 保存结果: ${saveResult}`);
-      
-      if (saveResult) {
-        // 清除缓存，确保下次生成跟踪列表时使用最新数据
-        this._clearCache();
-        console.log(`🧹 已清除缓存，确保下次生成最新跟踪列表`);
+      if (!saveResult) {
+        console.error('❌ localStorage保存失败');
+        return false;
       }
       
-      console.log(`已重启跟踪事件: ${recordId}`);
+      // 2. 同步到Firebase
+      if (window.db) {
+        try {
+          await window.db.ref(`trackingRecords/${recordId}`).set(trackingRecord);
+          console.log(`✅ 事件重启已同步到Firebase: ${recordId}`);
+          // 记录Firebase同步时间
+          this._cache.lastFirebaseSync = Date.now();
+        } catch (firebaseError) {
+          console.error('❌ Firebase同步失败:', firebaseError);
+          // Firebase同步失败不影响本地保存
+        }
+      }
+      
+      // 3. 清除缓存，确保下次生成跟踪列表时使用最新数据
+      this._clearCache();
+      console.log(`🧹 已清除缓存，确保下次生成最新跟踪列表`);
+      
+      console.log(`✅ 已重启跟踪事件: ${recordId}`);
       return true;
     } catch (error) {
-      console.error('重启跟踪事件失败:', error);
+      console.error('❌ 重启事件失败:', error);
       return false;
     }
   },
@@ -1329,14 +1377,34 @@ const SundayTrackingManager = {
     }
   },
 
-  // 保存个人跟踪记录
-  savePersonalTrackingRecords: function(memberUUID, records) {
+  // 保存个人跟踪记录 (同时保存到localStorage和Firebase)
+  savePersonalTrackingRecords: async function(memberUUID, records) {
     try {
+      // 1. 保存到localStorage (快速响应)
       const key = `msh_personal_tracking_${memberUUID}`;
       localStorage.setItem(key, JSON.stringify(records));
-      console.log(`已保存个人跟踪记录: ${memberUUID}`);
+      console.log(`✅ 个人跟踪记录已保存到localStorage: ${memberUUID}`);
+      
+      // 2. 同步到Firebase (数据持久化)
+      if (window.db) {
+        try {
+          await window.db.ref(`personalTracking/${memberUUID}`).set(records);
+          console.log(`✅ 个人跟踪记录已同步到Firebase: ${memberUUID}`);
+          // 记录Firebase同步时间
+          this._cache.lastFirebaseSync = Date.now();
+        } catch (firebaseError) {
+          console.error('❌ Firebase同步失败:', firebaseError);
+          // Firebase同步失败不影响本地保存
+        }
+      }
+      
+      // 3. 清除缓存，确保下次使用最新数据
+      this._clearCache();
+      
+      return true;
     } catch (error) {
-      console.error('保存个人跟踪记录失败:', error);
+      console.error('❌ 保存个人跟踪记录失败:', error);
+      return false;
     }
   },
   
@@ -2069,25 +2137,81 @@ function isTodayNewcomer(member) {
 
 // ==================== 新增的缺勤事件管理函数 ====================
 
-// 识别所有独立的缺勤事件
-function identifyAbsenceEvents(sundayDates, memberRecords) {
+// 识别所有独立的缺勤事件 (优化版本 - 先排除，再计算)
+function identifyAbsenceEvents(sundayDates, memberRecords, memberUUID = null) {
+  console.log(`🔄 开始优化计算缺勤事件，总周日数: ${sundayDates.length}`);
+  const startTime = performance.now();
+  
+  // 第一步: 构建已签到时间集合 (使用Set提高查找效率)
+  const signedDateSet = new Set();
+  memberRecords.forEach(record => {
+    if (window.utils.SundayTrackingManager.isSundayAttendance(record)) {
+      const dateStr = new Date(record.time).toISOString().split('T')[0];
+      signedDateSet.add(dateStr);
+    }
+  });
+  
+  // 第二步: 构建已生成事件时间集合 (包括已终止事件)
+  const eventCoveredDateSet = new Set();
+  if (memberUUID) {
+    const allEvents = window.utils.SundayTrackingManager.getMemberTrackingRecords(memberUUID);
+    allEvents.forEach(event => {
+      const eventSundays = getEventCoveredSundays(event);
+      eventSundays.forEach(dateStr => {
+        eventCoveredDateSet.add(dateStr);
+      });
+    });
+  }
+  
+  // 第三步: 排除已签到和已生成事件的时间
+  const availableSundays = sundayDates.filter(sundayDate => {
+    const dateStr = sundayDate.toISOString().split('T')[0];
+    return !signedDateSet.has(dateStr) && !eventCoveredDateSet.has(dateStr);
+  });
+  
+  console.log(`📊 排除统计: 总周日${sundayDates.length}个, 已签到${signedDateSet.size}个, 已生成事件${eventCoveredDateSet.size}个, 剩余${availableSundays.length}个`);
+  
+  // 第四步: 只对剩余时间计算缺勤事件
+  const absenceEvents = processAbsenceEvents(availableSundays, memberRecords);
+  
+  const endTime = performance.now();
+  const processingTime = endTime - startTime;
+  console.log(`✅ 缺勤事件计算完成，耗时: ${processingTime.toFixed(2)}ms，生成${absenceEvents.length}个事件`);
+  
+  return absenceEvents;
+}
+
+// 处理缺勤事件的辅助函数
+function processAbsenceEvents(availableSundays, memberRecords) {
   const absenceEvents = [];
   let currentEvent = null;
   
-  for (let i = 0; i < sundayDates.length; i++) {
-    const sundayDate = sundayDates[i];
-    const hasAttendance = memberRecords.some(record => {
-      const isSunday = window.utils.SundayTrackingManager.isSundayAttendance(record);
-      const isSameDay = window.utils.SundayTrackingManager.isSameDate(record.time, sundayDate);
-      return isSunday && isSameDay;
-    });
+  for (let i = 0; i < availableSundays.length; i++) {
+    const sundayDate = availableSundays[i];
     
-    if (!hasAttendance) {
-      // 没有签到记录
-      if (!currentEvent) {
-        // 开始新的缺勤事件
+    if (!currentEvent) {
+      // 开始新的缺勤事件
+      currentEvent = {
+        startDate: sundayDate ? sundayDate.toISOString().split('T')[0] : '2025-08-03',
+        endDate: null,
+        consecutiveAbsences: 1,
+        lastAttendanceDate: getLastAttendanceBeforeDate(sundayDate, memberRecords),
+        endedBy: null,
+        endReason: null,
+        status: 'tracking'
+      };
+      console.log(`开始新缺勤事件: ${sundayDate.toISOString().split('T')[0]}`);
+    } else {
+      // 检查是否应该开始新事件（基于签到记录）
+      const shouldStartNewEvent = shouldStartNewAbsenceEvent(sundayDate, memberRecords, currentEvent);
+      
+      if (shouldStartNewEvent) {
+        // 结束当前事件并开始新事件
+        absenceEvents.push(currentEvent);
+        console.log(`结束缺勤事件: ${currentEvent.startDate}, 持续: ${currentEvent.consecutiveAbsences}周`);
+        
         currentEvent = {
-          startDate: sundayDate ? sundayDate.toISOString().split('T')[0] : '2025-08-03',
+          startDate: sundayDate.toISOString().split('T')[0],
           endDate: null,
           consecutiveAbsences: 1,
           lastAttendanceDate: getLastAttendanceBeforeDate(sundayDate, memberRecords),
@@ -2101,25 +2225,61 @@ function identifyAbsenceEvents(sundayDates, memberRecords) {
         currentEvent.consecutiveAbsences++;
         console.log(`继续缺勤事件: ${sundayDate.toISOString().split('T')[0]}, 累计: ${currentEvent.consecutiveAbsences}周`);
       }
-    } else {
-      // 有签到记录，结束当前缺勤事件（如果有的话）
-      if (currentEvent) {
-        console.log(`有签到，结束当前缺勤事件: ${sundayDate.toISOString().split('T')[0]}`);
-        absenceEvents.push(currentEvent);
-        currentEvent = null;
-      }
-      console.log(`跳过有签到的周: ${sundayDate.toISOString().split('T')[0]}`);
     }
   }
   
-  // 如果还有未结束的缺勤事件，添加到列表中
+  // 如果最后还有未结束的缺勤事件，也加入列表
   if (currentEvent) {
-    console.log(`添加未结束的缺勤事件: ${currentEvent.consecutiveAbsences}周`);
     absenceEvents.push(currentEvent);
+    console.log(`未结束的缺勤事件: ${currentEvent.startDate}, 持续: ${currentEvent.consecutiveAbsences}周`);
   }
   
-  console.log(`识别到 ${absenceEvents.length} 个缺勤事件`);
   return absenceEvents;
+}
+
+// 判断是否应该开始新的缺勤事件
+function shouldStartNewAbsenceEvent(currentSundayDate, memberRecords, currentEvent) {
+  // 检查在当前周日之前是否有签到记录
+  const currentDate = new Date(currentSundayDate);
+  const currentEventStartDate = new Date(currentEvent.startDate);
+  
+  // 查找在当前事件开始日期之后，当前周日之前的签到记录
+  const attendanceBetweenEvents = memberRecords.filter(record => {
+    const recordDate = new Date(record.time);
+    return recordDate > currentEventStartDate && 
+           recordDate < currentDate && 
+           window.utils.SundayTrackingManager.isSundayAttendance(record);
+  });
+  
+  // 如果在这期间有签到记录，说明应该开始新事件
+  if (attendanceBetweenEvents.length > 0) {
+    console.log(`发现中间签到记录，应该开始新事件: ${attendanceBetweenEvents.map(r => new Date(r.time).toISOString().split('T')[0]).join(', ')}`);
+    return true;
+  }
+  
+  return false;
+}
+
+// 获取事件覆盖的周日
+function getEventCoveredSundays(event) {
+  const coveredSundays = [];
+  const startDate = new Date(event.startDate);
+  const endDate = event.endDate ? new Date(event.endDate) : new Date();
+  
+  // 确保不早于2025年8月3日
+  const minDate = new Date('2025-08-03');
+  const actualStartDate = startDate < minDate ? minDate : startDate;
+  
+  // 计算事件覆盖的所有周日
+  let currentDate = new Date(actualStartDate);
+  while (currentDate <= endDate) {
+    if (currentDate.getDay() === 0) { // 周日
+      coveredSundays.push(currentDate.toISOString().split('T')[0]);
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return coveredSundays;
 }
 
 // 更新现有事件的状态（实时更新连续缺勤周数）

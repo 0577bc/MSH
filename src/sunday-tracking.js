@@ -194,10 +194,51 @@ async function loadData() {
     // 如果全局数据不完整，尝试从Firebase加载
     console.log('全局缓存数据不完整，从Firebase加载...');
     await loadDataFromFirebase();
+    
+    // 从Firebase加载跟踪记录数据
+    await loadTrackingRecordsFromFirebase();
   } catch (error) {
     console.error('Error loading data from Firebase:', error);
     console.log('Using local storage as fallback');
     loadDataFromLocalStorage();
+  }
+}
+
+// 从Firebase加载跟踪记录数据
+async function loadTrackingRecordsFromFirebase() {
+  if (!db) {
+    console.log('⚠️ Firebase未初始化，跳过跟踪记录加载');
+    return;
+  }
+  
+  try {
+    console.log('🔄 开始从Firebase加载跟踪记录数据...');
+    
+    // 加载所有跟踪记录
+    const trackingSnapshot = await db.ref('trackingRecords').once('value');
+    if (trackingSnapshot.exists()) {
+      const trackingRecords = trackingSnapshot.val() || {};
+      // 保存到localStorage
+      localStorage.setItem('msh_tracking_records', JSON.stringify(trackingRecords));
+      console.log('✅ 跟踪记录已从Firebase加载并保存到localStorage');
+    } else {
+      console.log('📋 Firebase中没有跟踪记录数据');
+    }
+    
+    // 加载个人跟踪记录
+    const personalTrackingSnapshot = await db.ref('personalTracking').once('value');
+    if (personalTrackingSnapshot.exists()) {
+      const personalTracking = personalTrackingSnapshot.val() || {};
+      // 保存到localStorage
+      localStorage.setItem('msh_personal_tracking', JSON.stringify(personalTracking));
+      console.log('✅ 个人跟踪记录已从Firebase加载并保存到localStorage');
+    } else {
+      console.log('📋 Firebase中没有个人跟踪记录数据');
+    }
+    
+    console.log('✅ 跟踪记录数据加载完成');
+  } catch (error) {
+    console.error('❌ 从Firebase加载跟踪记录失败:', error);
   }
 }
 
@@ -664,13 +705,13 @@ function generateExportContent(groupedData) {
         rowClass += ' terminated-event';
         statusText = ' (已终止)';
         buttonHtml = `
-          <button class="restart-btn" onclick="restartEvent('${item.recordId || item.memberUUID}', '${item.memberName}')">重启事件</button>
+          <button class="restart-btn" onclick="(async () => await restartEvent('${item.recordId || item.memberUUID}', '${item.memberName}'))()">重启事件</button>
           <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')">个人页面</button>
         `;
       } else {
         buttonHtml = `
           <button class="resolve-btn" onclick="resolveTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">跟踪</button>
-          <button class="ignore-btn" onclick="ignoreTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">事件终止</button>
+          <button class="ignore-btn" onclick="(async () => await ignoreTracking('${item.recordId || item.memberUUID}', '${item.memberName}'))()">事件终止</button>
           <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')">个人页面</button>
         `;
       }
@@ -820,7 +861,7 @@ function resolveTracking(recordId, memberName) {
 }
 
 // 忽略跟踪
-function ignoreTracking(recordId, memberName) {
+async function ignoreTracking(recordId, memberName) {
   console.log(`🔍 ignoreTracking被调用，记录ID: ${recordId}, 成员名称: ${memberName}`);
   
   // 显示忽略对话框
@@ -841,7 +882,7 @@ function ignoreTracking(recordId, memberName) {
   const confirmBtn = document.getElementById('confirmIgnore');
   const cancelBtn = document.getElementById('cancelIgnore');
   
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     console.log(`🔍 确认终止按钮被点击`);
     
     const reason = document.getElementById('ignoreReason').value.trim();
@@ -873,7 +914,7 @@ function ignoreTracking(recordId, memberName) {
       console.log(`🔍 准备调用terminateTracking，记录ID: ${recordId}`);
       console.log(`🔍 终止记录详情:`, terminationRecord);
       
-      const success = window.utils.SundayTrackingManager.terminateTracking(recordId, terminationRecord);
+      const success = await window.utils.SundayTrackingManager.terminateTracking(recordId, terminationRecord);
       console.log(`🔍 终止跟踪结果: ${success}`);
       
       if (success) {
@@ -905,7 +946,7 @@ function ignoreTracking(recordId, memberName) {
 }
 
 // 重启事件
-function restartEvent(recordId, memberName) {
+async function restartEvent(recordId, memberName) {
   console.log(`🔍 restartEvent被调用，记录ID: ${recordId}, 成员名称: ${memberName}`);
   
   if (confirm(`确定要重启 ${memberName} 的跟踪事件吗？`)) {
@@ -920,7 +961,7 @@ function restartEvent(recordId, memberName) {
         createdAt: new Date().toISOString()
       };
       
-      const success = window.utils.SundayTrackingManager.restartEvent(recordId, restartRecord);
+      const success = await window.utils.SundayTrackingManager.restartEvent(recordId, restartRecord);
       console.log(`🔍 重启事件结果: ${success}`);
       
       if (success) {
@@ -984,3 +1025,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   console.log('主日跟踪页面初始化完成');
 });
+
+// 显示加载状态
+function showLoadingState() {
+  const trackingSection = document.getElementById('sundayTrackingSection');
+  if (trackingSection) {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'loadingIndicator';
+    loadingDiv.className = 'loading-indicator';
+    loadingDiv.innerHTML = `
+      <div class="loading-spinner"></div>
+      <p>正在加载跟踪数据...</p>
+    `;
+    trackingSection.appendChild(loadingDiv);
+  }
+}
+
+// 隐藏加载状态
+function hideLoadingState() {
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  if (loadingIndicator) {
+    loadingIndicator.remove();
+  }
+}
+
+// 延迟加载数据
+async function loadDataWithDelay() {
+  // 先显示基本页面结构
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // 然后加载数据
+  await loadData();
+  
+  // 再延迟一点显示结果，让用户感觉更流畅
+  await new Promise(resolve => setTimeout(resolve, 200));
+}
