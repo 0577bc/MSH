@@ -17,6 +17,14 @@
 
 ## 📋 待办事项
 
+### 外部表单系统集成项目
+- [IN_PROGRESS] 外部表单系统集成方案设计 ✅ 已完成
+- [PENDING] 阿里云资源准备和配置
+- [PENDING] 数据库设计和API开发
+- [PENDING] 前端页面开发和MSH系统集成
+- [PENDING] 功能测试和生产环境部署
+
+### 系统优化和维护
 - [DONE] 优化主日跟踪页面性能：小组筛选、事件快照、懒加载
 - [DONE] 修复签到页面拉取全部数据后覆盖已终止事件的bug ✅ 用户确认已解决
 - [DONE] 完善系统文档 ✅ 已完成
@@ -27,17 +35,33 @@
 
 ## 🎯 重要决策
 
+### 系统架构决策
 - [DECISION] [HIGH] 选择Firebase v8作为后端服务，确保稳定性
 - [DECISION] [MEDIUM] 采用模块化JavaScript架构，便于维护
-- [DECISION] [HIGH] 实施外部记忆系统v1.7，提升AI编程效率
 - [DECISION] [HIGH] 统一所有文件的Firebase初始化函数，消除重复代码
 - [DECISION] [HIGH] 使用utils.js中的通用函数，简化代码维护
 
+### 外部表单集成决策
+- [DECISION] [HIGH] 选择自建表单系统方案，完全控制数据和功能
+- [DECISION] [HIGH] 技术栈选择：Node.js + Express + MySQL + 原生前端
+- [DECISION] [HIGH] 云服务选择：阿里云（成本960元/年，在预算范围内）
+- [DECISION] [MEDIUM] 开发工具选择：Cursor IDE，支持AI编程助手
+
+### 开发工具决策
+- [DECISION] [HIGH] 实施外部记忆系统v1.7，提升AI编程效率
+
 ## ⚠️ 风险与约束
 
+### 系统风险
 - [RISK] [HIGH] Firebase v8版本可能面临未来兼容性问题
 - [CONSTRAINT] [HIGH] 必须保持PWA功能完整性
 - [CONSTRAINT] [MEDIUM] 需要维护现有功能兼容性
+
+### 外部表单集成风险
+- [RISK] [MEDIUM] 自建系统需要持续维护和更新
+- [RISK] [LOW] 阿里云服务稳定性依赖第三方
+- [CONSTRAINT] [HIGH] 年成本预算限制在1000元以内
+- [CONSTRAINT] [MEDIUM] 开发时间限制在6周内
 
 ## 📚 学到的知识
 
@@ -48,6 +72,9 @@
 - [LEARNED] 外部记忆系统能显著提升AI编程效率和上下文管理能力
 - [LEARNED] 代码重复是维护成本的主要来源，统一函数能显著提升代码质量
 - [LEARNED] Firebase初始化函数在9个文件中重复，通过统一调用utils.js函数减少约200行重复代码
+- [LEARNED] 自建系统比第三方服务更经济，长期使用成本更低
+- [LEARNED] 技术选型需要考虑团队技术栈和开发效率
+- [LEARNED] 云服务成本分析需要综合考虑服务器、数据库、带宽等因素
 - [LEARNED] 代码优化时必须注意函数作用域，避免创建无限递归调用
 - [LEARNED] 紧急错误修复：发现并修复了window.initializeFirebase的无限递归问题
 - [LEARNED] 主日跟踪页面数据加载分析：基础数据仅用于筛选，跟踪记录可懒加载
@@ -133,3 +160,5 @@
 - [2025-09-27] 主日跟踪页面布局重新调整完成：控件排列和按钮顺序优化
 - [2025-09-27] 主日跟踪页面功能修复完成：按钮事件绑定、转发抓取按钮显示、性能信息清理
 - [2025-09-27] 外部表单API指南更新完成：基于百数云平台重新设计集成方案（应用ID: 5513db246bbb9265042980b6）
+- [2025-09-27] 外部表单系统集成方案设计完成：自建系统方案，技术栈Node.js+Express+MySQL+阿里云
+- [2025-09-27] 项目方案总结和文档整理完成：创建PROJECT_SUMMARY.md和DOCUMENTATION_INDEX.md
