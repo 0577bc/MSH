@@ -21,21 +21,15 @@ let prevMonthButton, nextMonthButton;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
-  try {
-    app = firebase.app();
-    db = firebase.database();
-    console.log('✅ 使用已存在的Firebase应用');
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    console.log('✅ 个人页面Firebase初始化成功');
     return true;
-  } catch (error) {
-    if (window.firebaseConfig) {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
-      console.log('✅ 创建新的Firebase应用');
-      return true;
-    } else {
-      console.error('❌ Firebase配置未找到');
-      return false;
-    }
+  } else {
+    console.error('❌ 个人页面Firebase初始化失败');
+    return false;
   }
 }
 

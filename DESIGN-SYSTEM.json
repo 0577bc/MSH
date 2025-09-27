@@ -1,0 +1,146 @@
+{
+  "project": {
+    "name": "MSH签到系统",
+    "type": "Web应用 (PWA)",
+    "version": "2.0",
+    "language": "zh-Hans"
+  },
+  "naming": {
+    "components": "kebab-case",
+    "functions": "camelCase",
+    "variables": "camelCase",
+    "constants": "UPPER_SNAKE_CASE",
+    "files": "kebab-case",
+    "classes": "PascalCase",
+    "ids": "camelCase",
+    "css_classes": "kebab-case"
+  },
+  "codeStyle": {
+    "indent": 2,
+    "quotes": "double",
+    "semicolons": true,
+    "line_length": 100,
+    "trailing_comma": true,
+    "bracket_spacing": true
+  },
+  "html": {
+    "doctype": "HTML5",
+    "lang": "zh-Hans",
+    "charset": "UTF-8",
+    "viewport": "width=device-width, initial-scale=1.0",
+    "aria_labels": true,
+    "semantic_html": true,
+    "form_validation": "required"
+  },
+  "css": {
+    "methodology": "BEM-like",
+    "units": {
+      "spacing": "rem",
+      "font_size": "rem",
+      "border_radius": "px"
+    },
+    "breakpoints": {
+      "mobile": "768px",
+      "tablet": "1024px",
+      "desktop": "1200px"
+    },
+    "colors": {
+      "primary": "#007bff",
+      "secondary": "#6c757d",
+      "success": "#28a745",
+      "danger": "#dc3545",
+      "warning": "#ffc107",
+      "info": "#17a2b8",
+      "light": "#f8f9fa",
+      "dark": "#343a40",
+      "white": "#ffffff",
+      "black": "#000000"
+    },
+    "spacing": {
+      "xs": "0.25rem",
+      "sm": "0.5rem",
+      "md": "1rem",
+      "lg": "1.5rem",
+      "xl": "3rem"
+    }
+  },
+  "javascript": {
+    "version": "ES6+",
+    "modules": "ES6 modules",
+    "async_pattern": "async/await",
+    "error_handling": "try-catch",
+    "logging": "console methods",
+    "firebase_version": "v8"
+  },
+  "patterns": {
+    "ui": {
+      "button_styles": {
+        "primary": "main-button primary-button",
+        "secondary": "main-button secondary-button",
+        "danger": "main-button danger-button"
+      },
+      "form_patterns": {
+        "input_group": "form-row",
+        "label_input": "label + input/select",
+        "validation": "required attribute + custom validation"
+      },
+      "table_patterns": {
+        "responsive": "tables-container",
+        "caption": "aria-label for accessibility",
+        "sorting": "data attributes"
+      }
+    },
+    "data": {
+      "firebase_structure": {
+        "groups": "groups/{groupId}/members/{memberId}",
+        "attendance": "attendance/{date}/{memberId}",
+        "users": "users/{userId}"
+      },
+      "uuid_system": "UUID v4 for all entities",
+      "timestamp_format": "ISO 8601",
+      "caching_strategy": "localStorage + sessionStorage"
+    },
+    "error_handling": {
+      "firebase_errors": "try-catch with user-friendly messages",
+      "network_errors": "retry mechanism with exponential backoff",
+      "validation_errors": "immediate feedback on form submission"
+    },
+    "security": {
+      "csrf_protection": "token-based validation",
+      "input_sanitization": "HTML entity encoding",
+      "firebase_rules": "server-side validation"
+    }
+  },
+  "boilerplate": {
+    "html_template": "<!DOCTYPE html>\n<html lang=\"zh-Hans\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>MSH签到系统</title>\n  <link rel=\"stylesheet\" href=\"./src/style.css\">\n</head>\n<body>\n  <!-- Content -->\n</body>\n</html>",
+    "javascript_module": "// 模块功能描述\n// 作者: MSH系统\n// 版本: 2.0\n\n(function() {\n  'use strict';\n  \n  // 模块代码\n})();",
+    "error_handling": "try {\n  // 主要逻辑\n} catch (error) {\n  console.error('错误详情:', error);\n  // 用户友好的错误处理\n}",
+    "firebase_operation": "try {\n  const result = await firebase.database().ref(path).set(data);\n  console.log('操作成功:', result);\n} catch (error) {\n  console.error('Firebase操作失败:', error);\n  throw error;\n}"
+  },
+  "accessibility": {
+    "aria_labels": true,
+    "semantic_html": true,
+    "keyboard_navigation": true,
+    "screen_reader_support": true,
+    "color_contrast": "WCAG AA compliant"
+  },
+  "performance": {
+    "caching": "localStorage for persistent data, sessionStorage for temporary data",
+    "lazy_loading": "defer non-critical scripts",
+    "minification": "production builds should be minified",
+    "compression": "gzip compression for static assets"
+  },
+  "testing": {
+    "unit_tests": "Jest or similar framework",
+    "integration_tests": "Firebase emulator for testing",
+    "e2e_tests": "Cypress or Playwright",
+    "accessibility_tests": "axe-core integration"
+  },
+  "deployment": {
+    "static_hosting": "any static file server",
+    "pwa_requirements": "HTTPS required for service worker",
+    "firebase_config": "environment-specific configuration",
+    "backup_strategy": "automated daily backups"
+  }
+}
+

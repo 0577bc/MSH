@@ -240,12 +240,41 @@ const UUIDIndex = {
     let totalMembers = 0;
     let membersWithUUID = 0;
     
-    Object.values(groups).forEach(members => {
+    console.log('🔍 UUIDIndex.updateMemberIndex 开始更新:', {
+      groupsCount: Object.keys(groups).length,
+      groupNamesLoaded: !!window.groupNames,
+      groupNamesKeys: window.groupNames ? Object.keys(window.groupNames) : 'undefined'
+    });
+    
+    Object.entries(groups).forEach(([groupName, members]) => {
       members.forEach(member => {
         totalMembers++;
         if (member.uuid) {
-          this.memberIndex.set(member.uuid, member);
+          // 确保成员有group字段
+          if (!member.group) {
+            member.group = groupName;
+            console.log(`🔧 为成员 ${member.name} 补充group字段: ${groupName}`);
+          }
+          
+          // 应用groupNames映射，确保存储的成员信息包含正确的显示名称
+          const mappedMember = {
+            ...member,
+            group: member.group || groupName, // 确保group字段存在
+            groupDisplayName: (window.groupNames && window.groupNames[member.group]) ? window.groupNames[member.group] : (member.group || groupName)
+          };
+          
+          this.memberIndex.set(member.uuid, mappedMember);
           membersWithUUID++;
+          
+          // 调试：显示前几个成员的映射结果
+          if (membersWithUUID <= 3) {
+            console.log(`🔍 成员映射示例 ${membersWithUUID}:`, {
+              name: member.name,
+              group: member.group,
+              groupDisplayName: mappedMember.groupDisplayName,
+              uuid: member.uuid
+            });
+          }
         } else {
           // 调试：显示没有UUID的成员（只显示前3个）
           if (totalMembers <= 3) {
@@ -255,7 +284,7 @@ const UUIDIndex = {
       });
     });
     
-    console.log(`UUIDIndex更新: 总成员数 ${totalMembers}, 有UUID的成员数 ${membersWithUUID}`);
+    console.log(`✅ UUIDIndex更新完成: 总成员数 ${totalMembers}, 有UUID的成员数 ${membersWithUUID}`);
     
     // 显示一个示例成员的结构
     if (totalMembers > 0) {
@@ -343,6 +372,14 @@ const SundayTrackingManager = {
         console.log('📋 Firebase同步时间早于缓存时间，缓存可能过期');
         return false;
       }
+    }
+    
+    // 检查是否有终止状态的记录，如果有则强制重新生成
+    const trackingRecords = this.getTrackingRecords();
+    const hasTerminatedRecords = trackingRecords.some(record => record.status === 'terminated');
+    if (hasTerminatedRecords) {
+      console.log('📋 检测到终止记录，强制重新生成跟踪列表');
+      return false;
     }
     
     console.log('✅ 缓存有效，使用缓存数据');
@@ -961,11 +998,9 @@ const SundayTrackingManager = {
         // 如果已有记录，检查状态
         if (existingEventRecord) {
           console.log(`成员 ${member.name} 事件${eventIndex + 1}: 使用现有记录，状态: ${existingEventRecord.status}`);
-          // 添加所有状态的记录到跟踪列表，包括已终止的记录
+          // 修复：保留所有现有记录（包括已终止事件），不重新生成
           trackingList.push(existingEventRecord);
-          if (existingEventRecord.status !== 'active') {
-            console.log(`成员 ${member.name} 事件${eventIndex + 1}: 记录状态为${existingEventRecord.status}，添加到跟踪列表`);
-          }
+          console.log(`成员 ${member.name} 事件${eventIndex + 1}: 保留现有记录，状态: ${existingEventRecord.status}`);
           return;
         }
         
@@ -988,13 +1023,15 @@ const SundayTrackingManager = {
           eventDescription = `连续缺勤 ${eventConsecutiveAbsences} 次（3周以上）`;
         }
         
-        // 创建新的事件跟踪记录
+        // 创建新的事件跟踪记录（优化版：包含完整快照信息）
         const newEventRecord = {
           memberUUID: member.uuid,
           recordId: eventUniqueId, // 使用唯一编码
           memberName: member.name,
           group: member.group,
           originalGroup: member.group,
+          // 优化：快照时保存小组显示名称，使用groupNames映射
+          groupDisplayName: (window.groupNames && window.groupNames[member.group]) ? window.groupNames[member.group] : member.group,
           consecutiveAbsences: eventConsecutiveAbsences,
           lastAttendanceDate: event.endDate || lastAttendanceDate,
           checkStartDate: checkStartDate,
@@ -1004,6 +1041,13 @@ const SundayTrackingManager = {
           eventDescription: eventDescription,
           eventIndex: eventIndex + 1,
           totalEvents: absenceEvents.length,
+          // 优化：快照时保存成员完整信息，避免依赖基础数据
+          memberSnapshot: {
+            uuid: member.uuid,
+            name: member.name,
+            group: member.group,
+            // 可以添加更多成员信息快照
+          },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -1026,6 +1070,10 @@ const SundayTrackingManager = {
     // 保存修改后的数据（包含新生成的UUID和memberUUID）
     this.saveModifiedData();
     
+    // 修复：保留所有事件（包括已终止事件），不进行过滤
+    // 已终止事件应该被保留，不应该被覆盖或删除
+    console.log(`📊 跟踪列表生成完成，保留所有事件: ${trackingList.length}个`);
+    
     // 保存到缓存
     this._cache.trackingList = trackingList;
     this._cache.lastUpdateTime = Date.now();
@@ -1033,7 +1081,7 @@ const SundayTrackingManager = {
     
     const endTime = performance.now();
     const processingTime = endTime - startTime;
-    console.log(`✅ 跟踪列表生成完成，耗时: ${processingTime.toFixed(2)}ms，共 ${trackingList.length} 个事件`);
+    console.log(`✅ 跟踪列表生成完成，耗时: ${processingTime.toFixed(2)}ms，事件数量: ${trackingList.length} (保留所有事件，包括已终止事件)`);
     
     return trackingList;
   },
@@ -1243,10 +1291,12 @@ const SundayTrackingManager = {
         return false;
       }
       
-      // 2. 同步到Firebase
+      // 2. 同步到Firebase（使用与saveTrackingRecord一致的路径）
       if (window.db) {
         try {
-          await window.db.ref(`trackingRecords/${recordId}`).set(trackingRecord);
+          // 获取完整的跟踪记录数组并同步
+          const allRecords = this.getTrackingRecords();
+          await window.db.ref('sundayTracking').set(allRecords);
           console.log(`✅ 事件终止已同步到Firebase: ${recordId}`);
           // 记录Firebase同步时间
           this._cache.lastFirebaseSync = Date.now();
@@ -2137,12 +2187,12 @@ function isTodayNewcomer(member) {
 
 // ==================== 新增的缺勤事件管理函数 ====================
 
-// 识别所有独立的缺勤事件 (优化版本 - 先排除，再计算)
+// 识别所有独立的缺勤事件 (修正版 - 基于连续缺勤时间段)
 function identifyAbsenceEvents(sundayDates, memberRecords, memberUUID = null) {
-  console.log(`🔄 开始优化计算缺勤事件，总周日数: ${sundayDates.length}`);
+  console.log(`🔄 开始计算缺勤事件，总周日数: ${sundayDates.length}`);
   const startTime = performance.now();
   
-  // 第一步: 构建已签到时间集合 (使用Set提高查找效率)
+  // 第一步: 构建已签到时间集合
   const signedDateSet = new Set();
   memberRecords.forEach(record => {
     if (window.utils.SundayTrackingManager.isSundayAttendance(record)) {
@@ -2151,32 +2201,75 @@ function identifyAbsenceEvents(sundayDates, memberRecords, memberUUID = null) {
     }
   });
   
-  // 第二步: 构建已生成事件时间集合 (包括已终止事件)
+  // 第二步: 构建已终止事件时间集合 (只排除已终止事件)
   const eventCoveredDateSet = new Set();
   if (memberUUID) {
     const allEvents = window.utils.SundayTrackingManager.getMemberTrackingRecords(memberUUID);
     allEvents.forEach(event => {
-      const eventSundays = getEventCoveredSundays(event);
-      eventSundays.forEach(dateStr => {
-        eventCoveredDateSet.add(dateStr);
-      });
+      if (event.status === 'terminated') {
+        const eventSundays = getEventCoveredSundays(event);
+        eventSundays.forEach(dateStr => {
+          eventCoveredDateSet.add(dateStr);
+        });
+      }
     });
   }
   
-  // 第三步: 排除已签到和已生成事件的时间
-  const availableSundays = sundayDates.filter(sundayDate => {
-    const dateStr = sundayDate.toISOString().split('T')[0];
-    return !signedDateSet.has(dateStr) && !eventCoveredDateSet.has(dateStr);
-  });
-  
-  console.log(`📊 排除统计: 总周日${sundayDates.length}个, 已签到${signedDateSet.size}个, 已生成事件${eventCoveredDateSet.size}个, 剩余${availableSundays.length}个`);
-  
-  // 第四步: 只对剩余时间计算缺勤事件
-  const absenceEvents = processAbsenceEvents(availableSundays, memberRecords);
+  // 第三步: 识别连续的缺勤时间段
+  const absenceEvents = identifyConsecutiveAbsencePeriods(sundayDates, signedDateSet, eventCoveredDateSet, memberRecords);
   
   const endTime = performance.now();
   const processingTime = endTime - startTime;
   console.log(`✅ 缺勤事件计算完成，耗时: ${processingTime.toFixed(2)}ms，生成${absenceEvents.length}个事件`);
+  
+  return absenceEvents;
+}
+
+// 识别连续的缺勤时间段
+function identifyConsecutiveAbsencePeriods(sundayDates, signedDateSet, eventCoveredDateSet, memberRecords) {
+  const absenceEvents = [];
+  let currentPeriod = null;
+  
+  for (let i = 0; i < sundayDates.length; i++) {
+    const sundayDate = sundayDates[i];
+    const dateStr = sundayDate.toISOString().split('T')[0];
+    
+    // 检查这个周日是否缺勤（未签到且未被已终止事件覆盖）
+    const isAbsent = !signedDateSet.has(dateStr) && !eventCoveredDateSet.has(dateStr);
+    
+    if (isAbsent) {
+      if (!currentPeriod) {
+        // 开始新的缺勤时间段
+        currentPeriod = {
+          startDate: dateStr,
+          endDate: null,
+          consecutiveAbsences: 1,
+          lastAttendanceDate: getLastAttendanceBeforeDate(sundayDate, memberRecords),
+          endedBy: null,
+          endReason: null,
+          status: 'tracking'
+        };
+        console.log(`开始新缺勤时间段: ${dateStr}`);
+      } else {
+        // 继续当前缺勤时间段
+        currentPeriod.consecutiveAbsences++;
+        console.log(`继续缺勤时间段: ${dateStr}, 累计: ${currentPeriod.consecutiveAbsences}周`);
+      }
+    } else {
+      // 如果当前有缺勤时间段，结束它
+      if (currentPeriod) {
+        absenceEvents.push(currentPeriod);
+        console.log(`结束缺勤时间段: ${currentPeriod.startDate}, 持续: ${currentPeriod.consecutiveAbsences}周`);
+        currentPeriod = null;
+      }
+    }
+  }
+  
+  // 如果最后还有未结束的缺勤时间段，也加入列表
+  if (currentPeriod) {
+    absenceEvents.push(currentPeriod);
+    console.log(`未结束的缺勤时间段: ${currentPeriod.startDate}, 持续: ${currentPeriod.consecutiveAbsences}周`);
+  }
   
   return absenceEvents;
 }
@@ -2202,29 +2295,9 @@ function processAbsenceEvents(availableSundays, memberRecords) {
       };
       console.log(`开始新缺勤事件: ${sundayDate.toISOString().split('T')[0]}`);
     } else {
-      // 检查是否应该开始新事件（基于签到记录）
-      const shouldStartNewEvent = shouldStartNewAbsenceEvent(sundayDate, memberRecords, currentEvent);
-      
-      if (shouldStartNewEvent) {
-        // 结束当前事件并开始新事件
-        absenceEvents.push(currentEvent);
-        console.log(`结束缺勤事件: ${currentEvent.startDate}, 持续: ${currentEvent.consecutiveAbsences}周`);
-        
-        currentEvent = {
-          startDate: sundayDate.toISOString().split('T')[0],
-          endDate: null,
-          consecutiveAbsences: 1,
-          lastAttendanceDate: getLastAttendanceBeforeDate(sundayDate, memberRecords),
-          endedBy: null,
-          endReason: null,
-          status: 'tracking'
-        };
-        console.log(`开始新缺勤事件: ${sundayDate.toISOString().split('T')[0]}`);
-      } else {
-        // 继续当前缺勤事件
-        currentEvent.consecutiveAbsences++;
-        console.log(`继续缺勤事件: ${sundayDate.toISOString().split('T')[0]}, 累计: ${currentEvent.consecutiveAbsences}周`);
-      }
+      // 继续当前缺勤事件（签到记录不会中断事件，只能通过手动终止）
+      currentEvent.consecutiveAbsences++;
+      console.log(`继续缺勤事件: ${sundayDate.toISOString().split('T')[0]}, 累计: ${currentEvent.consecutiveAbsences}周`);
     }
   }
   
@@ -2237,46 +2310,42 @@ function processAbsenceEvents(availableSundays, memberRecords) {
   return absenceEvents;
 }
 
-// 判断是否应该开始新的缺勤事件
-function shouldStartNewAbsenceEvent(currentSundayDate, memberRecords, currentEvent) {
-  // 检查在当前周日之前是否有签到记录
-  const currentDate = new Date(currentSundayDate);
-  const currentEventStartDate = new Date(currentEvent.startDate);
-  
-  // 查找在当前事件开始日期之后，当前周日之前的签到记录
-  const attendanceBetweenEvents = memberRecords.filter(record => {
-    const recordDate = new Date(record.time);
-    return recordDate > currentEventStartDate && 
-           recordDate < currentDate && 
-           window.utils.SundayTrackingManager.isSundayAttendance(record);
-  });
-  
-  // 如果在这期间有签到记录，说明应该开始新事件
-  if (attendanceBetweenEvents.length > 0) {
-    console.log(`发现中间签到记录，应该开始新事件: ${attendanceBetweenEvents.map(r => new Date(r.time).toISOString().split('T')[0]).join(', ')}`);
-    return true;
-  }
-  
-  return false;
-}
 
 // 获取事件覆盖的周日
 function getEventCoveredSundays(event) {
   const coveredSundays = [];
   const startDate = new Date(event.startDate);
-  const endDate = event.endDate ? new Date(event.endDate) : new Date();
   
-  // 确保不早于2025年8月3日
-  const minDate = new Date('2025-08-03');
-  const actualStartDate = startDate < minDate ? minDate : startDate;
-  
-  // 计算事件覆盖的所有周日
-  let currentDate = new Date(actualStartDate);
-  while (currentDate <= endDate) {
-    if (currentDate.getDay() === 0) { // 周日
-      coveredSundays.push(currentDate.toISOString().split('T')[0]);
+  // 修复：已终止事件必须计算覆盖时间，即使没有endDate
+  if (event.status === 'terminated') {
+    // 使用endDate或terminatedAt作为结束时间
+    let endDate;
+    if (event.endDate) {
+      endDate = new Date(event.endDate);
+    } else if (event.terminatedAt) {
+      endDate = new Date(event.terminatedAt);
+    } else {
+      // 如果没有明确的结束时间，使用当前时间
+      endDate = new Date();
     }
-    currentDate.setDate(currentDate.getDate() + 1);
+    
+    // 确保不早于2025年8月3日
+    const minDate = new Date('2025-08-03');
+    const actualStartDate = startDate < minDate ? minDate : startDate;
+    
+    // 计算已终止事件覆盖的所有周日
+    let currentDate = new Date(actualStartDate);
+    while (currentDate <= endDate) {
+      if (currentDate.getDay() === 0) { // 周日
+        coveredSundays.push(currentDate.toISOString().split('T')[0]);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    console.log(`已终止事件 ${event.recordId} 覆盖周日: ${coveredSundays.length}个 (结束时间: ${endDate.toISOString().split('T')[0]})`);
+  } else {
+    // 未结束事件不排除任何时间，让签到记录和事件分割逻辑来处理
+    console.log(`活跃事件 ${event.recordId} 不排除时间，让事件分割逻辑处理`);
   }
   
   return coveredSundays;
@@ -2302,11 +2371,18 @@ function updateExistingEvents(absenceEvents, memberUUID) {
     }
     
     const existingRecord = sortedExistingRecords.find(record => 
-      record.startDate === eventStartDate &&
-      record.status !== 'terminated' // 只匹配未终止的事件
+      record.startDate === eventStartDate
+      // 修复：匹配所有事件，包括已终止事件，避免重复创建
     );
     
     if (existingRecord) {
+      // 修复：如果事件已终止，不更新，直接保留原状态
+      if (existingRecord.status === 'terminated') {
+        console.log(`事件 ${existingRecord.recordId} 已终止，保留原状态，不更新`);
+        updatedEvents.push(existingRecord);
+        return;
+      }
+      
       // 更新现有记录（只更新缺勤次数，不自动终止）
       const updatedRecord = {
         ...existingRecord,

@@ -65,22 +65,12 @@ async function initializePage() {
 
 // 初始化Firebase
 function initializeFirebase() {
-  try {
-    if (window.firebaseConfig && typeof firebase !== 'undefined') {
-      // 检查Firebase是否已经初始化
-      if (!firebase.apps.length) {
-        firebase.initializeApp(window.firebaseConfig);
-        console.log('✅ Firebase初始化成功');
-      } else {
-        console.log('✅ Firebase已初始化');
-      }
-      return true;
-    } else {
-      console.log('⚠️ Firebase配置或SDK未找到');
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Firebase初始化失败:', error);
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    console.log('✅ 成员管理页面Firebase初始化成功');
+    return true;
+  } else {
+    console.error('❌ 成员管理页面Firebase初始化失败');
     return false;
   }
 }

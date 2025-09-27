@@ -5,7 +5,7 @@
 **系统名称**：MSH签到系统  
 **版本**：2.0  
 **文档版本**：1.0  
-**最后更新**：2025-01-11  
+**最后更新**：2025-09-27  
 **维护者**：MSH技术团队  
 
 ## 🚨 常见问题分类
@@ -769,6 +769,42 @@ function emergencyRecovery() {
    - 清除浏览器缓存
    - 刷新页面重新加载
 
+### **问题3：主日跟踪功能异常**
+
+#### **症状**
+- 主日跟踪页面无法加载
+- 事件列表显示异常
+- 已终止事件被重启
+
+#### **解决方案**
+1. **检查SundayTrackingManager状态**
+   ```javascript
+   // 检查跟踪管理器
+   if (window.utils && window.utils.SundayTrackingManager) {
+     const manager = window.utils.SundayTrackingManager;
+     console.log('跟踪记录数量:', manager.getTrackingRecords().length);
+     console.log('缓存状态:', manager._isCacheValid());
+   }
+   ```
+
+2. **清除跟踪缓存**
+   ```javascript
+   // 清除跟踪缓存
+   if (window.utils && window.utils.SundayTrackingManager) {
+     window.utils.SundayTrackingManager._clearCache();
+     console.log('跟踪缓存已清除');
+   }
+   ```
+
+3. **重新生成跟踪列表**
+   ```javascript
+   // 重新生成跟踪列表
+   if (window.utils && window.utils.SundayTrackingManager) {
+     const trackingList = window.utils.SundayTrackingManager.generateTrackingList();
+     console.log('重新生成的跟踪列表:', trackingList.length);
+   }
+   ```
+
 ## 🔧 数据持久化问题
 
 ### **问题1：添加"未签到不统计人员"后数据丢失**
@@ -849,6 +885,251 @@ function emergencyDataRecovery() {
   
   // 3. 等待系统重新初始化
   console.log('系统正在重新初始化，请稍候...');
+}
+```
+
+## 🔍 高级调试技巧
+
+### **1. 数据流追踪**
+```javascript
+// 启用数据流追踪
+window.DEBUG_DATA_FLOW = true;
+
+// 数据流追踪函数
+function traceDataFlow(operation, data) {
+  if (window.DEBUG_DATA_FLOW) {
+    console.log(`🔍 数据流追踪: ${operation}`);
+    console.log('输入数据:', data);
+    console.trace('调用栈');
+  }
+}
+```
+
+### **2. 性能分析**
+```javascript
+// 性能分析工具
+function analyzePerformance() {
+  const perfData = performance.getEntriesByType('measure');
+  console.log('=== 性能分析报告 ===');
+  
+  perfData.forEach(measure => {
+    console.log(`${measure.name}: ${measure.duration.toFixed(2)}ms`);
+  });
+  
+  // 内存使用情况
+  if (performance.memory) {
+    console.log('内存使用:', {
+      used: (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
+      total: (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
+      limit: (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + 'MB'
+    });
+  }
+}
+```
+
+### **3. 网络状态监控**
+```javascript
+// 网络状态监控
+function monitorNetworkStatus() {
+  console.log('网络状态:', navigator.onLine ? '在线' : '离线');
+  
+  // 监听网络状态变化
+  window.addEventListener('online', () => {
+    console.log('网络已连接');
+    // 触发数据同步
+    if (window.newDataManager) {
+      window.newDataManager.performManualSync();
+    }
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('网络已断开');
+    // 显示离线提示
+    showOfflineNotification();
+  });
+}
+```
+
+### **4. 错误收集和分析**
+```javascript
+// 错误收集系统
+class ErrorCollector {
+  constructor() {
+    this.errors = [];
+    this.setupErrorHandling();
+  }
+  
+  setupErrorHandling() {
+    // 全局错误处理
+    window.addEventListener('error', (event) => {
+      this.collectError({
+        type: 'javascript',
+        message: event.error?.message || event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack,
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+    // Promise拒绝处理
+    window.addEventListener('unhandledrejection', (event) => {
+      this.collectError({
+        type: 'promise',
+        message: event.reason?.message || String(event.reason),
+        stack: event.reason?.stack,
+        timestamp: new Date().toISOString()
+      });
+    });
+  }
+  
+  collectError(errorInfo) {
+    this.errors.push(errorInfo);
+    console.error('收集到错误:', errorInfo);
+    
+    // 限制错误数量
+    if (this.errors.length > 100) {
+      this.errors = this.errors.slice(-50);
+    }
+  }
+  
+  getErrorReport() {
+    return {
+      totalErrors: this.errors.length,
+      errors: this.errors,
+      browserInfo: {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+// 初始化错误收集器
+const errorCollector = new ErrorCollector();
+```
+
+## 🛠️ 维护工具
+
+### **1. 系统健康检查**
+```javascript
+// 系统健康检查工具
+function systemHealthCheck() {
+  const health = {
+    timestamp: new Date().toISOString(),
+    status: 'healthy',
+    issues: []
+  };
+  
+  // 检查Firebase连接
+  if (!firebase.apps.length) {
+    health.status = 'unhealthy';
+    health.issues.push('Firebase未初始化');
+  }
+  
+  // 检查数据管理器
+  if (!window.newDataManager) {
+    health.status = 'unhealthy';
+    health.issues.push('数据管理器未初始化');
+  }
+  
+  // 检查本地存储
+  try {
+    localStorage.setItem('test', 'test');
+    localStorage.removeItem('test');
+  } catch (error) {
+    health.status = 'unhealthy';
+    health.issues.push('本地存储不可用');
+  }
+  
+  // 检查网络连接
+  if (!navigator.onLine) {
+    health.status = 'degraded';
+    health.issues.push('网络连接断开');
+  }
+  
+  console.log('系统健康检查结果:', health);
+  return health;
+}
+```
+
+### **2. 数据完整性检查**
+```javascript
+// 数据完整性检查
+function dataIntegrityCheck() {
+  const issues = [];
+  
+  // 检查小组数据
+  const groups = window.groups;
+  if (!groups || typeof groups !== 'object') {
+    issues.push('小组数据格式错误');
+  } else {
+    Object.keys(groups).forEach(groupName => {
+      if (!Array.isArray(groups[groupName])) {
+        issues.push(`小组 ${groupName} 数据格式错误`);
+      }
+    });
+  }
+  
+  // 检查签到记录
+  const attendanceRecords = window.attendanceRecords;
+  if (!Array.isArray(attendanceRecords)) {
+    issues.push('签到记录数据格式错误');
+  }
+  
+  // 检查小组名称映射
+  const groupNames = window.groupNames;
+  if (!groupNames || typeof groupNames !== 'object') {
+    issues.push('小组名称映射数据格式错误');
+  }
+  
+  console.log('数据完整性检查结果:', {
+    issues: issues,
+    status: issues.length === 0 ? 'healthy' : 'unhealthy'
+  });
+  
+  return issues;
+}
+```
+
+### **3. 性能优化建议**
+```javascript
+// 性能优化建议
+function getPerformanceRecommendations() {
+  const recommendations = [];
+  
+  // 检查内存使用
+  if (performance.memory) {
+    const memoryUsage = performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit;
+    if (memoryUsage > 0.8) {
+      recommendations.push('内存使用率过高，建议清理缓存');
+    }
+  }
+  
+  // 检查本地存储大小
+  let localStorageSize = 0;
+  for (let key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      localStorageSize += localStorage[key].length;
+    }
+  }
+  
+  if (localStorageSize > 5 * 1024 * 1024) { // 5MB
+    recommendations.push('本地存储数据过大，建议清理过期数据');
+  }
+  
+  // 检查网络请求
+  const networkEntries = performance.getEntriesByType('resource');
+  const slowRequests = networkEntries.filter(entry => entry.duration > 1000);
+  if (slowRequests.length > 0) {
+    recommendations.push(`发现 ${slowRequests.length} 个慢请求，建议优化网络连接`);
+  }
+  
+  console.log('性能优化建议:', recommendations);
+  return recommendations;
 }
 ```
 

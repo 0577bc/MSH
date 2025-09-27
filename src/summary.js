@@ -26,25 +26,17 @@ let useVirtualScroll = true;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
-try {
-  app = firebase.app();
-  db = firebase.database();
-  // 设置全局变量，供utils.js使用
-  window.db = db;
-    console.log('✅ 使用已存在的Firebase应用');
-    return true;
-} catch (error) {
-  if (window.firebaseConfig) {
-    app = firebase.initializeApp(window.firebaseConfig);
-    db = firebase.database();
-    // 设置全局变量，供utils.js使用
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    // 设置全局变量，供其他模块使用
     window.db = db;
-      console.log('✅ 创建新的Firebase应用');
-      return true;
+    console.log('✅ 汇总页面Firebase初始化成功');
+    return true;
   } else {
-      console.error('❌ Firebase配置未找到');
-      return false;
-    }
+    console.error('❌ 汇总页面Firebase初始化失败');
+    return false;
   }
 }
 

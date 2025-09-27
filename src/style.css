@@ -3484,3 +3484,147 @@ button:hover {
 .secondary-button:hover {
   background: #5a6268;
 }
+
+/* 外部表单集成按钮样式 */
+.info-button {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(23, 162, 184, 0.2);
+}
+
+.info-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(23, 162, 184, 0.4);
+}
+
+.success-button {
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.success-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+}
+
+/* 通知样式 */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 6px;
+  color: white;
+  font-weight: 500;
+  z-index: 10000;
+  max-width: 300px;
+  word-wrap: break-word;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-success {
+  background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+}
+
+.notification-error {
+  background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
+}
+
+.notification-warning {
+  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+}
+
+.notification-info {
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+}
+
+/* 操作按钮样式 */
+.detail-btn, .forward-btn, .fetch-btn, .personal-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin: 2px;
+  display: inline-block;
+}
+
+.detail-btn {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+}
+
+.detail-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.forward-btn {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+}
+
+.forward-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}
+
+.fetch-btn {
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  color: white;
+}
+
+.fetch-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+/* 操作按钮容器样式 */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.action-buttons button {
+  margin: 2px;
+  white-space: nowrap;
+}
+
+/* ==================== 通用隐藏样式 ==================== */
+.hidden {
+  display: none !important;
+}
+
+.hidden-dialog {
+  display: none;
+}

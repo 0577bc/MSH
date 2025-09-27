@@ -13,30 +13,22 @@ let attendanceRecords = [];
 let pageSyncManager; // 页面同步管理器
 
 // DOM元素引用
-let backToSummaryButton, backToSigninButton, exportButton;
+let backToSummaryButton, exportButton;
 let sundayTrackingSection, sundayTrackingList, groupFilter;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
-  try {
-    app = firebase.app();
-    db = firebase.database();
-    // 设置全局变量，供utils.js使用
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    // 设置全局变量，供其他模块使用
     window.db = db;
-    console.log('✅ 使用已存在的Firebase应用');
+    console.log('✅ 主日跟踪页面Firebase初始化成功');
     return true;
-  } catch (error) {
-    if (window.firebaseConfig) {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
-      // 设置全局变量，供utils.js使用
-      window.db = db;
-      console.log('✅ 创建新的Firebase应用');
-      return true;
-    } else {
-      console.error('❌ Firebase配置未找到');
-      return false;
-    }
+  } else {
+    console.error('❌ 主日跟踪页面Firebase初始化失败');
+    return false;
   }
 }
 
@@ -53,7 +45,6 @@ function initializePageSyncManager() {
 // ==================== DOM元素初始化 ====================
 function initializeDOMElements() {
   backToSummaryButton = document.getElementById('backToSummaryButton');
-  backToSigninButton = document.getElementById('backToSigninButton');
   exportButton = document.getElementById('exportButton');
   
   sundayTrackingSection = document.getElementById('sundayTrackingSection');
@@ -66,23 +57,6 @@ function initializeEventListeners() {
   // 返回按钮事件
   if (backToSummaryButton) {
     backToSummaryButton.addEventListener('click', () => window.location.href = 'summary.html');
-  }
-
-  if (backToSigninButton) {
-    backToSigninButton.addEventListener('click', async () => {
-      // 检查是否有未同步的数据
-      if (window.newDataManager && window.newDataManager.hasLocalChanges) {
-        const shouldSync = confirm('检测到未同步的数据！\n\n是否在返回前同步数据？\n\n点击"确定"进行同步\n点击"取消"直接返回');
-        if (shouldSync) {
-          const syncSuccess = await window.newDataManager.performManualSync();
-          if (!syncSuccess) {
-            alert('同步失败，但将继续返回。请稍后手动同步数据。');
-          }
-        }
-      }
-      // 直接跳转到index页面，不使用history.back()
-      window.location.href = 'index.html';
-    });
   }
 
 
@@ -122,8 +96,12 @@ function initializeEventListeners() {
   // 小组筛选事件
   if (groupFilter) {
     groupFilter.addEventListener('change', () => {
+      console.log('🔍 小组筛选变更:', groupFilter.value);
       filterTrackingList();
     });
+    console.log('✅ 小组筛选事件监听器已绑定');
+  } else {
+    console.error('❌ 小组筛选控件未找到');
   }
   
   // 添加刷新按钮事件监听器
@@ -133,6 +111,30 @@ function initializeEventListeners() {
       console.log('🔄 用户点击刷新按钮');
       loadSundayTracking(false, false, true); // 强制刷新
     });
+  }
+
+  // 添加查看已终止事件按钮事件监听器
+  const showTerminatedButton = document.getElementById('showTerminatedButton');
+  if (showTerminatedButton) {
+    showTerminatedButton.addEventListener('click', () => {
+      console.log('📋 用户点击查看已终止事件按钮');
+      showTerminatedEvents();
+    });
+    console.log('✅ 查看已终止事件按钮事件监听器已绑定');
+  } else {
+    console.error('❌ 查看已终止事件按钮未找到');
+  }
+
+  // 添加显示所有事件按钮事件监听器
+  const showAllButton = document.getElementById('showAllButton');
+  if (showAllButton) {
+    showAllButton.addEventListener('click', () => {
+      console.log('📊 用户点击显示所有事件按钮');
+      showAllEvents();
+    });
+    console.log('✅ 显示所有事件按钮事件监听器已绑定');
+  } else {
+    console.error('❌ 显示所有事件按钮未找到');
   }
 
 }
@@ -174,7 +176,41 @@ async function loadData() {
       }
     }
     
-    // 优先使用全局缓存数据
+    // 优化：检查是否只需要跟踪记录数据（不依赖基础数据）
+    console.log('🔧 优化版数据加载：检查跟踪记录数据');
+    
+    // 检查是否有跟踪记录数据
+    const existingTrackingRecords = window.utils?.SundayTrackingManager?.getTrackingRecords();
+    if (existingTrackingRecords && existingTrackingRecords.length > 0) {
+      console.log('✅ 使用现有跟踪记录数据，跳过基础数据加载');
+      console.log(`📊 现有跟踪记录: ${existingTrackingRecords.length}个`);
+      // 修复：确保groupNames已加载，然后继续执行后续流程
+      console.log('🔧 确保groupNames已加载，继续执行事件列表生成流程');
+      
+      // 确保groupNames已加载
+      if (!window.groupNames) {
+        console.log('🔧 加载groupNames数据...');
+        try {
+          const groupNamesSnapshot = await db.ref('groupNames').once('value');
+          if (groupNamesSnapshot.exists()) {
+            window.groupNames = groupNamesSnapshot.val() || {};
+            console.log('✅ groupNames已加载');
+          } else {
+            console.log('⚠️ Firebase中没有groupNames数据');
+            window.groupNames = {};
+          }
+        } catch (error) {
+          console.error('❌ 加载groupNames失败:', error);
+          window.groupNames = {};
+        }
+      }
+      
+      // 继续执行事件列表生成
+      await loadSundayTracking();
+      return;
+    }
+    
+    // 如果全局缓存数据完整，使用缓存（保持兼容性）
     if (window.groups && window.attendanceRecords && window.groupNames) {
       console.log('✅ 使用全局缓存数据，跳过Firebase加载');
       groups = window.groups;
@@ -191,12 +227,20 @@ async function loadData() {
       return;
     }
     
-    // 如果全局数据不完整，尝试从Firebase加载
-    console.log('全局缓存数据不完整，从Firebase加载...');
-    await loadDataFromFirebase();
+    // 优化：优先加载跟踪记录数据，基础数据按需加载
+    console.log('🔧 优化版：优先加载跟踪记录数据');
     
     // 从Firebase加载跟踪记录数据
     await loadTrackingRecordsFromFirebase();
+    
+    // 检查是否还需要基础数据（仅在必要时加载）
+    const trackingRecords = window.utils?.SundayTrackingManager?.getTrackingRecords();
+    if (!trackingRecords || trackingRecords.length === 0) {
+      console.log('⚠️ 无跟踪记录数据，需要加载基础数据生成事件');
+      await loadDataFromFirebase();
+    } else {
+      console.log('✅ 有跟踪记录数据，跳过基础数据加载');
+    }
   } catch (error) {
     console.error('Error loading data from Firebase:', error);
     console.log('Using local storage as fallback');
@@ -205,6 +249,7 @@ async function loadData() {
 }
 
 // 从Firebase加载跟踪记录数据
+// 优化版：懒加载跟踪记录，只在需要时加载
 async function loadTrackingRecordsFromFirebase() {
   if (!db) {
     console.log('⚠️ Firebase未初始化，跳过跟踪记录加载');
@@ -212,33 +257,76 @@ async function loadTrackingRecordsFromFirebase() {
   }
   
   try {
-    console.log('🔄 开始从Firebase加载跟踪记录数据...');
+    console.log('🔧 优化版：懒加载跟踪记录数据...');
     
-    // 加载所有跟踪记录
-    const trackingSnapshot = await db.ref('trackingRecords').once('value');
+    // 检查是否已有跟踪记录数据
+    const existingRecords = window.utils?.SundayTrackingManager?.getTrackingRecords();
+    if (existingRecords && existingRecords.length > 0) {
+      console.log('✅ 已有跟踪记录数据，但为了确保同步，仍从Firebase加载最新数据');
+      // 不直接返回，继续从Firebase加载以确保数据同步
+    }
+    
+    // 只加载主跟踪记录，个人跟踪记录按需加载
+    console.log('🔄 从Firebase加载主跟踪记录数据...');
+    
+    // 修复：从正确的路径加载数据（sundayTracking）
+    const trackingSnapshot = await db.ref('sundayTracking').once('value');
     if (trackingSnapshot.exists()) {
-      const trackingRecords = trackingSnapshot.val() || {};
-      // 保存到localStorage
-      localStorage.setItem('msh_tracking_records', JSON.stringify(trackingRecords));
-      console.log('✅ 跟踪记录已从Firebase加载并保存到localStorage');
+      const trackingRecords = trackingSnapshot.val() || [];
+      
+      // 确保是数组格式
+      const trackingRecordsArray = Array.isArray(trackingRecords) ? trackingRecords : Object.values(trackingRecords);
+      console.log(`📊 从Firebase加载跟踪记录: ${trackingRecordsArray.length}个`);
+      
+      // 保存到localStorage（使用正确的键名）
+      localStorage.setItem('msh_sunday_tracking', JSON.stringify(trackingRecordsArray));
+      console.log('✅ 主跟踪记录已从Firebase加载并保存到localStorage');
     } else {
-      console.log('📋 Firebase中没有跟踪记录数据');
+      console.log('📋 Firebase中没有主跟踪记录数据');
     }
     
-    // 加载个人跟踪记录
-    const personalTrackingSnapshot = await db.ref('personalTracking').once('value');
-    if (personalTrackingSnapshot.exists()) {
-      const personalTracking = personalTrackingSnapshot.val() || {};
-      // 保存到localStorage
-      localStorage.setItem('msh_personal_tracking', JSON.stringify(personalTracking));
-      console.log('✅ 个人跟踪记录已从Firebase加载并保存到localStorage');
-    } else {
-      console.log('📋 Firebase中没有个人跟踪记录数据');
-    }
+    // 个人跟踪记录改为懒加载，不在此处加载
+    console.log('🔧 个人跟踪记录将按需懒加载');
     
     console.log('✅ 跟踪记录数据加载完成');
   } catch (error) {
     console.error('❌ 从Firebase加载跟踪记录失败:', error);
+  }
+}
+
+// 新增：懒加载个人跟踪记录
+async function loadPersonalTrackingFromFirebase(memberUUID) {
+  if (!db) {
+    console.log('⚠️ Firebase未初始化，跳过个人跟踪记录加载');
+    return null;
+  }
+  
+  try {
+    console.log(`🔧 懒加载个人跟踪记录: ${memberUUID}`);
+    
+    // 检查缓存
+    const cacheKey = `msh_personal_tracking_${memberUUID}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      console.log('✅ 使用缓存的个人跟踪记录');
+      return JSON.parse(cached);
+    }
+    
+    // 从Firebase加载
+    const personalTrackingSnapshot = await db.ref(`personalTracking/${memberUUID}`).once('value');
+    if (personalTrackingSnapshot.exists()) {
+      const personalTracking = personalTrackingSnapshot.val() || {};
+      // 保存到localStorage缓存
+      localStorage.setItem(cacheKey, JSON.stringify(personalTracking));
+      console.log('✅ 个人跟踪记录已从Firebase加载并缓存');
+      return personalTracking;
+    } else {
+      console.log('📋 Firebase中没有该成员的个人跟踪记录');
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ 加载个人跟踪记录失败:', error);
+    return null;
   }
 }
 
@@ -400,8 +488,391 @@ function startListening() {
 
 // ==================== 主日跟踪功能 ====================
 
-// 加载主日跟踪数据
+// 加载主日跟踪数据（优化版）
 function loadSundayTracking(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
+  const pageLoadStartTime = performance.now();
+  console.log('🚀 开始加载主日跟踪页面（优化版）');
+  
+  try {
+    // 如果强制刷新，清除缓存
+    if (forceRefresh) {
+      console.log('🔄 强制刷新，清除缓存');
+      if (window.unifiedCacheManager) {
+        window.unifiedCacheManager.clearAll();
+      }
+    }
+    
+    // 检查缓存
+    if (window.unifiedCacheManager) {
+      const cachedEventList = window.unifiedCacheManager.get('eventList', 'all');
+      if (cachedEventList) {
+        const cacheLoadTime = performance.now() - pageLoadStartTime;
+        console.log(`📦 使用缓存的事件列表，耗时: ${cacheLoadTime.toFixed(2)}ms`);
+        
+        // 记录缓存加载性能
+        window.pageLoadPerformance = {
+          totalLoadTime: cacheLoadTime,
+          eventListGeneration: 0,
+          eventCount: cachedEventList.length,
+          loadType: 'cache',
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log(`✅ 主日跟踪页面加载完成，总耗时: ${cacheLoadTime.toFixed(2)}ms`);
+        displayEventList(cachedEventList);
+        return;
+      }
+    }
+    
+    // 优化：检查是否有跟踪记录数据，如果有则直接生成事件列表
+    const existingTrackingRecords = window.utils?.SundayTrackingManager?.getTrackingRecords();
+    if (existingTrackingRecords && existingTrackingRecords.length > 0) {
+      console.log('🔧 检测到跟踪记录数据，直接生成事件列表');
+      console.log(`📊 跟踪记录数量: ${existingTrackingRecords.length}个`);
+      
+      // 直接生成事件列表，不依赖基础数据
+      const eventList = generateUltraLightEventList();
+      
+      // 保存到缓存
+      if (window.unifiedCacheManager) {
+        window.unifiedCacheManager.set('eventList', 'all', eventList);
+      }
+      
+      // 显示事件列表
+      displayEventList(eventList);
+      
+      // 计算总加载时间
+      const totalLoadTime = performance.now() - pageLoadStartTime;
+      console.log(`✅ 主日跟踪页面加载完成，总耗时: ${totalLoadTime.toFixed(2)}ms`);
+      
+      // 更新性能监控数据
+      if (window.pageLoadPerformance) {
+        window.pageLoadPerformance.totalLoadTime = totalLoadTime;
+        window.pageLoadPerformance.loadType = 'tracking_records';
+      }
+      
+      return;
+    }
+    
+    // 检查基础数据是否已加载
+    if (!window.groups || !window.attendanceRecords) {
+      console.log('⏳ 等待基础数据加载完成...');
+      // 等待基础数据加载
+      const checkDataLoaded = setInterval(() => {
+        if (window.groups && window.attendanceRecords) {
+          clearInterval(checkDataLoaded);
+          console.log('✅ 基础数据加载完成，继续加载事件列表');
+          loadSundayTracking(preserveFilters, skipFullReload, forceRefresh);
+        }
+      }, 100);
+      return;
+    }
+    
+    // 优化：检查是否只需要跟踪记录数据
+    if (!window.utils || !window.utils.SundayTrackingManager) {
+      console.log('⏳ 等待SundayTrackingManager加载完成...');
+      const checkManagerLoaded = setInterval(() => {
+        if (window.utils && window.utils.SundayTrackingManager) {
+          clearInterval(checkManagerLoaded);
+          console.log('✅ SundayTrackingManager加载完成，继续加载事件列表');
+          loadSundayTracking(preserveFilters, skipFullReload, forceRefresh);
+        }
+      }, 100);
+      return;
+    }
+    
+    // 显示加载指示器
+    showLoadingIndicator();
+    
+    // 异步生成极简事件列表（避免阻塞UI）
+    setTimeout(() => {
+      try {
+        const eventList = generateUltraLightEventList();
+        
+        // 保存到缓存
+        if (window.unifiedCacheManager) {
+          window.unifiedCacheManager.set('eventList', 'all', eventList);
+        }
+        
+        // 显示事件列表
+        displayEventList(eventList);
+        hideLoadingIndicator();
+        
+        // 计算总加载时间
+        const totalLoadTime = performance.now() - pageLoadStartTime;
+        console.log(`✅ 主日跟踪页面加载完成，总耗时: ${totalLoadTime.toFixed(2)}ms`);
+        
+        // 更新性能监控数据
+        if (window.pageLoadPerformance) {
+          window.pageLoadPerformance.totalLoadTime = totalLoadTime;
+          window.pageLoadPerformance.loadType = 'generated';
+        }
+        
+      } catch (error) {
+        console.error('❌ 异步生成事件列表失败:', error);
+        hideLoadingIndicator();
+        showErrorMessage('生成事件列表失败，请重试！');
+      }
+    }, 10); // 10ms延迟，让UI先渲染
+    
+  } catch (error) {
+    console.error('❌ 加载主日跟踪页面失败:', error);
+    alert('加载跟踪数据失败，请重试！');
+  }
+}
+
+// 生成极简事件列表（真正的极简版本 - 只拉取数据，不计算）
+function generateUltraLightEventList() {
+  console.log('🔍 生成极简事件列表（只拉取数据）');
+  const startTime = performance.now();
+  
+  // 只获取已存在的事件记录，不进行任何计算
+  if (!window.utils || !window.utils.SundayTrackingManager) {
+    console.error('❌ SundayTrackingManager未找到');
+    return [];
+  }
+  
+  // 直接获取已存在的事件记录，不调用generateTrackingList（避免计算）
+  const existingEvents = window.utils.SundayTrackingManager.getTrackingRecords();
+  console.log(`📊 获取已存在事件数量: ${existingEvents.length}`);
+  
+  // 只过滤已终止的事件（排除人员事件应该在生成阶段直接跳过，不生成）
+  const filteredEvents = existingEvents.filter(event => {
+    // 过滤已终止的事件
+    if (event.status === 'terminated') {
+      console.log(`🚫 过滤已终止事件: ${event.memberName}(${event.group}) - 不显示`);
+      return false;
+    }
+    
+    return true;
+  });
+  
+  console.log(`📊 过滤后事件数量: ${filteredEvents.length}个 (过滤掉${existingEvents.length - filteredEvents.length}个)`);
+  
+  // 转换为极简事件列表格式（优化版：使用快照信息）
+  const eventList = filteredEvents.map((item, index) => ({
+    eventId: item.recordId || `event_${item.memberUUID}_${index}`,
+    memberUUID: item.memberUUID,
+    memberName: item.memberName,
+    group: item.group,
+    // 优化：使用快照中的显示名称，如果没有则使用group
+    groupDisplayName: item.groupDisplayName || item.group,
+    eventType: item.eventType || 'extended_absence',
+    status: item.status || 'active',
+    consecutiveAbsences: item.consecutiveAbsences,
+    lastAttendanceDate: item.lastAttendanceDate,
+    trackingStartDate: item.trackingStartDate,
+    // 优化：使用快照中的成员信息
+    memberSnapshot: item.memberSnapshot || {
+      uuid: item.memberUUID,
+      name: item.memberName,
+      group: item.group
+    },
+    lastUpdateTime: new Date().toISOString()
+  }));
+  
+  const endTime = performance.now();
+  const processingTime = endTime - startTime;
+  console.log(`✅ 极简事件列表生成完成，耗时: ${processingTime.toFixed(2)}ms，事件数量: ${eventList.length}`);
+  
+  // 性能监控：记录到全局变量供页面显示
+  window.pageLoadPerformance = {
+    eventListGeneration: processingTime,
+    eventCount: eventList.length,
+    timestamp: new Date().toISOString()
+  };
+  
+  return eventList;
+}
+
+// 专门为主日跟踪页面优化的数据加载策略
+async function loadSundayTrackingDataOnly() {
+  console.log('🔍 主日跟踪页面专用数据加载策略');
+  const startTime = performance.now();
+  
+  try {
+    // 1. 检查是否已有跟踪记录数据
+    const existingTrackingRecords = window.utils.SundayTrackingManager.getTrackingRecords();
+    if (existingTrackingRecords.length > 0) {
+      console.log(`📦 使用现有跟踪记录: ${existingTrackingRecords.length}个`);
+      return existingTrackingRecords;
+    }
+    
+    // 2. 如果本地没有跟踪记录，只拉取必要的Firebase数据
+    console.log('🔄 从Firebase拉取跟踪记录数据...');
+    
+    if (!firebase.apps.length) {
+      console.error('Firebase未初始化');
+      return [];
+    }
+    
+    const db = firebase.database();
+    
+    // 只拉取跟踪记录相关的数据，不拉取所有数据
+    const trackingSnapshot = await db.ref('sundayTracking').once('value');
+    const trackingData = trackingSnapshot.val() || {};
+    
+    // 保存到localStorage
+    localStorage.setItem('msh_sunday_tracking', JSON.stringify(trackingData));
+    
+    const endTime = performance.now();
+    console.log(`✅ 跟踪记录数据加载完成，耗时: ${(endTime - startTime).toFixed(2)}ms`);
+    
+    return Object.values(trackingData);
+    
+  } catch (error) {
+    console.error('❌ 加载跟踪记录数据失败:', error);
+    return [];
+  }
+}
+
+// 显示加载指示器
+function showLoadingIndicator() {
+  if (sundayTrackingList) {
+    sundayTrackingList.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 20px;">
+          <div class="loading-indicator">
+            <div class="spinner"></div>
+            <div>正在生成事件列表，请稍候...</div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+}
+
+// 隐藏加载指示器
+function hideLoadingIndicator() {
+  // 加载指示器会在displayEventList中被替换
+}
+
+// 显示错误信息
+function showErrorMessage(message) {
+  if (sundayTrackingList) {
+    sundayTrackingList.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: #e74c3c; padding: 20px;">
+          <div>❌ ${message}</div>
+          <button onclick="loadSundayTracking()" class="main-button primary-button" style="margin-top: 10px;">
+            重试
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+}
+
+// 极简缺勤事件检查
+function hasAbsenceEvent(memberUUID) {
+  // 最简单的检查：最近4周是否有签到记录
+  const recentRecords = getRecentAttendanceRecords(memberUUID, 4);
+  return recentRecords.length === 0;
+}
+
+// 获取最近签到记录（优化版）
+function getRecentAttendanceRecords(memberUUID, weeks) {
+  if (!window.attendanceRecords) return [];
+  
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - (weeks * 7));
+  
+  return window.attendanceRecords.filter(record => {
+    return record.memberUUID === memberUUID && 
+           new Date(record.time) >= cutoffDate;
+  });
+}
+
+// 显示事件列表
+function displayEventList(eventList) {
+  if (!sundayTrackingList) {
+    console.error('主日跟踪列表元素未找到');
+    return;
+  }
+  
+  sundayTrackingList.innerHTML = '';
+  
+  if (eventList.length === 0) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="5" style="text-align: center; color: #666;">暂无跟踪记录</td>';
+    sundayTrackingList.appendChild(row);
+    updateTrackingCount(0);
+    return;
+  }
+  
+  // 性能信息已移除，不再显示给用户
+  
+  // 已终止事件查看按钮已移至页面顶部，此处不再重复显示
+  
+  // 排序：第一关键词组别，第二关键词连续缺勤次数（降序），第三关键词姓名
+  const sortedList = eventList.sort((a, b) => {
+    // 第一关键词：组别
+    if (a.group !== b.group) {
+      // 确保"未分组"排在最后
+      if (a.group === '未分组') return 1;
+      if (b.group === '未分组') return -1;
+      return a.group.localeCompare(b.group);
+    }
+    
+    // 第二关键词：连续缺勤次数（降序）
+    if (a.consecutiveAbsences !== b.consecutiveAbsences) {
+      return b.consecutiveAbsences - a.consecutiveAbsences;
+    }
+    
+    // 第三关键词：姓名
+    return a.memberName.localeCompare(b.memberName);
+  });
+  
+  sortedList.forEach((item, index) => {
+    const row = document.createElement('tr');
+    
+    // 根据事件类型设置样式
+    let rowClass = '';
+    if (item.eventType === 'extended_absence') {
+      rowClass = 'extended-absence-row';
+    } else if (item.eventType === 'severe_absence') {
+      rowClass = 'severe-absence-row';
+    } else {
+      rowClass = 'normal-absence-row';
+    }
+    
+    row.className = rowClass;
+    row.innerHTML = `
+      <td>${item.memberName}</td>
+      <td>${item.groupDisplayName || item.group}</td>
+      <td>${item.consecutiveAbsences || 0}次</td>
+      <td>${item.lastAttendanceDate || '无'}</td>
+      <td class="action-buttons">
+        <button class="detail-btn" onclick="navigateToEventDetail('${item.memberUUID}', '${item.eventId}')" title="查看详情">查看详情</button>
+        <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')" title="个人页面">个人页面</button>
+        <button class="forward-btn" onclick="forwardToExternalForm('${item.eventId || item.memberUUID}')" title="转发到外部表单">转发</button>
+        <button class="fetch-btn" onclick="fetchExternalFormData('${item.eventId || item.memberUUID}')" title="抓取外部数据">抓取</button>
+      </td>
+    `;
+    sundayTrackingList.appendChild(row);
+  });
+  
+  // 更新事件数量
+  updateTrackingCount(eventList.length);
+  
+  // 更新筛选选项
+  updateGroupFilterOptions(eventList);
+}
+
+// 跳转到事件详情页面
+function navigateToEventDetail(memberUUID, eventId) {
+  console.log(`🔗 跳转到跟踪事件详情页面 - UUID: ${memberUUID}`);
+  window.location.href = `tracking-event-detail.html?uuid=${memberUUID}&eventId=${eventId}`;
+}
+
+// 查看个人页面
+function viewPersonalPage(memberUUID) {
+  console.log(`🔗 跳转到个人页面 - UUID: ${memberUUID}`);
+  window.location.href = `personal-page.html?uuid=${memberUUID}`;
+}
+
+// 兼容旧版本的加载函数
+function loadSundayTrackingLegacy(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
   if (!window.utils || !window.utils.SundayTrackingManager) {
     console.error('主日跟踪管理器未加载');
     alert('主日跟踪功能暂不可用，请刷新页面重试！');
@@ -521,11 +992,13 @@ function updateTrackingSummary(trackingList) {
   updateGroupFilterOptions(trackingList);
 }
 
-// 更新小组筛选选项
+// 更新小组筛选选项（优化版：从事件数据直接获取，不依赖基础数据）
 function updateGroupFilterOptions(trackingList) {
   if (!groupFilter) return;
   
-  // 获取所有小组
+  console.log('🔧 优化版小组筛选：从事件数据直接获取选项');
+  
+  // 获取所有小组（从事件数据中直接提取）
   const allGroups = new Set();
   trackingList.forEach(item => {
     if (item.group) {
@@ -545,32 +1018,51 @@ function updateGroupFilterOptions(trackingList) {
   
   sortedGroups.forEach(group => {
     const option = document.createElement('option');
-    option.value = group;
-    option.textContent = groupNames[group] || group;
+    // 修复：使用显示名称作为value，确保筛选逻辑一致
+    const displayName = window.groupNames && window.groupNames[group] ? window.groupNames[group] : group;
+    option.value = displayName;
+    option.textContent = displayName;
     groupFilter.appendChild(option);
   });
+  
+  console.log(`✅ 小组筛选选项已更新，共${sortedGroups.length}个小组`);
 }
 
-// 筛选跟踪列表
+// 筛选跟踪列表（优化版：不依赖groupNames映射）
 function filterTrackingList() {
   if (!groupFilter) return;
   
   const selectedGroup = groupFilter.value;
   const allRows = sundayTrackingList.querySelectorAll('tr');
   
+  console.log(`🔍 筛选小组: ${selectedGroup}`);
+  
   allRows.forEach(row => {
     if (row.querySelector('td')) {
       const groupCell = row.querySelector('td:nth-child(2)');
       if (groupCell) {
         const groupName = groupCell.textContent.trim();
-        const shouldShow = !selectedGroup || groupName === (groupNames[selectedGroup] || selectedGroup);
+        // 优化：直接比较小组名称，不依赖groupNames映射
+        const shouldShow = !selectedGroup || groupName === selectedGroup;
         row.style.display = shouldShow ? '' : 'none';
+        console.log(`  ${groupName}: ${shouldShow ? '显示' : '隐藏'}`);
       }
     }
   });
   
   // 更新统计信息
   updateFilteredCount();
+}
+
+// 更新事件数量显示
+function updateTrackingCount(count) {
+  const trackingCountEl = document.getElementById('trackingCount');
+  if (trackingCountEl) {
+    trackingCountEl.textContent = count;
+    console.log(`📊 事件数量更新: ${count}`);
+  } else {
+    console.error('❌ 事件数量控件未找到');
+  }
 }
 
 // 更新筛选后的统计信息
@@ -705,16 +1197,20 @@ function generateExportContent(groupedData) {
         rowClass += ' terminated-event';
         statusText = ' (已终止)';
         buttonHtml = `
-          <button class="restart-btn" onclick="(async () => await restartEvent('${item.recordId || item.memberUUID}', '${item.memberName}'))()">重启事件</button>
-          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')">个人页面</button>
+          <button class="detail-btn" onclick="viewEventDetail('${item.recordId || item.memberUUID}')" title="查看详情">查看详情</button>
+          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')" title="个人页面">个人页面</button>
+          <button class="forward-btn" onclick="forwardToExternalForm('${item.recordId || item.memberUUID}')" title="转发到外部表单">转发</button>
+          <button class="fetch-btn" onclick="fetchExternalFormData('${item.recordId || item.memberUUID}')" title="抓取外部数据">抓取</button>
         `;
       } else {
         buttonHtml = `
-          <button class="resolve-btn" onclick="resolveTracking('${item.recordId || item.memberUUID}', '${item.memberName}')">跟踪</button>
-          <button class="ignore-btn" onclick="(async () => await ignoreTracking('${item.recordId || item.memberUUID}', '${item.memberName}'))()">事件终止</button>
-          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')">个人页面</button>
+          <button class="detail-btn" onclick="viewEventDetail('${item.recordId || item.memberUUID}')" title="查看详情">查看详情</button>
+          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')" title="个人页面">个人页面</button>
+          <button class="forward-btn" onclick="forwardToExternalForm('${item.recordId || item.memberUUID}')" title="转发到外部表单">转发</button>
+          <button class="fetch-btn" onclick="fetchExternalFormData('${item.recordId || item.memberUUID}')" title="抓取外部数据">抓取</button>
         `;
       }
+      
       
       // 计算缺勤周数范围显示
       const weekRange = getAbsenceWeekRange(item.trackingStartDate, item.consecutiveAbsences);
@@ -726,13 +1222,322 @@ function generateExportContent(groupedData) {
         <td>${groupNames[item.originalGroup || item.group] || (item.originalGroup || item.group)}</td>
         <td>${item.consecutiveAbsences}次 <span class="event-type">${absenceDisplay}</span></td>
         <td>${item.lastAttendanceDate ? window.utils.formatDateForDisplay(item.lastAttendanceDate) : '无'}</td>
-        <td>
+        <td class="action-buttons">
           ${buttonHtml}
         </td>
       `;
+      
       sundayTrackingList.appendChild(row);
     });
   }
+
+// ==================== 事件详情功能 ====================
+
+/**
+ * 查看事件详情
+ * 功能：跳转到事件详情页面
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+function viewEventDetail(eventId) {
+  try {
+    console.log(`🔍 查看事件详情: ${eventId}`);
+    
+    // 构建详情页面URL
+    const detailUrl = `tracking-event-detail.html?eventId=${eventId}`;
+    
+    // 跳转到详情页面
+    window.location.href = detailUrl;
+    
+  } catch (error) {
+    console.error('❌ 查看事件详情失败:', error);
+    alert('查看详情失败：' + error.message);
+  }
+}
+
+// ==================== 外部表单集成功能 ====================
+
+/**
+ * 转发到外部表单
+ * 功能：将事件信息转发到pub.baishuyun.com的表单
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+async function forwardToExternalForm(eventId) {
+  try {
+    console.log(`🔄 开始转发事件到外部表单: ${eventId}`);
+    showLoadingState('正在转发到外部表单...');
+    
+    // 获取事件详情
+    const eventRecord = window.utils.SundayTrackingManager.getTrackingRecord(eventId);
+    if (!eventRecord) {
+      throw new Error('事件记录未找到，请刷新页面重试');
+    }
+    
+    // 构建转发数据
+    const forwardData = {
+      eventId: eventId,
+      memberName: eventRecord.memberName || '未知成员',
+      memberUUID: eventRecord.memberUUID || eventId,
+      group: eventRecord.group || eventRecord.originalGroup || '未知组别',
+      startDate: eventRecord.startDate || new Date().toISOString().split('T')[0],
+      consecutiveAbsences: eventRecord.consecutiveAbsences || 0,
+      source: 'msh-tracking',
+      timestamp: Date.now()
+    };
+    
+    // 发送转发请求到外部API
+    const apiUrl = 'https://pub.baishuyun.com/api/forward';
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(forwardData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('📤 转发API响应:', result);
+    
+    if (result.success) {
+      showNotification('事件已成功转发到外部表单！', 'success');
+      console.log('✅ 转发到外部表单成功');
+    } else {
+      throw new Error(result.message || '转发失败');
+    }
+    
+  } catch (error) {
+    console.error('❌ 转发到外部表单失败:', error);
+    showNotification('转发失败：' + error.message, 'error');
+  } finally {
+    hideLoadingState();
+  }
+}
+
+/**
+ * 抓取外部表单数据
+ * 功能：从pub.baishuyun.com获取已填写的表单数据
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+async function fetchExternalFormData(eventId) {
+  try {
+    console.log(`🔄 开始抓取外部表单数据: ${eventId}`);
+    
+    // 显示加载状态
+    showLoadingState('正在抓取外部表单数据...');
+    
+    // 构建API请求
+    const apiUrl = 'https://pub.baishuyun.com/api/form-data';
+    const requestData = {
+      eventId: eventId,
+      action: 'fetch',
+      timestamp: Date.now()
+    };
+    
+    console.log('📤 发送API请求:', requestData);
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('📥 API响应:', result);
+    
+    if (result.success && result.data) {
+      // 处理抓取到的数据
+      await processExternalFormData(eventId, result.data);
+      showNotification('外部表单数据抓取成功！', 'success');
+    } else {
+      showNotification('未找到相关的外部表单数据', 'warning');
+    }
+    
+  } catch (error) {
+    console.error('❌ 抓取外部表单数据失败:', error);
+    showNotification('抓取失败：' + error.message, 'error');
+  } finally {
+    hideLoadingState();
+  }
+}
+
+/**
+ * 处理外部表单数据
+ * 功能：将抓取到的外部表单数据保存到系统
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+async function processExternalFormData(eventId, formData) {
+  try {
+    console.log('🔄 处理外部表单数据:', formData);
+    
+    // 验证数据完整性
+    if (!formData.trackingDate || !formData.content) {
+      throw new Error('外部表单数据不完整');
+    }
+    
+    // 创建跟踪记录
+    const trackingRecord = {
+      eventId: eventId,
+      trackingDate: formData.trackingDate,
+      content: formData.content,
+      category: formData.category || '外部表单',
+      person: formData.person || '系统',
+      source: 'external-form',
+      notes: formData.notes || '',
+      createdAt: new Date().toISOString()
+    };
+    
+    // 保存到系统
+    const success = await window.utils.SundayTrackingManager.addTrackingRecord(
+      formData.memberUUID, 
+      trackingRecord
+    );
+    
+    if (!success) {
+      throw new Error('保存跟踪记录失败');
+    }
+    
+    // 更新事件状态（如果外部表单标记为已解决）
+    if (formData.status === 'resolved') {
+      await updateEventStatus(eventId, 'resolved');
+    }
+    
+    // 刷新页面显示
+    await loadSundayTracking();
+    
+    console.log('✅ 外部表单数据处理完成:', trackingRecord);
+    
+  } catch (error) {
+    console.error('❌ 处理外部表单数据失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 更新事件状态
+ * 功能：更新事件的跟踪状态
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+async function updateEventStatus(eventId, status) {
+  try {
+    const eventRecord = window.utils.SundayTrackingManager.getTrackingRecord(eventId);
+    if (!eventRecord) {
+      throw new Error('事件记录未找到');
+    }
+    
+    // 更新状态
+    eventRecord.status = status;
+    eventRecord.updatedAt = new Date().toISOString();
+    
+    // 保存更新
+    const success = window.utils.SundayTrackingManager.saveTrackingRecord(eventRecord);
+    if (!success) {
+      throw new Error('更新事件状态失败');
+    }
+    
+    console.log(`✅ 事件状态已更新为: ${status}`);
+    
+  } catch (error) {
+    console.error('❌ 更新事件状态失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 显示通知
+ * 功能：显示操作结果通知
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+function showNotification(message, type = 'info') {
+  // 创建通知元素
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  
+  // 添加样式
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    max-width: 300px;
+    word-wrap: break-word;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideInRight 0.3s ease-out;
+  `;
+  
+  // 设置背景色
+  const colors = {
+    success: '#4CAF50',
+    error: '#F44336',
+    warning: '#FF9800',
+    info: '#2196F3'
+  };
+  notification.style.backgroundColor = colors[type] || colors.info;
+  
+  // 添加到页面
+  document.body.appendChild(notification);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 3000);
+}
+
+/**
+ * 显示加载状态
+ * 功能：显示页面加载状态
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+function showLoadingState(message = '正在加载...') {
+  // 创建加载指示器
+  const loadingIndicator = document.createElement('div');
+  loadingIndicator.id = 'loadingIndicator';
+  loadingIndicator.className = 'loading-indicator';
+  loadingIndicator.innerHTML = `
+    <div class="spinner"></div>
+    <p>${message}</p>
+  `;
+  
+  // 添加到页面
+  document.body.appendChild(loadingIndicator);
+}
+
+/**
+ * 隐藏加载状态
+ * 功能：隐藏页面加载状态
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+function hideLoadingState() {
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  if (loadingIndicator && loadingIndicator.parentNode) {
+    loadingIndicator.parentNode.removeChild(loadingIndicator);
+  }
+}
 
 // 计算缺勤周数范围显示
 function getAbsenceWeekRange(startDate, consecutiveAbsences) {
@@ -781,202 +1586,8 @@ function getAbsenceWeekRange(startDate, consecutiveAbsences) {
 // 获取状态文本
 // getStatusText函数已移至utils.js，使用window.utils.getStatusText()
 
-// 跟踪
-function resolveTracking(recordId, memberName) {
-  // 显示跟踪对话框
-  const dialog = document.getElementById('resolveTrackingDialog');
-  if (!dialog) {
-    console.error('跟踪对话框未找到');
-    return;
-  }
-  
-  // 清空表单并设置默认日期
-  document.getElementById('trackingDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('trackingContent').value = '';
-  document.getElementById('trackingCategory').value = '';
-  document.getElementById('trackingPerson').value = '';
-  
-  // 显示对话框
-  dialog.classList.remove('hidden-dialog');
-  
-  // 绑定确认按钮事件
-  const confirmBtn = document.getElementById('confirmResolve');
-  const cancelBtn = document.getElementById('cancelResolve');
-  
-  const handleConfirm = () => {
-    const date = document.getElementById('trackingDate').value;
-    const content = document.getElementById('trackingContent').value.trim();
-    const category = document.getElementById('trackingCategory').value;
-    const person = document.getElementById('trackingPerson').value.trim();
-    
-    if (!date || !content || !category || !person) {
-      alert('请填写所有必填字段！');
-      return;
-    }
-    
-    // 调用跟踪功能
-    if (window.utils && window.utils.SundayTrackingManager) {
-      // 获取记录ID对应的成员UUID
-      const trackingRecord = window.utils.SundayTrackingManager.getTrackingRecord(recordId);
-      const memberUUID = trackingRecord ? trackingRecord.memberUUID : recordId;
-      
-      const trackingData = {
-        date: date,
-        content: content,
-        category: category,
-        person: person,
-        memberUUID: memberUUID,
-        memberName: memberName,
-        createdAt: new Date().toISOString()
-      };
-      
-      const success = window.utils.SundayTrackingManager.addTrackingRecord(memberUUID, trackingData);
-      
-      if (success) {
-        alert(`已记录 ${memberName} 的跟踪情况！`);
-        dialog.classList.add('hidden-dialog');
-        
-        // 重新加载跟踪数据，保持筛选状态，跳过完整重新加载
-        loadSundayTracking(true, true);
-      } else {
-        alert('记录跟踪情况失败，请重试！');
-      }
-    } else {
-      alert('主日跟踪功能暂不可用！');
-    }
-    
-    // 移除事件监听器
-    confirmBtn.removeEventListener('click', handleConfirm);
-    cancelBtn.removeEventListener('click', handleCancel);
-  };
-  
-  const handleCancel = () => {
-    dialog.classList.add('hidden-dialog');
-    confirmBtn.removeEventListener('click', handleConfirm);
-    cancelBtn.removeEventListener('click', handleCancel);
-  };
-  
-  confirmBtn.addEventListener('click', handleConfirm);
-  cancelBtn.addEventListener('click', handleCancel);
-}
 
-// 忽略跟踪
-async function ignoreTracking(recordId, memberName) {
-  console.log(`🔍 ignoreTracking被调用，记录ID: ${recordId}, 成员名称: ${memberName}`);
-  
-  // 显示忽略对话框
-  const dialog = document.getElementById('ignoreTrackingDialog');
-  if (!dialog) {
-    console.error('忽略跟踪对话框未找到');
-    return;
-  }
-  
-  // 清空表单并设置默认日期
-  document.getElementById('ignoreReason').value = '';
-  document.getElementById('ignoreDate').value = new Date().toISOString().split('T')[0];
-  
-  // 显示对话框
-  dialog.classList.remove('hidden-dialog');
-  
-  // 绑定确认按钮事件
-  const confirmBtn = document.getElementById('confirmIgnore');
-  const cancelBtn = document.getElementById('cancelIgnore');
-  
-  const handleConfirm = async () => {
-    console.log(`🔍 确认终止按钮被点击`);
-    
-    const reason = document.getElementById('ignoreReason').value.trim();
-    const date = document.getElementById('ignoreDate').value;
-    
-    console.log(`🔍 终止原因: ${reason}, 终止日期: ${date}`);
-    
-    if (!reason || !date) {
-      alert('请填写终止原因和日期！');
-      return;
-    }
-    
-    // 调用忽略跟踪功能
-    if (window.utils && window.utils.SundayTrackingManager) {
-      // 获取记录ID对应的成员UUID
-      const trackingRecord = window.utils.SundayTrackingManager.getTrackingRecord(recordId);
-      const memberUUID = trackingRecord ? trackingRecord.memberUUID : recordId;
-      
-      console.log(`开始终止跟踪: ${memberName} (${memberUUID})`);
-      
-      const terminationRecord = {
-        memberUUID: memberUUID,
-        memberName: memberName,
-        reason: reason,
-        terminationDate: date,
-        createdAt: new Date().toISOString()
-      };
-      
-      console.log(`🔍 准备调用terminateTracking，记录ID: ${recordId}`);
-      console.log(`🔍 终止记录详情:`, terminationRecord);
-      
-      const success = await window.utils.SundayTrackingManager.terminateTracking(recordId, terminationRecord);
-      console.log(`🔍 终止跟踪结果: ${success}`);
-      
-      if (success) {
-        alert(`已终止 ${memberName} 的跟踪事件！`);
-        dialog.classList.add('hidden-dialog');
-        
-        // 重新加载跟踪数据，保持筛选状态，跳过完整重新加载
-        loadSundayTracking(true, true);
-      } else {
-        alert('终止跟踪失败，请重试！');
-      }
-    } else {
-      alert('主日跟踪功能暂不可用！');
-    }
-    
-    // 移除事件监听器
-    confirmBtn.removeEventListener('click', handleConfirm);
-    cancelBtn.removeEventListener('click', handleCancel);
-  };
-  
-  const handleCancel = () => {
-    dialog.classList.add('hidden-dialog');
-    confirmBtn.removeEventListener('click', handleConfirm);
-    cancelBtn.removeEventListener('click', handleCancel);
-  };
-  
-  confirmBtn.addEventListener('click', handleConfirm);
-  cancelBtn.addEventListener('click', handleCancel);
-}
 
-// 重启事件
-async function restartEvent(recordId, memberName) {
-  console.log(`🔍 restartEvent被调用，记录ID: ${recordId}, 成员名称: ${memberName}`);
-  
-  if (confirm(`确定要重启 ${memberName} 的跟踪事件吗？`)) {
-    if (window.utils && window.utils.SundayTrackingManager) {
-      console.log(`开始重启事件: ${memberName} (${recordId})`);
-      
-      // 创建重启记录
-      const restartRecord = {
-        memberName: memberName,
-        restartDate: new Date().toISOString().split('T')[0],
-        reason: '手动重启',
-        createdAt: new Date().toISOString()
-      };
-      
-      const success = await window.utils.SundayTrackingManager.restartEvent(recordId, restartRecord);
-      console.log(`🔍 重启事件结果: ${success}`);
-      
-      if (success) {
-        alert(`已重启 ${memberName} 的跟踪事件！`);
-        
-        // 重新加载跟踪数据，保持筛选状态，跳过完整重新加载
-        loadSundayTracking(true, true);
-      } else {
-        alert('重启事件失败，请重试！');
-      }
-    } else {
-      alert('主日跟踪功能暂不可用！');
-    }
-  }
-}
 
 // 查看个人页面
 function viewPersonalPage(memberUUID) {
@@ -984,9 +1595,6 @@ function viewPersonalPage(memberUUID) {
 }
 
 // 将函数暴露到全局作用域
-window.resolveTracking = resolveTracking;
-window.ignoreTracking = ignoreTracking;
-window.restartEvent = restartEvent;
 window.viewPersonalPage = viewPersonalPage;
 
 // ==================== 页面初始化 ====================
@@ -1024,6 +1632,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadSundayTracking();
   
   console.log('主日跟踪页面初始化完成');
+  
+  // 添加全局性能检查命令
+  window.checkPagePerformance = function() {
+    if (window.pageLoadPerformance) {
+      console.log('📊 页面加载性能数据:');
+      console.log(`  总加载时间: ${window.pageLoadPerformance.totalLoadTime.toFixed(2)}ms`);
+      console.log(`  事件生成时间: ${window.pageLoadPerformance.eventListGeneration.toFixed(2)}ms`);
+      console.log(`  事件数量: ${window.pageLoadPerformance.eventCount}`);
+      console.log(`  加载方式: ${window.pageLoadPerformance.loadType}`);
+      console.log(`  时间戳: ${window.pageLoadPerformance.timestamp}`);
+      return window.pageLoadPerformance;
+    } else {
+      console.log('❌ 性能数据未找到');
+      return null;
+    }
+  };
+  
+  // 添加已终止事件管理功能
+  window.showTerminatedEvents = function() {
+    console.log('📋 显示已终止事件');
+    const allEvents = window.utils.SundayTrackingManager.getTrackingRecords();
+    const terminatedEvents = allEvents.filter(event => event.status === 'terminated');
+    
+    if (terminatedEvents.length === 0) {
+      alert('暂无已终止的事件');
+      return;
+    }
+    
+    // 显示已终止事件列表
+    displayEventList(terminatedEvents.map(event => ({
+      eventId: event.recordId,
+      memberUUID: event.memberUUID,
+      memberName: event.memberName,
+      group: event.group,
+      eventType: event.eventType,
+      status: event.status,
+      consecutiveAbsences: event.consecutiveAbsences,
+      lastAttendanceDate: event.lastAttendanceDate,
+      trackingStartDate: event.trackingStartDate,
+      lastUpdateTime: event.updatedAt || event.createdAt
+    })));
+  };
+  
+  window.showAllEvents = function() {
+    console.log('📊 显示所有事件');
+    loadSundayTracking(true, false, true); // 强制刷新
+  };
+  
+  window.restartTerminatedEvent = function(eventId) {
+    if (confirm('确定要重新启动这个已终止的事件吗？')) {
+      console.log(`🔄 重新启动事件: ${eventId}`);
+      // 这里可以添加重新启动事件的逻辑
+      alert('事件重新启动功能开发中...');
+    }
+  };
 });
 
 // 显示加载状态
@@ -1060,3 +1723,13 @@ async function loadDataWithDelay() {
   // 再延迟一点显示结果，让用户感觉更流畅
   await new Promise(resolve => setTimeout(resolve, 200));
 }
+
+// ==================== 全局函数暴露 ====================
+// 将外部表单集成函数暴露到全局作用域
+window.forwardToExternalForm = forwardToExternalForm;
+window.fetchExternalFormData = fetchExternalFormData;
+window.processExternalFormData = processExternalFormData;
+window.updateEventStatus = updateEventStatus;
+window.showNotification = showNotification;
+window.showLoadingState = showLoadingState;
+window.hideLoadingState = hideLoadingState;

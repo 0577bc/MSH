@@ -15,87 +15,68 @@ npx http-server -p 8000
 
 访问 `http://localhost:8000` 开始使用。
 
-## 📁 系统结构
+## ✨ 核心功能
 
-### 核心页面
-- **index.html** - 主签到页面
-- **admin.html** - 管理页面
-- **group-management.html** - 成员管理页面
-- **summary.html** - 签到汇总页面
-- **sunday-tracking.html** - 主日跟踪页面
-- **daily-report.html** - 日报页面
-- **attendance-records.html** - 签到记录页面
-- **delete-management.html** - 数据删除管理页面
-- **firebase-monitor.html** - Firebase监控页面
-- **personal-page.html** - 个人页面
+### 📱 签到管理
+- **多小组支持**: 9个小组管理
+- **实时签到**: 早到、准时、迟到分类
+- **新朋友登记**: 完整信息录入
+- **签到统计**: 实时人数统计
 
-### 工具页面
-- **tools/uuid_editor.html** - UUID编辑器
-- **tools/batch_signin_fix.html** - 批量签到修复工具
-- **tools/export_missing_uuids.html** - 导出工具
-- **tools/protect_documents.sh** - 文档保护脚本
-- **debug-tool.html** - 综合调试工具
+### 👥 成员管理
+- **花名管理**: 支持花名和真名
+- **信息维护**: 姓名、电话、性别、受洗状态、年龄段
+- **UUID管理**: 唯一标识符系统
+- **未签到不统计**: 智能统计逻辑
 
-### 源代码
-- **src/** - 所有JavaScript和CSS源文件
-- **config.js** - 系统配置文件
-- **manifest.json** - PWA配置
+### 📊 数据管理
+- **实时同步**: Firebase 实时数据库
+- **缓存优化**: 减少90%网络请求
+- **数据备份**: 自动备份机制
+- **数据清理**: 删除管理功能
 
-### 文档
-- **docs/** - 所有系统文档
-  - **docs/README.md** - 详细文档
-  - **docs/requirements/** - 需求文档
-  - **docs/reports/** - 报告文档
-  - **docs/commands/** - 命令文档
-  - **docs/guides/** - 指南文档
+### 🧠 智能记忆系统
+- **智能触发**: 自动识别重要信息
+- **自动归档**: 智能阈值归档
+- **用户学习**: 个性化体验
+- **安全审计**: 敏感信息扫描
 
-### 备份
-- **backup/** - 系统备份文件
+## 🛠️ 技术栈
 
-## ✨ 最新功能
+- **前端**: HTML5, CSS3, JavaScript (ES6+)
+- **后端**: Firebase Realtime Database v8
+- **PWA**: Service Worker, Manifest
+- **部署**: 静态文件服务器
 
-### Firebase数据拉取优化
-- 页面切换速度提升约80%
-- 网络请求减少约90%
-- 统一数据状态管理
+## 📈 性能优化
 
-### 成员管理
-- 完整的成员管理功能
-- 花名管理
-- 未签到不统计功能
-- UUID管理
+- **缓存策略**: 页面切换速度提升约80%
+- **网络优化**: 网络请求减少约90%
+- **代码优化**: 重复函数合并，减少约200行重复代码
+- **智能记忆**: 提升AI编程效率50%+
 
-### 主日跟踪
-- 连续缺勤事件管理
-- 多事件支持
-- 事件终止机制
-- 事件管理页面
+## 📚 文档
 
-### 代码优化
-- 重复函数合并，减少约200行重复代码
-- 统一工具函数接口，提高代码复用性
-- 清理未使用代码，提升系统性能
-- 优化调试工具，简化开发流程
-
-## 📖 详细文档
-
-更多详细信息请查看：
-- [系统需求文档](docs/requirements/SYSTEM_REQUIREMENTS.md)
-- [更新日志](docs/reports/CHANGELOG.md)
-- [API文档](docs/requirements/API_DOCUMENTATION.md)
-- [故障排除](docs/troubleshooting/TROUBLESHOOTING.md)
-- [代码清理报告](docs/reports/CLEANUP_REPORT.md)
+- [项目结构](PROJECT-STRUCTURE.md) - 完整的项目文件结构
+- [项目概述](PROJECT-OVERVIEW.md) - 详细的技术架构和功能说明
+- [设计系统](DESIGN-SYSTEM.json) - 编码规范和UI模式
+- [智能记忆系统](simple-memory-system/README.md) - 外部记忆系统使用指南
+- [详细文档](docs/) - 完整的技术文档
 
 ## 🔧 维护
 
-### 文件清理
+### 智能记忆系统
+```bash
+# 初始化记忆系统
+cd simple-memory-system
+./setup.sh
+```
+
+### 文件保护
 ```bash
 # 运行清理检查
 ./tools/protect_documents.sh
 ```
-
-### 备份策略
-系统自动备份重要数据到 `backup/` 目录。
 
 ## 📞 支持
 

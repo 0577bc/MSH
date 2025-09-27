@@ -58,21 +58,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ==================== Firebase初始化 ====================
 function initializeFirebase() {
-  try {
-    app = firebase.app();
-    db = firebase.database();
-    // 设置全局变量，供utils.js使用
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    // 设置全局变量，供其他模块使用
     window.db = db;
-  } catch (error) {
-    if (window.firebaseConfig) {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
-      // 设置全局变量，供utils.js使用
-      window.db = db;
-    } else {
-      console.error('Firebase配置未找到');
-      alert('Firebase配置错误，请检查config.js文件');
-    }
+    console.log('✅ 主页面Firebase初始化成功');
+  } else {
+    console.error('❌ 主页面Firebase初始化失败');
+    alert('Firebase配置错误，请检查config.js文件');
   }
 }
 
@@ -1092,6 +1087,20 @@ async function handleSignin() {
   
   // 保存记录
   await saveAttendanceRecord(record);
+  
+  // 触发实时更新事件
+  if (window.realTimeUpdateManager) {
+    const memberInfo = groups[group]?.find(m => m.name === member);
+    if (memberInfo && memberInfo.uuid) {
+      // 触发实时更新
+      window.dispatchEvent(new CustomEvent('signinSuccess', {
+        detail: {
+          memberUUID: memberInfo.uuid,
+          signinData: record
+        }
+      }));
+    }
+  }
   
   // 更新界面
   loadAttendanceRecords();

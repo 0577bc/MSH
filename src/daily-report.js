@@ -18,23 +18,17 @@ let totalSigned, totalNewcomers, backButton;
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
-  try {
-    app = firebase.app();
-    db = firebase.database();
-    // 设置全局变量，供utils.js使用
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    // 设置全局变量，供其他模块使用
     window.db = db;
+    console.log('✅ 日报页面Firebase初始化成功');
     return true;
-  } catch (error) {
-    if (window.firebaseConfig) {
-      app = firebase.initializeApp(window.firebaseConfig);
-      db = firebase.database();
-      // 设置全局变量，供utils.js使用
-      window.db = db;
-      return true;
-    } else {
-      console.error('❌ Firebase配置未找到');
-      return false;
-    }
+  } else {
+    console.error('❌ 日报页面Firebase初始化失败');
+    return false;
   }
 }
 

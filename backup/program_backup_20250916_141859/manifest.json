@@ -1,9 +1,0 @@
-{
-  "name": "MSH签到系统",
-  "short_name": "签到系统",
-  "description": "MSH签到系统",
-  "start_url": "index.html",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000"
-}

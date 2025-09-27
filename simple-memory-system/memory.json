@@ -1,0 +1,61 @@
+{
+  "project": {
+    "name": "MSH签到系统",
+    "type": "Web应用 (PWA)",
+    "version": "2.0"
+  },
+  "tags": {
+    "TODO": 50,
+    "DECISION": 20,
+    "RISK": 15,
+    "CODE": 15
+  },
+  "keywords": ["决定", "风险", "TODO", "完成", "代码", "Firebase", "PWA", "签到"],
+  "thresholds": {
+    "trigger": 0.7,
+    "archive": 0.8
+  },
+  "patterns": {
+    "work_mode": "上午决策，下午编码，晚上总结",
+    "preferred_tags": ["TODO", "DECISION", "RISK"],
+    "priority_habits": {
+      "HIGH": 25,
+      "MEDIUM": 60,
+      "LOW": 15
+    }
+  },
+  "learning": {
+    "short_term": {
+      "recent_10": "最近10次偏好",
+      "tag_distribution": {
+        "TODO": 60,
+        "DECISION": 25,
+        "RISK": 15
+      }
+    },
+    "long_term": {
+      "overall": "整体统计偏好",
+      "tag_distribution": {
+        "TODO": 50,
+        "DECISION": 20,
+        "RISK": 15,
+        "CODE": 15
+      }
+    }
+  },
+  "settings": {
+    "auto_archive": true,
+    "auto_notify": true,
+    "auto_commit": true,
+    "auto_suggest": true,
+    "force_memory": true,
+    "global_search": true,
+    "forget_right": true
+  },
+  "statistics": {
+    "total_records": 0,
+    "archive_frequency": "weekly",
+    "user_satisfaction": 0,
+    "trigger_accuracy": 0
+  }
+}

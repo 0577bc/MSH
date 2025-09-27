@@ -23,23 +23,16 @@ let currentPageState = {
 
 // ==================== Firebase初始化 ====================
 function initializeFirebase() {
-try {
-  app = firebase.app();
-  db = firebase.database();
-  // 设置全局变量，供utils.js使用
-  window.db = db;
-    console.log('✅ 管理页面Firebase初始化成功');
-} catch (error) {
-  if (window.firebaseConfig) {
-    app = firebase.initializeApp(window.firebaseConfig);
-    db = firebase.database();
-    // 设置全局变量，供utils.js使用
+  const result = window.utils.initializeFirebase();
+  if (result.success) {
+    app = result.app;
+    db = result.db;
+    // 设置全局变量，供其他模块使用
     window.db = db;
-      console.log('✅ 管理页面Firebase应用创建成功');
+    console.log('✅ 管理页面Firebase初始化成功');
   } else {
-      console.error('❌ Firebase配置未找到');
-      alert('Firebase配置错误，请检查config.js文件');
-    }
+    console.error('❌ 管理页面Firebase初始化失败');
+    alert('Firebase配置错误，请检查config.js文件');
   }
 }
 

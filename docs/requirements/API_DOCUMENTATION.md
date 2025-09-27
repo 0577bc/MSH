@@ -5,7 +5,7 @@
 **系统名称**：MSH签到系统  
 **API版本**：2.0  
 **文档版本**：1.0  
-**最后更新**：2025-01-18  
+**最后更新**：2025-09-27  
 **维护者**：MSH技术团队  
 
 ## 🎯 API设计原则
@@ -127,36 +127,86 @@ async function generateYearlyReport(year)
 async function exportReport(reportType, format)
 ```
 
-### **3. 工具函数API (utils.js)**
+### **3. 主日跟踪管理器API (SundayTrackingManager)**
 
-#### **3.1 数据工具**
+#### **3.1 核心功能**
+```javascript
+// 生成跟踪列表
+generateTrackingList() -> Array<EventRecord>
+
+// 获取跟踪记录
+getTrackingRecords() -> Array<TrackingRecord>
+
+// 获取特定跟踪记录
+getTrackingRecord(recordId) -> TrackingRecord | null
+
+// 保存跟踪记录
+saveTrackingRecord(record) -> boolean
+
+// 终止跟踪事件
+terminateTracking(recordId, terminationRecord) -> boolean
+
+// 重启跟踪事件
+restartEvent(recordId, restartRecord) -> boolean
+```
+
+#### **3.2 缓存管理**
+```javascript
+// 检查缓存有效性
+_isCacheValid() -> boolean
+
+// 清除缓存
+_clearCache() -> void
+
+// 生成数据哈希
+_generateDataHash() -> string
+```
+
+#### **3.3 成员管理**
+```javascript
+// 获取所有成员
+getAllMembers() -> Array<Member>
+
+// 获取成员跟踪记录
+getMemberTrackingRecords(memberUUID) -> Array<TrackingRecord>
+
+// 添加跟踪记录
+addTrackingRecord(memberUUID, trackingRecord) -> boolean
+
+// 忽略跟踪
+ignoreTracking(memberUUID, reason) -> boolean
+```
+
+### **4. 工具函数API (utils.js)**
+
+#### **4.1 数据工具**
 ```javascript
 // UUID生成
-function generateUUID()
+function generateUUID() -> string
 
 // 数据验证
-function validateData(data, schema)
+function validateData(data, schema) -> boolean
 
 // 数据转换
-function convertDataFormat(data, fromFormat, toFormat)
+function convertDataFormat(data, fromFormat, toFormat) -> any
 
 // 数据清理
-function cleanData(data)
+function cleanData(data) -> any
 ```
 
-#### **3.2 时间工具**
+#### **4.2 时间工具**
 ```javascript
 // 时间格式化
-function formatTime(timestamp, format)
+function formatTime(timestamp, format) -> string
 
 // 日期计算
-function calculateDateDifference(date1, date2)
+function calculateDateDifference(date1, date2) -> number
 
 // 时间验证
-function validateTime(timeString)
+function validateTime(timeString) -> boolean
 ```
 
-#### **3.3 页面同步管理**
+#### **4.3 页面同步管理**
 ```javascript
 class PageSyncManager {
   constructor(pageType)
@@ -222,6 +272,38 @@ class PageSyncManager {
     "timestamp": "添加时间戳"
   }
 }
+```
+
+#### **1.5 跟踪记录 (Tracking Records)**
+```javascript
+[
+  {
+    "recordId": "unique_id",
+    "memberUUID": "member_uuid",
+    "memberName": "成员姓名",
+    "group": "小组标识",
+    "groupDisplayName": "小组显示名称",
+    "startDate": "2025-01-10",
+    "status": "active|terminated|resolved|ignored",
+    "consecutiveAbsences": 3,
+    "lastAttendanceDate": "2025-01-03",
+    "nextCheckDate": "2025-01-17",
+    "createdAt": "2025-01-10T09:30:00.000Z",
+    "updatedAt": "2025-01-10T09:30:00.000Z",
+    "terminationRecord": {
+      "reason": "终止原因",
+      "terminationDate": "2025-01-10",
+      "terminatedBy": "操作者",
+      "createdAt": "2025-01-10T09:30:00.000Z"
+    },
+    "restartRecord": {
+      "reason": "重启原因",
+      "restartDate": "2025-01-17",
+      "restartedBy": "操作者",
+      "createdAt": "2025-01-17T09:30:00.000Z"
+    }
+  }
+]
 ```
 
 ### **2. 数据操作API**

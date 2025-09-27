@@ -2586,23 +2586,15 @@ NewDataManager.prototype.preloadSundayTrackingData = async function() {
       }
     }
     
-    // 预计算Sunday Tracking数据
-    if (window.utils && window.utils.SundayTrackingManager) {
-      try {
-        const trackingList = window.utils.SundayTrackingManager.generateTrackingList();
-        console.log('✅ Sunday Tracking数据预计算完成');
-        
-        // 标记预加载完成
-        this.sundayTrackingPreloaded = true;
-        this.sundayTrackingPreloadTime = Date.now();
-        
-        return true;
-      } catch (error) {
-        console.error('❌ Sunday Tracking数据预计算失败:', error);
-      }
-    }
+    // 修复：不预计算Sunday Tracking数据，避免已终止事件被重启
+    // 预计算会调用generateTrackingList()，导致已终止事件被重新计算和重启
+    console.log('📋 跳过Sunday Tracking数据预计算，避免已终止事件被重启');
     
-    return false;
+    // 标记预加载完成
+    this.sundayTrackingPreloaded = true;
+    this.sundayTrackingPreloadTime = Date.now();
+    
+    return true;
   } catch (error) {
     console.error('❌ 预加载Sunday Tracking数据失败:', error);
     return false;
