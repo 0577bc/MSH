@@ -38,7 +38,7 @@ Authorization: Bearer {access_token}
 {
   "data": {
     "事件编号": "dd10a783-86b5-471d-8796-22f88c7ada7e_2025-08-03_1",
-    "成员姓名": "张三",
+    "成员花名": "张三",
     "成员UUID": "dd10a783-86b5-471d-8796-22f88c7ada7e",
     "组别": "乐清1组",
     "开始日期": "2025-08-03",
@@ -94,7 +94,7 @@ Accept: application/json
       {
         "id": "64f8b5a2c8e7d40001234567",
         "事件编号": "dd10a783-86b5-471d-8796-22f88c7ada7e_2025-08-03_1",
-        "成员姓名": "张三",
+        "成员花名": "张三",
         "跟踪日期": "2025-09-27",
         "跟踪内容": "已联系成员，了解缺勤原因...",
         "跟踪方式": "电话联系",
@@ -132,7 +132,7 @@ async function forwardToExternalForm(eventId) {
     const baishuyunData = {
       data: {
         "事件编号": eventId,
-        "成员姓名": eventRecord.memberName || '未知成员',
+        "成员花名": eventRecord.memberName || '未知成员',
         "成员UUID": eventRecord.memberUUID || eventId,
         "组别": eventRecord.group || eventRecord.originalGroup || '未知组别',
         "开始日期": eventRecord.startDate || new Date().toISOString().split('T')[0],
@@ -267,7 +267,7 @@ const BAISHUYUN_CONFIG = {
 | 字段名称 | 字段类型 | 是否必填 | 说明 |
 |----------|----------|----------|------|
 | 事件编号 | 单行文本 | 是 | 事件唯一标识 |
-| 成员姓名 | 单行文本 | 是 | 成员姓名 |
+| 成员花名 | 单行文本 | 是 | 成员花名（非真实姓名） |
 | 成员UUID | 单行文本 | 是 | 成员唯一标识 |
 | 组别 | 单行文本 | 是 | 所属小组 |
 | 开始日期 | 日期 | 是 | 缺勤开始日期 |
@@ -297,11 +297,21 @@ const BAISHUYUN_CONFIG = {
 3. 按照上述字段映射表配置表单字段
 4. 获取应用ID: `5513db246bbb9265042980b6`
 
-**步骤3: 获取API认证信息**
-1. 进入应用设置页面
-2. 生成API访问密钥（App Key & App Secret）
-3. 或配置OAuth2.0认证
-4. 记录认证信息
+**步骤3: 获取应用ID和API认证信息**
+
+**获取应用ID**：
+1. 在应用URL中查找：`app/`后面的部分即为应用ID
+2. 或使用百数云函数：`app.getcurrentinfo()` 获取应用信息
+3. 记录应用ID（如：`5513db246bbb9265042980b6`）
+
+**获取API认证信息**：
+1. 进入应用设置页面 → API设置
+2. 启用API访问权限（可能需要付费版本）
+3. 生成API访问密钥（App Key & App Secret）
+4. 或配置OAuth2.0认证
+5. 记录认证信息
+
+**注意**：API权限通常需要付费版本支持，免费版可能无法使用API功能
 
 ### 2. MSH系统配置
 
@@ -434,6 +444,7 @@ async function testFetchFromBaishuyun() {
 - **2025-09-27**: 基于百数云平台重新设计API集成方案
 - **2025-09-27**: 更新MSH系统集成代码示例
 - **2025-09-27**: 添加详细的配置和测试指南
+- **2025-09-27**: 更新字段映射：转发花名而非姓名，完善应用ID获取方法
 
 ### 相关文档
 - [MSH项目概述](../../PROJECT-OVERVIEW.md)
