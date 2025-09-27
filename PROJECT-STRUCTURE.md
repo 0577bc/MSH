@@ -28,6 +28,7 @@ MSH/
 │   └── src/
 │       ├── main.js                  # 主逻辑
 │       ├── admin.js                 # 管理功能
+│       ├── sunday-tracking.js       # 主日跟踪功能（含外部表单集成）
 │       ├── utils.js                 # 工具函数
 │       ├── cache-manager.js         # 缓存管理
 │       ├── config-manager.js        # 配置管理
@@ -50,6 +51,10 @@ MSH/
 │   └── docs/                        # 详细文档
 │       ├── requirements/            # 需求文档
 │       ├── technical/               # 技术文档
+│       │   ├── PROJECT_SUMMARY.md          # 项目方案总结
+│       │   ├── FINAL_IMPLEMENTATION_PLAN.md # 外部表单集成实施方案
+│       │   ├── SELF_HOSTED_FORM_SYSTEM.md  # 自建表单系统方案
+│       │   └── DOCUMENTATION_INDEX.md      # 技术文档索引
 │       ├── reports/                 # 报告文档
 │       ├── commands/                # 命令文档
 │       ├── guides/                  # 指南文档
