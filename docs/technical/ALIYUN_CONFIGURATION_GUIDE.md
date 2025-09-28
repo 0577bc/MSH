@@ -21,19 +21,24 @@
 ### 实例规格
 ```
 实例名称: msh-form-system
+实例ID: i-bp1grusqte145vdchert
 实例规格: ecs.t6-c1m2.large
 CPU: 2核
 内存: 4GB
 操作系统: Ubuntu 20.04 64位
 系统盘: 40GB ESSD云盘
+状态: 运行中
 ```
 
 ### 网络配置
 ```
 公网IP: 112.124.97.58
-私网IP: 172.16.1.10 (需要调整)
+私网IP: 172.16.1.168
+VPC ID: vpc-bp1tty2xcj8g5jnmwm1kc
+交换机ID: vsw-bp1wpsoxuw3pd968k2uov
 带宽: 5Mbps
 计费方式: 按使用流量
+安全组: sg-bp1fe8fw27x52320n0qy
 ```
 
 ### 创建步骤
@@ -447,6 +452,115 @@ sudo systemctl reload nginx
 - [ ] PM2: 已安装
 - [ ] Nginx: 已安装
 - [ ] 配置文件: 已配置
+
+## 🔍 配置验证详细步骤
+
+### 1. 实例状态验证
+```bash
+# 通过阿里云控制台验证
+# 1. 登录阿里云控制台
+# 2. 进入ECS实例管理页面
+# 3. 查看实例状态：应为"运行中"
+# 4. 记录实例ID: i-bp1grusqte145vdchert
+# 5. 记录公网IP: 112.124.97.58
+# 6. 记录私网IP: 172.16.1.168
+```
+
+### 2. 网络连通性测试
+```bash
+# 测试公网连通性
+ping 112.124.97.58
+
+# 测试DNS解析
+nslookup www.baidu.com
+
+# 测试端口连通性
+telnet 112.124.97.58 22
+telnet 112.124.97.58 80
+telnet 112.124.97.58 443
+```
+
+### 3. SSH连接测试
+```bash
+# 测试SSH连接
+ssh root@112.124.97.58
+
+# 如果连接成功，执行以下命令验证系统
+uname -a
+cat /etc/os-release
+df -h
+free -h
+```
+
+### 4. 安全组规则验证
+```bash
+# 通过阿里云控制台验证安全组规则
+# 1. 进入ECS控制台
+# 2. 选择实例 msh-form-system
+# 3. 点击"更多" → "网络和安全组" → "安全组"
+# 4. 检查安全组 sg-bp1fe8fw27x52320n0qy 的规则
+# 5. 验证以下端口是否开放：
+#    - SSH (22端口): 0.0.0.0/0
+#    - HTTP (80端口): 0.0.0.0/0
+#    - HTTPS (443端口): 0.0.0.0/0
+#    - Node.js (3000端口): 0.0.0.0/0
+#    - MySQL (3306端口): 172.16.0.0/16
+```
+
+### 5. VPC网络验证
+```bash
+# 通过阿里云控制台验证VPC配置
+# 1. 进入VPC控制台
+# 2. 查看VPC: msh-form-system-vpc (vpc-bp1tty2xcj8g5jnmwm1kc)
+# 3. 查看交换机: msh-form-system-switch (vsw-bp1wpsoxuw3pd968k2uov)
+# 4. 验证网段配置: 172.16.1.0/24
+# 5. 验证ECS实例私网IP: 172.16.1.168
+```
+
+### 6. 系统环境验证
+```bash
+# SSH连接到ECS实例后执行
+# 检查系统信息
+cat /etc/os-release
+uname -a
+
+# 检查网络配置
+ip addr show
+ip route show
+
+# 检查防火墙状态
+sudo ufw status
+
+# 检查系统资源
+df -h
+free -h
+top -n 1
+```
+
+### 7. 应用端口测试
+```bash
+# 测试HTTP端口
+curl -I http://112.124.97.58
+
+# 测试HTTPS端口
+curl -I https://112.124.97.58
+
+# 测试自定义端口（如果应用已部署）
+curl -I http://112.124.97.58:3000
+```
+
+### 8. 内网连通性测试
+```bash
+# 在ECS实例上测试内网连通性
+# 测试VPC网关
+ping 172.16.1.1
+
+# 测试内网DNS
+nslookup aliyun.com
+
+# 测试内网其他实例（如果有）
+ping 172.16.1.2
+```
 
 ## 🔍 网络连通性测试
 
