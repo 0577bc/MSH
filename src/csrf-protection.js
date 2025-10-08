@@ -194,7 +194,9 @@ class CSRFProtection {
     const excludePatterns = [
       /^https?:\/\/www\.gstatic\.com/, // Google静态资源
       /^https?:\/\/cdnjs\.cloudflare\.com/, // CDN资源
-      /\.(css|js|png|jpg|jpeg|gif|svg|ico)$/i // 静态资源
+      /\.(css|js|png|jpg|jpeg|gif|svg|ico)$/i, // 静态资源
+      /^https?:\/\/112\.124\.97\.58/, // 外部表单系统API
+      /^http:\/\/112\.124\.97\.58/ // 外部表单系统API (HTTP)
     ];
 
     return !excludePatterns.some(pattern => pattern.test(url));

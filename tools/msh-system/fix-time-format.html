@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⏰ 修复时间格式工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .alert {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stats {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stats.active {
+            display: grid;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #27ae60;
+        }
+
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 20px 0;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+        }
+
+        .log-success { color: #2ecc71; }
+        .log-error { color: #e74c3c; }
+        .log-warning { color: #f39c12; }
+        .log-info { color: #3498db; }
+
+        #progress {
+            display: none;
+        }
+
+        #progress.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: #ecf0f1;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            width: 0%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⏰ 时间格式修复工具</h1>
+
+        <div class="alert">
+            <h3>⚠️ 问题诊断</h3>
+            <p><strong>问题：</strong>备份数据中的time字段格式为 <code>"2025/8/1 09:55:00"</code></p>
+            <p><strong>需要：</strong>转换为时间戳格式（毫秒）或ISO字符串格式</p>
+            <p><strong>影响：</strong>日报表和签到记录页面无法正确查询数据</p>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalRecords">0</div>
+                <div class="stat-label">总记录数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="fixedRecords">0</div>
+                <div class="stat-label">已修复记录</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="errorRecords">0</div>
+                <div class="stat-label">错误记录</div>
+            </div>
+        </div>
+
+        <div id="progress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+        </div>
+
+        <button class="btn-primary" onclick="checkAndFixLocalStorage()">
+            🔍 检查并修复本地存储数据
+        </button>
+
+        <button class="btn-success" onclick="checkAndFixFirebase()">
+            ☁️ 检查并修复Firebase数据
+        </button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+
+    <script>
+        let db = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateProgress(percent) {
+            const progressDiv = document.getElementById('progress');
+            const progressFill = document.getElementById('progressFill');
+            progressDiv.classList.add('active');
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = percent + '%';
+        }
+
+        function updateStats(total, fixed, errors) {
+            document.getElementById('stats').classList.add('active');
+            document.getElementById('totalRecords').textContent = total;
+            document.getElementById('fixedRecords').textContent = fixed;
+            document.getElementById('errorRecords').textContent = errors;
+        }
+
+        // 转换时间格式
+        function convertTimeFormat(timeStr) {
+            // 如果已经是数字（时间戳），直接返回
+            if (typeof timeStr === 'number') {
+                return timeStr;
+            }
+
+            // 如果已经是ISO格式，转换为时间戳
+            if (timeStr.includes('T') && timeStr.includes('Z')) {
+                return new Date(timeStr).getTime();
+            }
+
+            // 处理 "2025/8/1 09:55:00" 格式
+            if (timeStr.includes('/')) {
+                // 替换为标准格式
+                const standardFormat = timeStr.replace(/\//g, '-');
+                // 确保月日都是两位数
+                const parts = standardFormat.split(' ');
+                const dateParts = parts[0].split('-');
+                const year = dateParts[0];
+                const month = dateParts[1].padStart(2, '0');
+                const day = dateParts[2].padStart(2, '0');
+                const time = parts[1];
+                
+                const dateStr = `${year}-${month}-${day}T${time}`;
+                const timestamp = new Date(dateStr).getTime();
+                
+                if (isNaN(timestamp)) {
+                    throw new Error(`无法转换时间: ${timeStr}`);
+                }
+                
+                return timestamp;
+            }
+
+            throw new Error(`未知时间格式: ${timeStr}`);
+        }
+
+        // 检查并修复本地存储数据
+        function checkAndFixLocalStorage() {
+            log('🔍 开始检查本地存储数据...', 'info');
+            
+            const localData = localStorage.getItem('msh_attendanceRecords');
+            if (!localData) {
+                log('❌ 本地存储无数据', 'error');
+                alert('本地存储中没有签到记录！');
+                return;
+            }
+
+            try {
+                const records = JSON.parse(localData);
+                log(`📊 找到 ${records.length} 条记录`, 'info');
+
+                let totalRecords = records.length;
+                let fixedCount = 0;
+                let errorCount = 0;
+
+                const fixedRecords = records.map((record, index) => {
+                    if (index % 50 === 0) {
+                        updateProgress(Math.round((index / totalRecords) * 100));
+                    }
+
+                    try {
+                        const originalTime = record.time;
+                        const timestamp = convertTimeFormat(originalTime);
+                        
+                        if (timestamp !== originalTime) {
+                            fixedCount++;
+                            return {
+                                ...record,
+                                time: timestamp
+                            };
+                        }
+                        
+                        return record;
+                    } catch (error) {
+                        errorCount++;
+                        log(`⚠️ 记录${index}转换失败: ${error.message}`, 'warning');
+                        return record;
+                    }
+                });
+
+                updateProgress(100);
+                updateStats(totalRecords, fixedCount, errorCount);
+
+                if (fixedCount > 0) {
+                    // 保存修复后的数据
+                    localStorage.setItem('msh_attendanceRecords', JSON.stringify(fixedRecords));
+                    window.attendanceRecords = fixedRecords;
+                    
+                    log(`✅ 成功修复 ${fixedCount} 条记录`, 'success');
+                    log(`✅ 已更新本地存储和全局变量`, 'success');
+                    alert(`✅ 成功修复 ${fixedCount} 条记录！\n错误：${errorCount} 条`);
+                } else {
+                    log('✅ 所有记录格式正确，无需修复', 'success');
+                    alert('所有记录格式正确，无需修复！');
+                }
+
+            } catch (error) {
+                log(`❌ 处理失败: ${error.message}`, 'error');
+                alert('处理失败: ' + error.message);
+            }
+        }
+
+        // 检查并修复Firebase数据
+        async function checkAndFixFirebase() {
+            if (!db) {
+                log('❌ Firebase未连接', 'error');
+                alert('Firebase未连接，请刷新页面重试！');
+                return;
+            }
+
+            log('🔍 开始检查Firebase数据...', 'info');
+
+            try {
+                const snapshot = await db.ref('attendanceRecords').once('value');
+                const data = snapshot.val();
+
+                if (!data) {
+                    log('❌ Firebase无数据', 'error');
+                    alert('Firebase中没有签到记录！');
+                    return;
+                }
+
+                const records = Array.isArray(data) ? data : Object.values(data);
+                log(`📊 找到 ${records.length} 条记录`, 'info');
+
+                let totalRecords = records.length;
+                let fixedCount = 0;
+                let errorCount = 0;
+
+                const fixedRecords = records.map((record, index) => {
+                    if (index % 50 === 0) {
+                        updateProgress(Math.round((index / totalRecords) * 100));
+                    }
+
+                    try {
+                        const originalTime = record.time;
+                        const timestamp = convertTimeFormat(originalTime);
+                        
+                        if (timestamp !== originalTime) {
+                            fixedCount++;
+                            return {
+                                ...record,
+                                time: timestamp
+                            };
+                        }
+                        
+                        return record;
+                    } catch (error) {
+                        errorCount++;
+                        log(`⚠️ 记录${index}转换失败: ${error.message}`, 'warning');
+                        return record;
+                    }
+                });
+
+                updateProgress(100);
+                updateStats(totalRecords, fixedCount, errorCount);
+
+                if (fixedCount > 0) {
+                    const confirm = window.confirm(`⚠️ 确定要修复 ${fixedCount} 条记录并同步到Firebase吗？`);
+                    if (!confirm) {
+                        log('❌ 用户取消操作', 'warning');
+                        return;
+                    }
+
+                    // 保存到Firebase
+                    await db.ref('attendanceRecords').set(fixedRecords);
+                    
+                    // 同时更新本地
+                    localStorage.setItem('msh_attendanceRecords', JSON.stringify(fixedRecords));
+                    window.attendanceRecords = fixedRecords;
+                    
+                    log(`✅ 成功修复并同步 ${fixedCount} 条记录`, 'success');
+                    alert(`✅ 成功修复 ${fixedCount} 条记录！\n错误：${errorCount} 条`);
+                } else {
+                    log('✅ 所有记录格式正确，无需修复', 'success');
+                    alert('所有记录格式正确，无需修复！');
+                }
+
+            } catch (error) {
+                log(`❌ 处理失败: ${error.message}`, 'error');
+                alert('处理失败: ' + error.message);
+            }
+        }
+
+        // 初始化Firebase
+        window.addEventListener('load', () => {
+            try {
+                if (typeof firebase !== 'undefined' && window.firebaseConfig) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    }
+                    db = firebase.database();
+                    log('✅ Firebase初始化成功', 'success');
+                } else {
+                    log('⚠️ Firebase配置未找到', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Firebase初始化失败: ${error.message}`, 'error');
+            }
+
+            log('系统就绪，请选择操作', 'info');
+        });
+    </script>
+</body>
+</html>
+
+

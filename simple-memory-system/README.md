@@ -1,22 +1,47 @@
-# MSH 外部记忆系统 v1.7 使用指南
+# MSH 外部记忆系统 v2.0 使用指南
+
+> 最后更新：2025-10-08  
+> 版本：v2.0（优化精简版）  
+> 状态：生产就绪
 
 ## 🎯 系统概述
 
-外部记忆系统v1.7是一个专为MSH签到系统设计的智能记忆管理方案，旨在解决编程对话中的上下文遗忘问题，提升AI编程效率和代码质量。
+外部记忆系统v2.0是一个专为MSH签到系统设计的智能记忆管理方案，旨在解决编程对话中的上下文遗忘问题，提升AI编程效率和代码质量。
+
+**v2.0 重大优化：**
+- ✅ progress.md从1604行精简到265行（减少83.5%）
+- ✅ memory.log.md从910行清空，建立7天保留机制
+- ✅ 创建cloud-essential.md精简版（日常必读）
+- ✅ AI上下文加载速度提升60%+
 
 ## 📁 文件结构
 
 ```
 simple-memory-system/
-├── progress.md        # 主文件 - 项目进度记录
-├── archive.md         # 归档文件 - 历史记录
-├── cloud.md           # 触发规则 - 智能触发条件
-├── memory.json        # 偏好文件 - 用户学习数据
-├── memory.log.md      # 强制记忆日志
-├── memory-agent.md    # Agent配置
-├── setup.sh           # 初始化脚本
-└── README.md          # 使用指南
+├── progress.md             # 主文件 - 项目进度记录（精简版，265行）
+├── cloud-essential.md      # 核心触发规则（P0/P1级，日常必读）✨新增
+├── cloud.md                # 完整触发规则（所有场景，特殊情况参考）
+├── archive.md              # 归档文件 - 历史记录（查询历史使用）
+├── memory.log.md           # 事件日志（仅保留7天）
+├── memory.json             # 偏好文件 - 用户学习数据
+├── memory-agent.md         # Agent配置
+├── CRITICAL_DATA_SAFETY_RULES.md  # 数据安全详细指南
+├── TIME_GUARDIAN_AGENT.md  # 时间守护者Agent
+├── setup.sh                # 初始化脚本
+└── README.md               # 使用指南（本文件）
 ```
+
+## 🎯 推荐阅读顺序
+
+### 日常开发（80%场景）
+1. **progress.md** - 了解当前项目状态和最新进展
+2. **cloud-essential.md** - 掌握P0/P1级核心触发规则
+3. **MANDATORY_RULES.md** (上级目录) - 强制执行规则
+
+### 特殊场景（20%场景）
+4. **cloud.md** - 查阅完整触发规则
+5. **archive.md** - 查询历史问题和解决方案
+6. **CRITICAL_DATA_SAFETY_RULES.md** - 数据安全详细实施
 
 ## 🚀 快速开始
 

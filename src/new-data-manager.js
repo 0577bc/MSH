@@ -229,40 +229,86 @@ class NewDataManager {
         try {
           const db = firebase.database();
           const firebaseSnapshot = await db.ref('excludedMembers').once('value');
-          const firebaseExcludedMembers = firebaseSnapshot.val() || [];
+          const firebaseExcludedMembers = firebaseSnapshot.val() || {};
           
-          console.log('🔍 Firebase excludedMembers数据:', firebaseExcludedMembers.length, '个');
+          // 兼容对象和数组格式
+          const firebaseExcludedCount = Array.isArray(firebaseExcludedMembers) 
+            ? firebaseExcludedMembers.length 
+            : Object.keys(firebaseExcludedMembers).length;
+          console.log('🔍 Firebase excludedMembers数据:', firebaseExcludedCount, '个');
           
           // 如果Firebase数据更多，使用Firebase数据
-          if (firebaseExcludedMembers.length > localDataLength) {
+          if (firebaseExcludedCount > localDataLength) {
             console.log('🔍 使用Firebase数据（数据更多）');
-            // 确保Firebase数据转换为对象格式
-            const firebaseExcludedMembersObj = {};
-            firebaseExcludedMembers.forEach((member, index) => {
-              firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
-            });
-            window.excludedMembers = firebaseExcludedMembersObj;
+            // 兼容数组和对象格式
+            if (Array.isArray(firebaseExcludedMembers)) {
+              const firebaseExcludedMembersObj = {};
+              firebaseExcludedMembers.forEach((member, index) => {
+                firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
+              });
+              window.excludedMembers = firebaseExcludedMembersObj;
+            } else {
+              // 已经是对象格式
+              window.excludedMembers = firebaseExcludedMembers;
+            }
             // 更新本地存储
-            this.saveToLocalStorage('excludedMembers', firebaseExcludedMembersObj);
+            this.saveToLocalStorage('excludedMembers', window.excludedMembers);
           } else {
             console.log('🔍 使用本地数据');
-            window.excludedMembers = hasLocalExcludedMembers;
+            // 兼容数组和对象格式
+            if (Array.isArray(hasLocalExcludedMembers)) {
+              const excludedObj = {};
+              hasLocalExcludedMembers.forEach((member, index) => {
+                excludedObj[member.uuid || `local_${index}`] = member;
+              });
+              window.excludedMembers = excludedObj;
+            } else {
+              window.excludedMembers = hasLocalExcludedMembers;
+            }
           }
         } catch (error) {
           console.error('🔍 检查Firebase数据失败，使用本地数据:', error);
-          window.excludedMembers = hasLocalExcludedMembers;
+          // 兼容数组和对象格式
+          if (Array.isArray(hasLocalExcludedMembers)) {
+            const excludedObj = {};
+            hasLocalExcludedMembers.forEach((member, index) => {
+              excludedObj[member.uuid || `local_${index}`] = member;
+            });
+            window.excludedMembers = excludedObj;
+          } else {
+            window.excludedMembers = hasLocalExcludedMembers;
+          }
         }
       } else {
         console.log('🔍 Firebase未初始化，使用本地数据');
-        window.excludedMembers = hasLocalExcludedMembers;
+        // 兼容数组和对象格式
+        if (Array.isArray(hasLocalExcludedMembers)) {
+          const excludedObj = {};
+          hasLocalExcludedMembers.forEach((member, index) => {
+            excludedObj[member.uuid || `local_${index}`] = member;
+          });
+          window.excludedMembers = excludedObj;
+        } else {
+          window.excludedMembers = hasLocalExcludedMembers;
+        }
       }
       
+      // 最终验证excludedMembers
+      const finalExcludedCount = window.excludedMembers 
+        ? (Array.isArray(window.excludedMembers) 
+          ? window.excludedMembers.length 
+          : Object.keys(window.excludedMembers).length)
+        : 0;
+      
       console.log('🔍 调试 - NewDataManager设置全局变量:', {
-        'window.groups': window.groups ? Object.keys(window.groups) : 'undefined',
-        'window.groupNames': window.groupNames ? Object.keys(window.groupNames) : 'undefined',
-        'window.attendanceRecords': window.attendanceRecords ? window.attendanceRecords.length : 'undefined',
-        'window.excludedMembers': window.excludedMembers ? window.excludedMembers.length : 'undefined'
+        'window.groups': window.groups ? Object.keys(window.groups).length : 0,
+        'window.groupNames': window.groupNames ? Object.keys(window.groupNames).length : 0,
+        'window.attendanceRecords': window.attendanceRecords ? window.attendanceRecords.length : 0,
+        'window.excludedMembers': finalExcludedCount
       });
+      
+      console.log('✅ 最终 excludedMembers 数据类型:', Array.isArray(window.excludedMembers) ? '数组' : '对象');
+      console.log('✅ 最终 excludedMembers 数据:', window.excludedMembers);
       
       // 检测是否有未同步的变更
       this.detectDataChanges();
@@ -293,10 +339,14 @@ class NewDataManager {
         const firebaseGroups = groupsSnapshot.val() || {};
         const firebaseGroupNames = groupNamesSnapshot.val() || {};
         const firebaseAttendance = attendanceSnapshot.val() || {};
-        const firebaseExcludedMembers = excludedMembersSnapshot.val() || [];
+        const firebaseExcludedMembers = excludedMembersSnapshot.val() || {};
         
         console.log('🔍 Firebase数据恢复检查:');
-        console.log('🔍 Firebase excludedMembers:', firebaseExcludedMembers.length, '个');
+        // 兼容对象和数组格式
+        const firebaseExcludedCount = Array.isArray(firebaseExcludedMembers) 
+          ? firebaseExcludedMembers.length 
+          : Object.keys(firebaseExcludedMembers).length;
+        console.log('🔍 Firebase excludedMembers:', firebaseExcludedCount, '个');
         const localDataLength = hasLocalExcludedMembers ? (
           Array.isArray(hasLocalExcludedMembers) ? 
             hasLocalExcludedMembers.length : 
@@ -327,14 +377,18 @@ class NewDataManager {
             console.log('✅ 已恢复attendanceRecords数据');
           }
           // 只有在本地数据无效且Firebase有数据时才恢复
-          if (!isExcludedMembersValid && Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
+          const firebaseExcludedCount = Array.isArray(firebaseExcludedMembers) 
+            ? firebaseExcludedMembers.length 
+            : Object.keys(firebaseExcludedMembers).length;
+            
+          if (!isExcludedMembersValid && firebaseExcludedCount > 0) {
             this.saveToLocalStorage('excludedMembers', firebaseExcludedMembers);
-            console.log('✅ 已恢复excludedMembers数据');
+            console.log('✅ 已恢复excludedMembers数据（兼容对象/数组格式）');
           } else if (isExcludedMembersValid) {
             // 如果本地数据有效，确保本地数据被正确设置
             console.log('✅ 使用本地excludedMembers数据，无需恢复');
             // 添加保护：如果本地数据比Firebase数据更新，不要被覆盖
-            if (Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
+            if (firebaseExcludedCount > 0) {
               console.log('⚠️ 检测到Firebase有excludedMembers数据，但本地数据有效，保持本地数据');
             }
           }
@@ -346,14 +400,22 @@ class NewDataManager {
             window.attendanceRecords = Object.values(firebaseAttendance);
           }
           // 只有在本地数据无效时才使用Firebase数据
-          if (!isExcludedMembersValid && Array.isArray(firebaseExcludedMembers) && firebaseExcludedMembers.length > 0) {
-            console.log('🔍 使用Firebase excludedMembers数据:', firebaseExcludedMembers.length, '个');
-            // 确保Firebase数据转换为对象格式
-            const firebaseExcludedMembersObj = {};
-            firebaseExcludedMembers.forEach((member, index) => {
-              firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
-            });
-            window.excludedMembers = firebaseExcludedMembersObj;
+          // firebaseExcludedCount 已在上方第346行声明，此处不需要重复声明
+            
+          if (!isExcludedMembersValid && firebaseExcludedCount > 0) {
+            console.log('🔍 使用Firebase excludedMembers数据:', firebaseExcludedCount, '个');
+            // 兼容数组和对象格式
+            if (Array.isArray(firebaseExcludedMembers)) {
+              // 数组格式转换为对象格式
+              const firebaseExcludedMembersObj = {};
+              firebaseExcludedMembers.forEach((member, index) => {
+                firebaseExcludedMembersObj[member.uuid || `firebase_${index}`] = member;
+              });
+              window.excludedMembers = firebaseExcludedMembersObj;
+            } else {
+              // 已经是对象格式，直接使用
+              window.excludedMembers = firebaseExcludedMembers;
+            }
           } else if (isExcludedMembersValid) {
             // 如果本地数据有效，使用本地数据
             const localDataLength = Array.isArray(hasLocalExcludedMembers) ? 
@@ -361,7 +423,16 @@ class NewDataManager {
               Object.keys(hasLocalExcludedMembers).length;
             console.log('🔍 使用本地 excludedMembers数据:', localDataLength, '个');
             console.log('🔍 本地 excludedMembers数据详情:', hasLocalExcludedMembers);
-            window.excludedMembers = hasLocalExcludedMembers;
+            // 兼容数组和对象格式
+            if (Array.isArray(hasLocalExcludedMembers)) {
+              const excludedObj = {};
+              hasLocalExcludedMembers.forEach((member, index) => {
+                excludedObj[member.uuid || `local_${index}`] = member;
+              });
+              window.excludedMembers = excludedObj;
+            } else {
+              window.excludedMembers = hasLocalExcludedMembers;
+            }
           } else {
             console.log('🔍 没有有效的excludedMembers数据，设置为空对象');
             window.excludedMembers = {};
@@ -442,16 +513,23 @@ class NewDataManager {
       
       // 检查是否已经拉取过数据
       if (!this.isFirstLoad) {
-        console.log('📋 数据已拉取过，检查是否需要更新');
+        console.log('📋 数据已拉取过，尝试增量拉取');
         
-        // 检查数据新鲜度，决定是否需要更新
-        const shouldUpdate = await this.shouldUpdateData();
-        if (!shouldUpdate) {
-          console.log('📋 数据仍然新鲜，跳过拉取');
+        // 尝试增量拉取
+        const hasIncrementalChanges = await this.loadIncrementalDataFromFirebase();
+        if (hasIncrementalChanges) {
+          console.log('✅ 增量拉取成功，数据已更新');
           return true;
         }
         
-        console.log('🔄 数据需要更新，开始拉取');
+        // 如果增量拉取没有变更，检查数据新鲜度
+        const shouldUpdate = await this.shouldUpdateData();
+        if (!shouldUpdate) {
+          console.log('📋 数据仍然新鲜，跳过完整拉取');
+          return true;
+        }
+        
+        console.log('🔄 数据需要完整更新，开始完整拉取');
       }
 
       // 检查是否有未同步的本地数据
@@ -472,27 +550,26 @@ class NewDataManager {
 
       const db = firebase.database();
       
-      // 并行拉取所有数据
-      const [groupsSnapshot, attendanceSnapshot, groupNamesSnapshot, excludedMembersSnapshot] = await Promise.all([
+      // 并行拉取所有数据（优化：只拉取当日签到记录）
+      const [groupsSnapshot, groupNamesSnapshot] = await Promise.all([
         db.ref('groups').once('value'),
-        db.ref('attendanceRecords').once('value'),
-        db.ref('groupNames').once('value'),
-        db.ref('excludedMembers').once('value')
+        db.ref('groupNames').once('value')
       ]);
+
+      // 单独加载当日签到记录（优化版本）
+      const attendanceRecords = await this.loadTodayAttendanceRecordsFromFirebase();
 
       // 处理数据
       const groups = groupsSnapshot.exists() ? groupsSnapshot.val() || {} : {};
-      const attendanceRecords = attendanceSnapshot.exists() ? Object.values(attendanceSnapshot.val() || {}) : [];
       const groupNames = groupNamesSnapshot.exists() ? groupNamesSnapshot.val() || {} : {};
-      const excludedMembers = excludedMembersSnapshot.exists() ? excludedMembersSnapshot.val() || [] : [];
 
-      // 确保未分组存在
-      if (!groups['未分组']) {
-        groups['未分组'] = [];
-      }
-      if (!groupNames['未分组']) {
-        groupNames['未分组'] = '未分组';
-      }
+        // 确保group0存在（未分组）
+        if (!groups['group0']) {
+          groups['group0'] = [];
+        }
+        if (!groupNames['group0']) {
+          groupNames['group0'] = '未分组';
+        }
 
       // 为所有人员添加UUID（如果还没有）- 保持现有UUID不变
       if (window.utils && window.utils.addUUIDsToMembers) {
@@ -509,19 +586,16 @@ class NewDataManager {
       this.saveToLocalStorage('groups', groups);
       this.saveToLocalStorage('attendanceRecords', attendanceRecords);
       this.saveToLocalStorage('groupNames', groupNames);
-      this.saveToLocalStorage('excludedMembers', excludedMembers);
 
       // 更新全局变量
       window.groups = groups;
       window.attendanceRecords = attendanceRecords;
       window.groupNames = groupNames;
-      window.excludedMembers = excludedMembers;
 
       // 保存原始数据用于变更检测
       this.originalData.groups = JSON.parse(JSON.stringify(groups));
       this.originalData.attendanceRecords = JSON.parse(JSON.stringify(attendanceRecords));
       this.originalData.groupNames = JSON.parse(JSON.stringify(groupNames));
-      this.originalData.excludedMembers = JSON.parse(JSON.stringify(excludedMembers));
 
       this.isDataLoaded = true;
       this.isFirstLoad = false; // 标记已完成首次拉取
@@ -629,8 +703,7 @@ class NewDataManager {
     return {
       groups: this.loadFromLocalStorage('groups') || {},
       attendanceRecords: this.loadFromLocalStorage('attendanceRecords') || [],
-      groupNames: this.loadFromLocalStorage('groupNames') || {},
-      excludedMembers: this.loadFromLocalStorage('excludedMembers') || []
+      groupNames: this.loadFromLocalStorage('groupNames') || {}
     };
   }
 
@@ -638,18 +711,18 @@ class NewDataManager {
   async getFirebaseData() {
     const db = firebase.database();
     
-    const [groupsSnapshot, attendanceSnapshot, groupNamesSnapshot, excludedMembersSnapshot] = await Promise.all([
+    const [groupsSnapshot, groupNamesSnapshot] = await Promise.all([
       db.ref('groups').once('value'),
-      db.ref('attendanceRecords').once('value'),
-      db.ref('groupNames').once('value'),
-      db.ref('excludedMembers').once('value')
+      db.ref('groupNames').once('value')
     ]);
+
+    // 单独加载当日签到记录（优化版本）
+    const attendanceRecords = await this.loadTodayAttendanceRecordsFromFirebase();
 
     return {
       groups: groupsSnapshot.exists() ? groupsSnapshot.val() || {} : {},
-      attendanceRecords: attendanceSnapshot.exists() ? Object.values(attendanceSnapshot.val() || {}) : [],
-      groupNames: groupNamesSnapshot.exists() ? groupNamesSnapshot.val() || {} : {},
-      excludedMembers: excludedMembersSnapshot.exists() ? excludedMembersSnapshot.val() || [] : []
+      attendanceRecords: attendanceRecords,
+      groupNames: groupNamesSnapshot.exists() ? groupNamesSnapshot.val() || {} : {}
     };
   }
 
@@ -658,8 +731,7 @@ class NewDataManager {
     return {
       groups: this.originalData.groups || {},
       attendanceRecords: this.originalData.attendanceRecords || [],
-      groupNames: this.originalData.groupNames || {},
-      excludedMembers: this.originalData.excludedMembers || []
+      groupNames: this.originalData.groupNames || {}
     };
   }
 
@@ -670,11 +742,10 @@ class NewDataManager {
     const merged = {};
     const conflicts = [];
 
-    // 合并各种数据类型
+    // 合并各种数据类型（排除人员逻辑已统一到成员数据中的excluded标记）
     merged.groups = this.mergeGroups(localData.groups, firebaseData.groups, baseData.groups, conflicts);
     merged.attendanceRecords = this.mergeAttendanceRecords(localData.attendanceRecords, firebaseData.attendanceRecords, baseData.attendanceRecords, conflicts);
     merged.groupNames = this.mergeGroupNames(localData.groupNames, firebaseData.groupNames, baseData.groupNames, conflicts);
-    merged.excludedMembers = this.mergeExcludedMembers(localData.excludedMembers, firebaseData.excludedMembers, baseData.excludedMembers, conflicts);
 
     // 记录合并历史
     this.mergeHistory.push({
@@ -879,40 +950,17 @@ class NewDataManager {
     return merged;
   }
 
-  // 合并排除成员数据
-  mergeExcludedMembers(local, firebase, base, conflicts) {
-    // 转换为数组格式进行比较
-    const localArray = Array.isArray(local) ? local : Object.values(local || {});
-    const firebaseArray = Array.isArray(firebase) ? firebase : Object.values(firebase || {});
-    const baseArray = Array.isArray(base) ? base : Object.values(base || {});
-
-    const merged = [];
-    const processedUUIDs = new Set();
-
-    // 合并逻辑：保留所有唯一成员
-    [...localArray, ...firebaseArray].forEach(member => {
-      const uuid = member.uuid || member.name;
-      if (!processedUUIDs.has(uuid)) {
-        merged.push(member);
-        processedUUIDs.add(uuid);
-      }
-    });
-
-    return merged;
-  }
 
   // 保存合并后的数据
   saveMergedData(mergedData) {
     this.saveToLocalStorage('groups', mergedData.groups);
     this.saveToLocalStorage('attendanceRecords', mergedData.attendanceRecords);
     this.saveToLocalStorage('groupNames', mergedData.groupNames);
-    this.saveToLocalStorage('excludedMembers', mergedData.excludedMembers);
 
     // 更新原始数据用于变更检测
     this.originalData.groups = JSON.parse(JSON.stringify(mergedData.groups));
     this.originalData.attendanceRecords = JSON.parse(JSON.stringify(mergedData.attendanceRecords));
     this.originalData.groupNames = JSON.parse(JSON.stringify(mergedData.groupNames));
-    this.originalData.excludedMembers = JSON.parse(JSON.stringify(mergedData.excludedMembers));
   }
 
   // 更新元数据
@@ -921,7 +969,6 @@ class NewDataManager {
     this.metadata.groups.lastSync = now;
     this.metadata.attendanceRecords.lastSync = now;
     this.metadata.groupNames.lastSync = now;
-    this.metadata.excludedMembers.lastSync = now;
 
     // 保存元数据到本地存储
     localStorage.setItem('msh_metadata', JSON.stringify(this.metadata));
@@ -933,7 +980,6 @@ class NewDataManager {
     window.groups = mergedData.groups;
     window.attendanceRecords = mergedData.attendanceRecords;
     window.groupNames = mergedData.groupNames;
-    window.excludedMembers = mergedData.excludedMembers;
   }
 
   // 检查是否应该更新数据
@@ -1380,6 +1426,8 @@ class NewDataManager {
   detectDataChanges() {
     if (!this.isDataLoaded || this.isSyncing) return;
 
+    console.log('🔍 开始检测数据变更...');
+    
     let hasChanges = false;
     const changes = {
       groups: { added: [], modified: [], deleted: [] },
@@ -1445,7 +1493,54 @@ class NewDataManager {
       this.hasLocalChanges = true;
       this.updateSyncButton();
       console.log('📊 检测到数据变更:', changes);
+    } else {
+      console.log('✅ 未检测到数据变更，数据同步状态正常');
     }
+  }
+
+  // 深度比较两个值是否相等（智能比较，避免误判）
+  deepEqual(obj1, obj2) {
+    // 处理相同引用
+    if (obj1 === obj2) return true;
+    
+    // 处理 null 和 undefined
+    if (obj1 == null || obj2 == null) return obj1 === obj2;
+    
+    // 处理不同类型
+    if (typeof obj1 !== typeof obj2) return false;
+    
+    // 处理基本类型
+    if (typeof obj1 !== 'object') return obj1 === obj2;
+    
+    // 处理日期对象
+    if (obj1 instanceof Date && obj2 instanceof Date) {
+      return obj1.getTime() === obj2.getTime();
+    }
+    
+    // 处理数组
+    if (Array.isArray(obj1) && Array.isArray(obj2)) {
+      if (obj1.length !== obj2.length) return false;
+      
+      for (let i = 0; i < obj1.length; i++) {
+        if (!this.deepEqual(obj1[i], obj2[i])) return false;
+      }
+      return true;
+    }
+    
+    // 处理对象
+    const keys1 = Object.keys(obj1).sort();
+    const keys2 = Object.keys(obj2).sort();
+    
+    // 比较键的数量和名称
+    if (keys1.length !== keys2.length) return false;
+    if (keys1.join(',') !== keys2.join(',')) return false;
+    
+    // 递归比较每个键的值
+    for (const key of keys1) {
+      if (!this.deepEqual(obj1[key], obj2[key])) return false;
+    }
+    
+    return true;
   }
 
   // 比较数据变更
@@ -1474,12 +1569,16 @@ class NewDataManager {
         }
       });
 
-      // 检测修改的键
+      // 检测修改的键（使用深度比较避免误判）
       originalKeys.forEach(key => {
         if (currentKeys.includes(key)) {
-          if (JSON.stringify(original[key]) !== JSON.stringify(current[key])) {
+          if (!this.deepEqual(original[key], current[key])) {
             changes.modified.push(key);
             hasChanges = true;
+            console.log(`🔍 检测到 ${dataType}.${key} 数据变更`, {
+              original: original[key],
+              current: current[key]
+            });
           }
         }
       });
@@ -1494,15 +1593,42 @@ class NewDataManager {
         }
       }
 
-      // 检测记录内容变更
+      // 检测记录内容变更（使用深度比较避免误判）
       const maxLength = Math.max(original.length, current.length);
       for (let i = 0; i < maxLength; i++) {
         if (i < original.length && i < current.length) {
-          if (JSON.stringify(original[i]) !== JSON.stringify(current[i])) {
+          if (!this.deepEqual(original[i], current[i])) {
             changes.modified.push(`记录${i + 1}`);
             hasChanges = true;
+            console.log(`🔍 检测到 ${dataType}[${i}] 数据变更`, {
+              original: original[i],
+              current: current[i]
+            });
           }
         }
+      }
+    } else if (dataType === 'excludedMembers') {
+      // excludedMembers 特殊处理（支持数组和对象两种格式）
+      const originalArray = Array.isArray(original) ? original : Object.values(original);
+      const currentArray = Array.isArray(current) ? current : Object.values(current);
+      
+      if (originalArray.length !== currentArray.length) {
+        hasChanges = true;
+        if (currentArray.length > originalArray.length) {
+          changes.added.push(`新增${currentArray.length - originalArray.length}条记录`);
+        } else {
+          changes.deleted.push(`删除${originalArray.length - currentArray.length}条记录`);
+        }
+      }
+      
+      // 检测内容变更（使用深度比较）
+      if (!this.deepEqual(originalArray, currentArray)) {
+        hasChanges = true;
+        changes.modified.push('excludedMembers内容变更');
+        console.log(`🔍 检测到 ${dataType} 数据变更`, {
+          original: originalArray,
+          current: currentArray
+        });
       }
     }
 
@@ -1639,7 +1765,7 @@ class NewDataManager {
     }
   }
 
-  // 强制同步当前数据
+  // 强制同步当前数据（🚨 紧急修复：添加数据保护机制）
   async forceSyncCurrentData() {
     try {
       console.log('🔄 强制同步当前数据到Firebase...');
@@ -1651,23 +1777,131 @@ class NewDataManager {
       const attendanceRecords = this.loadFromLocalStorage('attendanceRecords') || [];
       const dailyNewcomers = this.loadFromLocalStorage('dailyNewcomers') || {};
       
-      // 同步所有数据
+      // 🚨 紧急修复：检查attendanceRecords数据量，防止覆盖历史数据
+      console.log(`🔍 数据保护检查 - 本地签到记录数：${attendanceRecords.length}`);
+      
+      if (attendanceRecords.length < 10) {
+        console.error('⚠️ 警告：本地签到记录数量异常少，进行安全检查...');
+        
+        // 从Firebase读取当前数据量进行对比
+        const currentSnapshot = await db.ref('attendanceRecords').once('value');
+        const currentData = currentSnapshot.val();
+        const currentCount = currentData ? (Array.isArray(currentData) ? currentData.length : Object.keys(currentData).length) : 0;
+        
+        console.error(`🔍 Firebase当前记录数：${currentCount}`);
+        
+        if (currentCount > attendanceRecords.length) {
+          console.error('🚨 严重警告：Firebase数据量大于本地，同步将导致数据丢失！');
+          console.error(`即将丢失 ${currentCount - attendanceRecords.length} 条历史记录！`);
+          
+          alert(`⚠️ 同步已中止！数据保护机制触发\n\n` +
+                `本地记录：${attendanceRecords.length} 条\n` +
+                `Firebase记录：${currentCount} 条\n\n` +
+                `同步会导致 ${currentCount - attendanceRecords.length} 条历史记录丢失！\n\n` +
+                `请使用工具页面的"从Firebase加载"加载完整数据后再同步。`);
+          
+          this.isSyncing = false;
+          return false;
+        }
+      }
+      
+      // 同步groups和groupNames（安全）
       await db.ref('groups').update(groups);
       await db.ref('groupNames').update(groupNames);
-      await db.ref('attendanceRecords').set(attendanceRecords);
+      
+      // 🚨 紧急修复：attendanceRecords同步已禁用，防止数据覆盖
+      // await db.ref('attendanceRecords').set(attendanceRecords); // ❌ 危险！已禁用
+      console.log('⚠️ attendanceRecords同步已禁用，防止数据覆盖');
+      console.log('💡 如需同步签到记录，请使用attendance-records.html的编辑功能');
+      
       await db.ref('dailyNewcomers').update(dailyNewcomers);
       
-      console.log('✅ 强制同步完成');
+      console.log('✅ 强制同步完成（已跳过attendanceRecords保护数据）');
       this.isSyncing = false;
       
       // 更新原始数据
       this.originalData.groups = JSON.parse(JSON.stringify(groups));
       this.originalData.groupNames = JSON.parse(JSON.stringify(groupNames));
-      this.originalData.attendanceRecords = JSON.parse(JSON.stringify(attendanceRecords));
+      // 不更新attendanceRecords的原始数据
       this.originalData.dailyNewcomers = JSON.parse(JSON.stringify(dailyNewcomers));
+      
+      return true;
       
     } catch (error) {
       console.error('❌ 强制同步失败:', error);
+      this.isSyncing = false;
+      return false;
+    }
+  }
+
+  // 增量同步：只同步变更的数据（新增）
+  async performIncrementalSync() {
+    if (this.isSyncing) {
+      console.log('⚠️ 同步正在进行中，跳过增量同步');
+      return;
+    }
+
+    this.isSyncing = true;
+
+    try {
+      console.log('🔄 开始增量同步...');
+
+      if (!firebase.apps.length) {
+        console.error('❌ Firebase未初始化，无法执行增量同步');
+        this.isSyncing = false;
+        return;
+      }
+
+      const db = firebase.database();
+      const syncTasks = [];
+
+      // 只同步有变更的数据类型
+      for (const dataType of ['groups', 'groupNames', 'excludedMembers']) {
+        const changes = this.dataChangeFlags[dataType];
+        
+        // 检查是否有变更
+        if (changes && (changes.added.length > 0 || changes.modified.length > 0 || changes.deleted.length > 0)) {
+          console.log(`🔄 ${dataType} 有变更，准备同步:`, {
+            added: changes.added.length,
+            modified: changes.modified.length,
+            deleted: changes.deleted.length
+          });
+
+          const localData = this.loadFromLocalStorage(dataType);
+          if (localData) {
+            syncTasks.push(
+              db.ref(dataType).set(localData).then(() => {
+                console.log(`✅ ${dataType} 增量同步完成`);
+                // 清空变更标记
+                this.dataChangeFlags[dataType] = { added: [], modified: [], deleted: [] };
+              })
+            );
+          }
+        }
+      }
+
+      if (syncTasks.length === 0) {
+        console.log('ℹ️ 没有需要同步的数据变更');
+        this.isSyncing = false;
+        return;
+      }
+
+      // 执行所有同步任务
+      await Promise.all(syncTasks);
+
+      // 更新最后同步时间
+      Object.keys(this.metadata).forEach(key => {
+        if (this.metadata[key]) {
+          this.metadata[key].lastSync = new Date().toISOString();
+        }
+      });
+
+      this.hasLocalChanges = false;
+      console.log('✅ 增量同步完成');
+
+    } catch (error) {
+      console.error('❌ 增量同步失败:', error);
+    } finally {
       this.isSyncing = false;
     }
   }
@@ -1765,8 +1999,25 @@ class NewDataManager {
             console.warn('⚠️ 警告：attendanceRecords数据为空，跳过同步以防止数据丢失');
             syncResults.attendanceRecords = true; // 跳过同步
           } else {
-            // 修复：使用set()而不是update()来同步数组数据
-            await db.ref('attendanceRecords').set(attendanceRecords);
+            // 🚨 紧急修复：添加数据量检查，防止覆盖历史数据
+            const currentSnapshot = await db.ref('attendanceRecords').once('value');
+            const currentData = currentSnapshot.val();
+            const currentCount = currentData ? (Array.isArray(currentData) ? currentData.length : Object.keys(currentData).length) : 0;
+            
+            console.log(`🔍 数据量对比 - 本地：${attendanceRecords.length}，Firebase：${currentCount}`);
+            
+            if (currentCount > attendanceRecords.length && attendanceRecords.length < 50) {
+              console.error('🚨 拒绝同步：本地数据量远小于Firebase，会导致数据丢失！');
+              alert(`⚠️ attendanceRecords同步已中止！\n\n` +
+                    `本地：${attendanceRecords.length} 条\n` +
+                    `Firebase：${currentCount} 条\n\n` +
+                    `请确保本地已加载完整数据后再同步！`);
+              syncResults.attendanceRecords = false;
+            } else {
+              // 修复：使用set()而不是update()来同步数组数据
+              await db.ref('attendanceRecords').set(attendanceRecords);
+              console.log(`✅ attendanceRecords同步成功`);
+            }
           }
           // 优化验证逻辑：处理Firebase返回的数据格式
           const verifySnapshot = await db.ref('attendanceRecords').once('value');
@@ -2324,15 +2575,15 @@ class NewDataManager {
         return false;
       }
 
-      // 验证必要的小组存在（"未分组"是系统默认小组，用于存放新成员）
-      if (!groups['未分组']) {
-        console.warn('⚠️ 缺少"未分组"小组，自动创建');
-        groups['未分组'] = [];
-        // 同时更新groupNames
-        if (!groupNames['未分组']) {
-          groupNames['未分组'] = '未分组';
+        // 验证必要的小组存在（"group0"是系统默认小组，用于存放新成员）
+        if (!groups['group0']) {
+          console.warn('⚠️ 缺少"group0"小组，自动创建');
+          groups['group0'] = [];
+          // 同时更新groupNames
+          if (!groupNames['group0']) {
+            groupNames['group0'] = '未分组';
+          }
         }
-      }
 
       console.log('✅ 数据完整性验证通过');
       return true;
@@ -2599,5 +2850,146 @@ NewDataManager.prototype.preloadSundayTrackingData = async function() {
     console.error('❌ 预加载Sunday Tracking数据失败:', error);
     return false;
   }
+};
+
+// 从Firebase加载当日签到记录（优化版本）
+NewDataManager.prototype.loadTodayAttendanceRecordsFromFirebase = async function() {
+  try {
+    if (!firebase.apps.length) {
+      console.error('Firebase未初始化');
+      return [];
+    }
+
+    const db = firebase.database();
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // 查询当日签到记录
+    const snapshot = await db.ref('attendanceRecords')
+      .orderByChild('date')
+      .equalTo(today)
+      .once('value');
+    
+    const todayRecords = snapshot.val();
+    const recordsArray = todayRecords ? Object.values(todayRecords) : [];
+    
+    console.log(`✅ 从Firebase加载当日签到记录: ${recordsArray.length}条`);
+    return recordsArray;
+  } catch (error) {
+    console.error('❌ 从Firebase加载当日签到记录失败:', error);
+    // 降级到加载所有记录
+    console.log('🔄 降级到加载所有签到记录...');
+    return await this.loadDataFromFirebase('attendanceRecords') || [];
+  }
+};
+
+// 从Firebase加载数据（通用函数）
+NewDataManager.prototype.loadDataFromFirebase = async function(dataType) {
+  try {
+    if (!firebase.apps.length) {
+      console.error('Firebase未初始化');
+      return null;
+    }
+
+    const db = firebase.database();
+    const snapshot = await db.ref(dataType).once('value');
+    const data = snapshot.val();
+    
+    console.log(`✅ 从Firebase加载${dataType}:`, data ? '成功' : '无数据');
+    return data;
+  } catch (error) {
+    console.error(`❌ 从Firebase加载${dataType}失败:`, error);
+    return null;
+  }
+};
+
+// 增量数据拉取（基于时间戳）
+NewDataManager.prototype.loadIncrementalDataFromFirebase = async function() {
+  try {
+    if (!firebase.apps.length) {
+      console.error('Firebase未初始化');
+      return false;
+    }
+
+    console.log('🔄 开始增量数据拉取...');
+    
+    const db = firebase.database();
+    const lastSyncTime = this.getLastSyncTime();
+    
+    // 获取自上次同步以来的变更
+    const [groupsSnapshot, attendanceSnapshot, groupNamesSnapshot] = await Promise.all([
+      db.ref('groups').orderByChild('lastModified').startAt(lastSyncTime).once('value'),
+      db.ref('attendanceRecords').orderByChild('createdAt').startAt(lastSyncTime).once('value'),
+      db.ref('groupNames').orderByChild('lastModified').startAt(lastSyncTime).once('value')
+    ]);
+
+    let hasChanges = false;
+    
+    // 处理增量变更
+    if (groupsSnapshot.exists()) {
+      const incrementalGroups = groupsSnapshot.val();
+      console.log(`📊 检测到小组增量变更: ${Object.keys(incrementalGroups).length}个`);
+      
+      // 合并到现有数据
+      const currentGroups = this.loadFromLocalStorage('groups') || {};
+      Object.assign(currentGroups, incrementalGroups);
+      this.saveToLocalStorage('groups', currentGroups);
+      window.groups = currentGroups;
+      hasChanges = true;
+    }
+
+    if (attendanceSnapshot.exists()) {
+      const incrementalAttendance = Object.values(attendanceSnapshot.val() || {});
+      console.log(`📊 检测到签到记录增量变更: ${incrementalAttendance.length}条`);
+      
+      // 合并到现有数据（避免重复）
+      const currentAttendance = this.loadFromLocalStorage('attendanceRecords') || [];
+      const existingIds = new Set(currentAttendance.map(r => r.recordId));
+      const newRecords = incrementalAttendance.filter(r => !existingIds.has(r.recordId));
+      
+      if (newRecords.length > 0) {
+        currentAttendance.push(...newRecords);
+        this.saveToLocalStorage('attendanceRecords', currentAttendance);
+        window.attendanceRecords = currentAttendance;
+        hasChanges = true;
+      }
+    }
+
+    if (groupNamesSnapshot.exists()) {
+      const incrementalGroupNames = groupNamesSnapshot.val();
+      console.log(`📊 检测到小组名称增量变更: ${Object.keys(incrementalGroupNames).length}个`);
+      
+      // 合并到现有数据
+      const currentGroupNames = this.loadFromLocalStorage('groupNames') || {};
+      Object.assign(currentGroupNames, incrementalGroupNames);
+      this.saveToLocalStorage('groupNames', currentGroupNames);
+      window.groupNames = currentGroupNames;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      this.updateLastSyncTime();
+      console.log('✅ 增量数据拉取完成');
+    } else {
+      console.log('📋 没有检测到增量变更');
+    }
+
+    return hasChanges;
+  } catch (error) {
+    console.error('❌ 增量数据拉取失败:', error);
+    return false;
+  }
+};
+
+// 获取上次同步时间
+NewDataManager.prototype.getLastSyncTime = function() {
+  const metadata = JSON.parse(localStorage.getItem('msh_metadata') || '{}');
+  return metadata.lastSyncTime || 0;
+};
+
+// 更新同步时间
+NewDataManager.prototype.updateLastSyncTime = function() {
+  const metadata = JSON.parse(localStorage.getItem('msh_metadata') || '{}');
+  metadata.lastSyncTime = Date.now();
+  localStorage.setItem('msh_metadata', JSON.stringify(metadata));
 };
 

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 检查Firebase时间格式</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #2c3e50;
+            color: #ecf0f1;
+        }
+        .result {
+            background: #34495e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .error {
+            border-left-color: #e74c3c;
+        }
+        .success {
+            border-left-color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Firebase时间格式检查</h1>
+    <div id="results"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+
+    <script>
+        function addResult(message, type = 'result') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function checkFormats() {
+            try {
+                // 初始化Firebase
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(window.firebaseConfig);
+                }
+                const db = firebase.database();
+                
+                addResult('✅ Firebase已连接', 'success');
+                
+                // 获取前5条记录
+                const snapshot = await db.ref('attendanceRecords').limitToFirst(5).once('value');
+                const records = snapshot.val();
+                
+                if (!records) {
+                    addResult('❌ Firebase中没有数据', 'error');
+                    return;
+                }
+                
+                const recordsArray = Array.isArray(records) ? records : Object.values(records);
+                
+                addResult(`📊 检查前5条记录的时间格式：`, 'result');
+                
+                recordsArray.forEach((record, index) => {
+                    const timeValue = record.time;
+                    const timeType = typeof timeValue;
+                    
+                    let formatInfo = '';
+                    if (timeType === 'string') {
+                        if (timeValue.includes('T') && timeValue.includes('Z')) {
+                            formatInfo = '📝 ISO字符串格式（如：2025-10-05T09:00:00.000Z）';
+                        } else if (timeValue.includes('/')) {
+                            formatInfo = '📝 斜杠字符串格式（如：2025/10/5 09:00:00）';
+                        } else {
+                            formatInfo = '📝 其他字符串格式';
+                        }
+                    } else if (timeType === 'number') {
+                        formatInfo = '🔢 时间戳数字格式';
+                    }
+                    
+                    addResult(`
+                        <strong>记录 #${index + 1}:</strong><br>
+                        姓名: ${record.name}<br>
+                        time值: ${timeValue}<br>
+                        类型: ${timeType}<br>
+                        格式: ${formatInfo}<br>
+                        date字段: ${record.date}
+                    `, 'result');
+                });
+                
+                // 检查最新的5条记录
+                const latestSnapshot = await db.ref('attendanceRecords').limitToLast(5).once('value');
+                const latestRecords = latestSnapshot.val();
+                const latestArray = Array.isArray(latestRecords) ? latestRecords : Object.values(latestRecords);
+                
+                addResult(`<br>📊 检查最新5条记录的时间格式：`, 'result');
+                
+                latestArray.forEach((record, index) => {
+                    const timeValue = record.time;
+                    const timeType = typeof timeValue;
+                    
+                    let formatInfo = '';
+                    if (timeType === 'string') {
+                        if (timeValue.includes('T') && timeValue.includes('Z')) {
+                            formatInfo = '📝 ISO字符串格式';
+                        } else if (timeValue.includes('/')) {
+                            formatInfo = '📝 斜杠字符串格式';
+                        }
+                    } else if (timeType === 'number') {
+                        formatInfo = '🔢 时间戳数字格式';
+                    }
+                    
+                    addResult(`
+                        <strong>最新记录 #${index + 1}:</strong><br>
+                        姓名: ${record.name}<br>
+                        time值: ${timeValue}<br>
+                        类型: ${timeType}<br>
+                        格式: ${formatInfo}
+                    `, 'result');
+                });
+                
+                // 统计格式分布
+                const allSnapshot = await db.ref('attendanceRecords').once('value');
+                const allRecords = allSnapshot.val();
+                const allArray = Array.isArray(allRecords) ? allRecords : Object.values(allRecords);
+                
+                let stringCount = 0;
+                let numberCount = 0;
+                let isoCount = 0;
+                let slashCount = 0;
+                
+                allArray.forEach(record => {
+                    const timeType = typeof record.time;
+                    if (timeType === 'string') {
+                        stringCount++;
+                        if (record.time.includes('T') && record.time.includes('Z')) {
+                            isoCount++;
+                        } else if (record.time.includes('/')) {
+                            slashCount++;
+                        }
+                    } else if (timeType === 'number') {
+                        numberCount++;
+                    }
+                });
+                
+                addResult(`
+                    <br><strong>📊 全部${allArray.length}条记录的格式统计：</strong><br>
+                    🔢 时间戳数字: ${numberCount} 条 (${(numberCount/allArray.length*100).toFixed(1)}%)<br>
+                    📝 ISO字符串: ${isoCount} 条 (${(isoCount/allArray.length*100).toFixed(1)}%)<br>
+                    📝 斜杠字符串: ${slashCount} 条 (${(slashCount/allArray.length*100).toFixed(1)}%)<br>
+                    ⚠️ 其他格式: ${allArray.length - numberCount - isoCount - slashCount} 条
+                `, stringCount > 0 || slashCount > 0 ? 'error' : 'success');
+                
+            } catch (error) {
+                addResult(`❌ 检查失败: ${error.message}`, 'error');
+            }
+        }
+        
+        window.addEventListener('load', checkFormats);
+    </script>
+</body>
+</html>
+
+

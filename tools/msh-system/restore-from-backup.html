@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 从备份恢复签到记录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .alert {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .alert h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .backup-info {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .backup-info h4 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+
+        .backup-info p {
+            margin: 5px 0;
+            color: #1b5e20;
+        }
+
+        .file-upload {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-upload:hover {
+            background: #e9ecef;
+            border-color: #5568d3;
+        }
+
+        .file-upload.dragover {
+            background: #d6e9ff;
+            border-color: #2196f3;
+        }
+
+        .file-upload p.file-hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #27ae60;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        #progress {
+            display: none;
+        }
+
+        #progress.active {
+            display: block;
+        }
+
+        .progress {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            height: 30px;
+            background: #ecf0f1;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            width: 0%;
+        }
+
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .log.active {
+            display: block;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+        }
+
+        .log-success { color: #2ecc71; }
+        .log-error { color: #e74c3c; }
+        .log-warning { color: #f39c12; }
+        .log-info { color: #3498db; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        #stats, #actions {
+            display: none;
+        }
+
+        #stats.active, #actions.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 从备份恢复签到记录</h1>
+        <p class="subtitle">紧急数据恢复工具</p>
+
+        <div class="alert">
+            <h3>⚠️ 发现备份文件</h3>
+            <p>在 ~/Downloads 目录发现以下备份文件：</p>
+            <ul>
+                <li><strong>msh-attendance-full-backup-2025-10-02.json</strong> - 357条记录 (推荐)</li>
+                <li>msh-migration-report-2025-10-02.json</li>
+                <li>timeslot-fix-report-2025-10-02.json</li>
+            </ul>
+        </div>
+
+        <div class="backup-info">
+            <h4>📋 备份文件信息</h4>
+            <p><strong>备份时间：</strong>2025-10-02 13:52:16</p>
+            <p><strong>记录数量：</strong>357条</p>
+            <p><strong>时间范围：</strong>2025-08-01 至 2025-10-02</p>
+            <p><strong>数据大小：</strong>154.9 KB</p>
+        </div>
+
+        <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
+            <h3>📁 选择备份文件</h3>
+            <p>点击选择文件或拖拽文件到此处</p>
+            <p class="file-hint">支持格式: .json</p>
+            <input type="file" id="fileInput" accept=".json" onchange="handleFileSelect(event)">
+        </div>
+
+        <div id="stats">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">总记录数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="validRecords">0</div>
+                    <div class="stat-label">有效记录</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="dateRange">-</div>
+                    <div class="stat-label">时间跨度</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="progress">
+            <div class="progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log" id="log"></div>
+
+        <div id="actions">
+            <button class="btn-success" onclick="restoreToLocalStorage()">
+                ✅ 恢复到本地存储 (localStorage)
+            </button>
+            <button class="btn-primary" onclick="restoreToFirebase()">
+                ☁️ 恢复到Firebase
+            </button>
+            <button class="btn-danger" onclick="restoreToAll()">
+                🚀 恢复到所有位置 (推荐)
+            </button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+
+    <script>
+        let backupData = null;
+        let db = null;
+
+        // 初始化Firebase
+        function initFirebase() {
+            try {
+                if (typeof firebase !== 'undefined' && window.firebaseConfig) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    }
+                    db = firebase.database();
+                    log('✅ Firebase初始化成功', 'success');
+                    return true;
+                }
+            } catch (error) {
+                log(`❌ Firebase初始化失败: ${error.message}`, 'error');
+            }
+            return false;
+        }
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            logDiv.classList.add('active');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 更新进度
+        function updateProgress(percent) {
+            const progressDiv = document.getElementById('progress');
+            const progressFill = document.getElementById('progressFill');
+            progressDiv.classList.add('active');
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = percent + '%';
+        }
+
+        // 处理文件拖拽
+        const fileUpload = document.getElementById('fileUpload');
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('dragover');
+        });
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('dragover');
+        });
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) processFile(file);
+        }
+
+        // 处理文件
+        function processFile(file) {
+            log(`📁 正在读取文件: ${file.name}`, 'info');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    log('✅ 文件解析成功', 'success');
+                    
+                    // 提取记录数据
+                    let records = null;
+                    if (data.records) {
+                        records = data.records;
+                    } else if (data.attendanceRecords) {
+                        records = data.attendanceRecords;
+                    } else if (Array.isArray(data)) {
+                        records = data;
+                    } else {
+                        throw new Error('无法识别的数据格式');
+                    }
+                    
+                    backupData = records;
+                    
+                    // 显示统计信息
+                    displayStats(records, data.metadata);
+                    
+                    // 显示操作按钮
+                    document.getElementById('actions').classList.add('active');
+                    
+                    log(`✅ 加载了 ${records.length} 条签到记录`, 'success');
+                } catch (error) {
+                    log(`❌ 文件解析失败: ${error.message}`, 'error');
+                    alert('文件解析失败，请检查文件格式！');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // 显示统计信息
+        function displayStats(records, metadata) {
+            document.getElementById('stats').classList.add('active');
+            document.getElementById('totalRecords').textContent = records.length;
+            
+            // 计算有效记录
+            const validRecords = records.filter(r => r.name && r.time && r.date).length;
+            document.getElementById('validRecords').textContent = validRecords;
+            
+            // 计算时间跨度
+            if (metadata && metadata.dateRange) {
+                const start = new Date(metadata.dateRange.start);
+                const end = new Date(metadata.dateRange.end);
+                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                document.getElementById('dateRange').textContent = `${days}天`;
+            }
+        }
+
+        // 恢复到本地存储
+        function restoreToLocalStorage() {
+            if (!backupData) {
+                alert('请先加载备份文件！');
+                return;
+            }
+            
+            log('🔄 开始恢复到本地存储...', 'info');
+            updateProgress(0);
+            
+            try {
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(backupData));
+                window.attendanceRecords = backupData;
+                
+                updateProgress(100);
+                log(`✅ 成功恢复 ${backupData.length} 条记录到本地存储`, 'success');
+                alert(`✅ 成功恢复 ${backupData.length} 条记录到本地存储！`);
+            } catch (error) {
+                log(`❌ 恢复失败: ${error.message}`, 'error');
+                alert('恢复失败: ' + error.message);
+            }
+        }
+
+        // 恢复到Firebase
+        async function restoreToFirebase() {
+            if (!backupData) {
+                alert('请先加载备份文件！');
+                return;
+            }
+            
+            if (!db) {
+                alert('Firebase未连接，请刷新页面重试！');
+                return;
+            }
+            
+            const confirm = window.confirm(`⚠️ 确定要恢复 ${backupData.length} 条记录到Firebase吗？\n\n此操作将覆盖现有数据！`);
+            if (!confirm) return;
+            
+            log('🔄 开始恢复到Firebase...', 'info');
+            updateProgress(0);
+            
+            try {
+                await db.ref('attendanceRecords').set(backupData);
+                updateProgress(100);
+                log(`✅ 成功恢复 ${backupData.length} 条记录到Firebase`, 'success');
+                alert(`✅ 成功恢复 ${backupData.length} 条记录到Firebase！`);
+            } catch (error) {
+                log(`❌ 恢复失败: ${error.message}`, 'error');
+                alert('恢复失败: ' + error.message);
+            }
+        }
+
+        // 恢复到所有位置
+        async function restoreToAll() {
+            if (!backupData) {
+                alert('请先加载备份文件！');
+                return;
+            }
+            
+            const confirm = window.confirm(`⚠️ 确定要恢复 ${backupData.length} 条记录到所有位置吗？\n\n包括：\n1. 本地存储 (localStorage)\n2. 全局变量 (window.attendanceRecords)\n3. Firebase数据库\n\n此操作将覆盖现有数据！`);
+            if (!confirm) return;
+            
+            log('🚀 开始全量恢复...', 'info');
+            
+            // 1. 恢复到本地存储
+            updateProgress(33);
+            try {
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(backupData));
+                log('✅ 已恢复到本地存储', 'success');
+            } catch (error) {
+                log(`❌ 本地存储恢复失败: ${error.message}`, 'error');
+            }
+            
+            // 2. 恢复到全局变量
+            updateProgress(66);
+            window.attendanceRecords = backupData;
+            log('✅ 已恢复到全局变量', 'success');
+            
+            // 3. 恢复到Firebase
+            if (db) {
+                try {
+                    await db.ref('attendanceRecords').set(backupData);
+                    log('✅ 已恢复到Firebase', 'success');
+                } catch (error) {
+                    log(`❌ Firebase恢复失败: ${error.message}`, 'error');
+                }
+            } else {
+                log('⚠️ Firebase未连接，跳过', 'warning');
+            }
+            
+            updateProgress(100);
+            log(`🎉 全量恢复完成！共恢复 ${backupData.length} 条记录`, 'success');
+            alert(`🎉 全量恢复完成！\n共恢复 ${backupData.length} 条签到记录！`);
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', () => {
+            initFirebase();
+            log('系统就绪，请选择备份文件', 'info');
+        });
+    </script>
+</body>
+</html>
+
+

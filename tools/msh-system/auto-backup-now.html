@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💾 一键备份工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        h1 {
+            color: #27ae60;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+        .alert {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .alert h3 {
+            color: #155724;
+            margin-bottom: 10px;
+        }
+        .alert p + p {
+            margin-top: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 0;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #2ecc71;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 20px 0;
+            display: none;
+        }
+        .log.active {
+            display: block;
+        }
+        .log-success { color: #2ecc71; }
+        .log-error { color: #e74c3c; }
+        .log-warning { color: #f39c12; }
+        .log-info { color: #3498db; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💾 一键全量备份工具</h1>
+
+        <div class="alert">
+            <h3>📋 备份说明</h3>
+            <p>此工具将备份所有关键数据到本地文件，建议每周执行一次备份！</p>
+            <p><strong>备份内容</strong>：签到记录、小组数据、成员数据、排除人员、小组名称</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="attendanceCount">0</div>
+                <div class="stat-label">签到记录</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="groupCount">0</div>
+                <div class="stat-label">小组数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="memberCount">0</div>
+                <div class="stat-label">成员总数</div>
+            </div>
+        </div>
+
+        <button class="btn-primary" onclick="createFullBackup()">
+            🚀 立即创建完整备份
+        </button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+
+    <script>
+        let db = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            logDiv.classList.add('active');
+            const entry = document.createElement('div');
+            entry.className = `log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        async function createFullBackup() {
+            try {
+                log('🚀 开始创建完整备份...', 'info');
+
+                if (!db) {
+                    log('❌ Firebase未连接', 'error');
+                    alert('Firebase未连接，无法备份！');
+                    return;
+                }
+
+                // 1. 从Firebase获取所有数据
+                log('📥 正在从Firebase获取数据...', 'info');
+                
+                const [attendanceSnapshot, groupsSnapshot, groupNamesSnapshot, excludedSnapshot] = await Promise.all([
+                    db.ref('attendanceRecords').once('value'),
+                    db.ref('groups').once('value'),
+                    db.ref('groupNames').once('value'),
+                    db.ref('excludedMembers').once('value')
+                ]);
+
+                const attendanceRecords = attendanceSnapshot.val();
+                const groups = groupsSnapshot.val();
+                const groupNames = groupNamesSnapshot.val();
+                const excludedMembers = excludedSnapshot.val();
+
+                // 2. 统计数据
+                const attendanceCount = Array.isArray(attendanceRecords) ? attendanceRecords.length : Object.keys(attendanceRecords || {}).length;
+                const groupCount = Object.keys(groups || {}).length;
+                let memberCount = 0;
+                if (groups) {
+                    Object.values(groups).forEach(groupMembers => {
+                        if (Array.isArray(groupMembers)) {
+                            memberCount += groupMembers.length;
+                        }
+                    });
+                }
+
+                log(`✅ 数据获取完成: ${attendanceCount}条签到, ${groupCount}个小组, ${memberCount}名成员`, 'success');
+
+                // 3. 构建备份对象
+                const backupData = {
+                    metadata: {
+                        backupTime: new Date().toISOString(),
+                        version: '2.0',
+                        type: 'full_backup',
+                        source: 'Firebase',
+                        stats: {
+                            attendanceRecords: attendanceCount,
+                            groups: groupCount,
+                            members: memberCount,
+                            excludedMembers: Array.isArray(excludedMembers) ? excludedMembers.length : Object.keys(excludedMembers || {}).length
+                        }
+                    },
+                    data: {
+                        attendanceRecords,
+                        groups,
+                        groupNames,
+                        excludedMembers
+                    }
+                };
+
+                // 4. 导出为JSON文件
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const filename = `MSH-完整备份-${timestamp}.json`;
+                
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                log(`✅ 备份文件已导出: ${filename}`, 'success');
+                log(`📊 备份大小: ${(blob.size / 1024).toFixed(2)} KB`, 'info');
+
+                // 保存备份文件名和时间到localStorage（供备份提醒系统使用）
+                localStorage.setItem('msh_recent_backup_file', filename);
+                localStorage.setItem('msh_last_backup_time', backupData.metadata.backupTime);
+                log('✅ 备份时间已记录到系统', 'success');
+
+                alert(`✅ 备份成功！\n\n文件名: ${filename}\n签到记录: ${attendanceCount}条\n小组: ${groupCount}个\n成员: ${memberCount}人\n\n文件已保存到Downloads目录\n\n✅ 备份时间已自动记录，下次不会重复提醒`);
+
+            } catch (error) {
+                log(`❌ 备份失败: ${error.message}`, 'error');
+                alert('备份失败: ' + error.message);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                if (!db) return;
+
+                const [attendanceSnapshot, groupsSnapshot] = await Promise.all([
+                    db.ref('attendanceRecords').once('value'),
+                    db.ref('groups').once('value')
+                ]);
+
+                const attendanceRecords = attendanceSnapshot.val();
+                const groups = groupsSnapshot.val();
+
+                const attendanceCount = Array.isArray(attendanceRecords) ? attendanceRecords.length : Object.keys(attendanceRecords || {}).length;
+                const groupCount = Object.keys(groups || {}).length;
+                let memberCount = 0;
+                if (groups) {
+                    Object.values(groups).forEach(groupMembers => {
+                        if (Array.isArray(groupMembers)) {
+                            memberCount += groupMembers.length;
+                        }
+                    });
+                }
+
+                document.getElementById('attendanceCount').textContent = attendanceCount;
+                document.getElementById('groupCount').textContent = groupCount;
+                document.getElementById('memberCount').textContent = memberCount;
+
+            } catch (error) {
+                console.error('加载统计失败:', error);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            try {
+                if (typeof firebase !== 'undefined' && window.firebaseConfig) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    }
+                    db = firebase.database();
+                    log('✅ Firebase初始化成功', 'success');
+                    loadStats();
+                } else {
+                    log('❌ Firebase配置未找到', 'error');
+                }
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
+
+

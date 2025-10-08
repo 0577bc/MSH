@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH小组键名标准化工具</title>
+    <link rel="stylesheet" href="../../src/style.css">
+    <style>
+        .standardizer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .standardizer-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .standardizer-header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .standardizer-header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .standardizer-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .standardizer-section h2 {
+            color: #2d3748;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .key-mapping-item {
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #f7fafc;
+            transition: all 0.3s;
+        }
+
+        .key-mapping-item:hover {
+            border-color: #667eea;
+            background: #e6f3ff;
+        }
+
+        .key-mapping-item.processing {
+            border-color: #f6ad55;
+            background: #fef5e7;
+        }
+
+        .key-mapping-item.completed {
+            border-color: #48bb78;
+            background: #c6f6d5;
+        }
+
+        .key-mapping-item.error {
+            border-color: #f56565;
+            background: #fed7d7;
+        }
+
+        .key-mapping-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .key-mapping-title {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 16px;
+        }
+
+        .key-mapping-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .key-mapping-status.pending {
+            background: #fef5e7;
+            color: #d68910;
+        }
+
+        .key-mapping-status.processing {
+            background: #bee3f8;
+            color: #2b6cb0;
+        }
+
+        .key-mapping-status.completed {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .key-mapping-status.error {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .key-mapping-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .key-detail {
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .key-detail h4 {
+            color: #2d3748;
+            font-size: 12px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .key-detail .old-key {
+            color: #e53e3e;
+            font-weight: 600;
+        }
+
+        .key-detail .new-key {
+            color: #38a169;
+            font-weight: 600;
+        }
+
+        .key-detail .display-name {
+            color: #3182ce;
+            font-weight: 500;
+        }
+
+        .key-detail .member-count {
+            color: #4a5568;
+            font-size: 14px;
+        }
+
+        .key-mapping-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-warning {
+            background: #f6ad55;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ed8936;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .standardization-log {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .standardization-log h4 {
+            color: #2d3748;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .log-item {
+            padding: 8px;
+            background: white;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #4a5568;
+        }
+
+        .log-item.success {
+            border-left: 3px solid #48bb78;
+        }
+
+        .log-item.error {
+            border-left: 3px solid #f56565;
+        }
+
+        .log-item.info {
+            border-left: 3px solid #3182ce;
+        }
+
+        .preview-section {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .preview-json {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .data-viewer {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .data-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .data-tab {
+            padding: 10px 20px;
+            background: #edf2f7;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            transition: all 0.3s;
+        }
+
+        .data-tab.active {
+            background: #3182ce;
+            color: white;
+        }
+
+        .data-tab:hover {
+            background: #cbd5e0;
+        }
+
+        .data-tab.active:hover {
+            background: #2c5aa0;
+        }
+
+        .data-content {
+            display: none;
+        }
+
+        .data-content.active {
+            display: block;
+        }
+
+        .data-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .data-summary-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .data-summary-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .data-summary-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .data-json {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .data-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .comparison-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .comparison-title {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .btn-info {
+            background: #3182ce;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-info:hover {
+            background: #2c5aa0;
+        }
+    </style>
+</head>
+<body>
+    <div class="standardizer-container">
+        <!-- 页面头部 -->
+        <div class="standardizer-header">
+            <h1>🔧 MSH小组键名标准化工具</h1>
+            <p>将小组键名标准化为group1、group2、group3等格式，并同步到Firebase</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalGroups">0</div>
+                <div class="stat-label">总小组数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pendingGroups">0</div>
+                <div class="stat-label">待标准化</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completedGroups">0</div>
+                <div class="stat-label">已完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="errorGroups">0</div>
+                <div class="stat-label">错误</div>
+            </div>
+        </div>
+
+        <!-- 数据查看控件 -->
+        <div class="standardizer-section">
+            <h2>📊 数据查看</h2>
+            <div class="action-buttons">
+                <button class="btn btn-info" onclick="viewLocalData()">📱 查看本地数据</button>
+                <button class="btn btn-info" onclick="viewFirebaseData()">☁️ 查看Firebase数据</button>
+                <button class="btn btn-info" onclick="compareData()">🔄 对比数据</button>
+                <button class="btn btn-primary" onclick="refreshData()">🔄 刷新数据</button>
+            </div>
+            <div id="dataViewer" class="data-viewer">
+                <div class="loading">点击上方按钮查看数据...</div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="standardizer-section">
+            <h2>🔧 标准化操作</h2>
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="analyzeGroups()">🔍 分析小组</button>
+                <button class="btn btn-success" onclick="executeStandardization()">🚀 执行标准化</button>
+                <button class="btn btn-warning" onclick="previewChanges()">👁️ 预览更改</button>
+                <button class="btn btn-danger" onclick="rollbackChanges()">↩️ 回滚更改</button>
+                <button class="btn btn-primary" onclick="exportReport()">📊 导出报告</button>
+                <button class="btn btn-danger" onclick="restoreUnassignedGroup()">🔄 恢复未分组</button>
+            </div>
+        </div>
+
+        <!-- 预览更改 -->
+        <div class="standardizer-section">
+            <h2>👁️ 更改预览</h2>
+            <div id="previewChanges">
+                <div class="loading">点击"预览更改"查看标准化后的数据结构...</div>
+            </div>
+        </div>
+
+        <!-- 键名映射列表 -->
+        <div class="standardizer-section">
+            <h2>📋 键名映射列表</h2>
+            <div id="keyMappingList">
+                <div class="loading">点击"分析小组"开始分析...</div>
+            </div>
+        </div>
+
+        <!-- 标准化日志 -->
+        <div class="standardizer-section">
+            <h2>📝 标准化日志</h2>
+            <div id="standardizationLog">
+                <div class="loading">等待标准化操作...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="../../config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../src/utils.js"></script>
+    <script src="../../src/group-key-standardizer.js"></script>
+</body>
+</html>
+

@@ -230,8 +230,8 @@ async function loadMemberInfo() {
       }
     } else if (!memberGroup) {
       console.log(`❌ 无法确定成员组别:`, member);
-      memberGroup = '未分组';
-      groupDisplayName = '未分组';
+        memberGroup = 'group0';
+        groupDisplayName = '未分组';
     }
     
     memberInfo = {
@@ -385,37 +385,10 @@ function displayCompleteInfo() {
 function displayMemberInfo() {
   if (!memberInfoEl || !memberInfo) return;
   
-  // 详细调试信息
-  console.log('🔍 displayMemberInfo 详细调试信息:');
-  console.log('  memberInfo:', memberInfo);
-  console.log('  memberInfo.group:', memberInfo.group);
-  console.log('  memberInfo.groupDisplayName:', memberInfo.groupDisplayName);
-  console.log('  window.groupNames:', window.groupNames);
-  console.log('  window.groupNames类型:', typeof window.groupNames);
-  console.log('  window.groupNames是否为对象:', window.groupNames && typeof window.groupNames === 'object');
-  
-  // 检查UUIDIndex中的成员信息
-  const uuidIndexMember = window.utils?.UUIDIndex?.findMemberByUUID(memberUUID);
-  console.log('  UUIDIndex中的成员信息:', uuidIndexMember);
-  if (uuidIndexMember) {
-    console.log('  UUIDIndex成员group:', uuidIndexMember.group);
-    console.log('  UUIDIndex成员groupDisplayName:', uuidIndexMember.groupDisplayName);
-  }
-  
   // 获取组别显示名称（优先使用groupDisplayName，回退到groupNames映射）
   let groupDisplayName = memberInfo.groupDisplayName || memberInfo.group;
   if (!memberInfo.groupDisplayName && window.groupNames && window.groupNames[memberInfo.group]) {
     groupDisplayName = window.groupNames[memberInfo.group];
-    console.log(`✅ 使用groupNames映射: ${memberInfo.group} -> ${groupDisplayName}`);
-  } else if (!memberInfo.groupDisplayName) {
-    console.log(`⚠️ 未找到组别映射: ${memberInfo.group}, 使用原始名称`);
-    console.log(`⚠️ groupNames检查:`, {
-      exists: !!window.groupNames,
-      hasKey: window.groupNames && window.groupNames.hasOwnProperty(memberInfo.group),
-      keys: window.groupNames ? Object.keys(window.groupNames) : 'undefined'
-    });
-  } else {
-    console.log(`✅ 使用groupDisplayName: ${groupDisplayName}`);
   }
   
   memberInfoEl.innerHTML = `
@@ -471,7 +444,7 @@ function displayTrackingHistory() {
   
   const historyHtml = trackingRecords.map(record => `
     <div class="tracking-record-item">
-      <p><strong>日期：</strong>${window.utils.formatDateForDisplay(record.date)}</p>
+      <p><strong>日期：</strong>${window.utils.formatDateForDisplay(record.date || (record.time ? new Date(record.time).toISOString().split('T')[0] : ''))}</p>
       <p><strong>内容：</strong>${record.content}</p>
       <p><strong>类别：</strong>${record.category}</p>
       <p><strong>回馈人员：</strong>${record.person}</p>
@@ -529,58 +502,127 @@ function displayActionButtons() {
 
 /**
  * 转发到外部表单
- * 功能：将事件信息转发到pub.baishuyun.com的表单
+ * 功能：将事件信息转发到外部表单系统
  * 作者：MSH系统
  * 版本：2.0
  */
-function forwardToExternalForm(eventId) {
+async function forwardToExternalForm(eventId) {
   try {
     console.log(`🔄 开始转发事件到外部表单: ${eventId}`);
+    showNotification('正在转发到外部表单...', 'info');
+    
+    // 检查外部表单功能是否启用
+    if (!window.externalFormConfig || !window.externalFormConfig.features.enableForwarding) {
+      throw new Error('外部表单转发功能未启用');
+    }
     
     // 获取事件详情
     const eventRecord = window.utils.SundayTrackingManager.getTrackingRecord(eventId);
     if (!eventRecord) {
-      alert('事件记录未找到，请刷新页面重试');
-      return;
+      throw new Error('事件记录未找到，请刷新页面重试');
     }
     
-    // 构建转发URL，包含事件信息
-    const baseUrl = 'https://pub.baishuyun.com/form';
-    const params = new URLSearchParams({
-      eventId: eventId,
-      memberName: eventRecord.memberName || memberInfo.name,
-      memberUUID: eventRecord.memberUUID || memberUUID,
-      group: eventRecord.group || memberInfo.group,
-      startDate: eventRecord.startDate,
-      consecutiveAbsences: eventRecord.consecutiveAbsences || 0,
-      source: 'msh-tracking',
-      timestamp: Date.now()
+    // 获取认证token
+    const token = await getExternalFormToken();
+    if (!token) {
+      throw new Error('无法获取外部表单认证token');
+    }
+    
+    // 构建提交数据（符合后端API格式）
+    const eventData = {
+      formId: 'f4b20710-fed9-489f-955f-f9cbea48caac', // 使用测试表单
+      submissionData: {
+        eventId: eventId,
+        memberName: eventRecord.memberName || memberInfo.name || '未知成员',
+        memberUUID: eventRecord.memberUUID || memberUUID || eventId,
+        group: eventRecord.groupDisplayName || eventRecord.group || memberInfo.group || '未知组别',
+        startDate: eventRecord.startDate || new Date().toISOString().split('T')[0],
+        consecutiveAbsences: eventRecord.consecutiveAbsences || 0,
+        source: 'msh-tracking',
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    // 发送事件到外部表单API
+    const response = await fetch(`${window.externalFormConfig.apiBaseUrl}${window.externalFormConfig.endpoints.submissions}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(eventData)
     });
     
-    const forwardUrl = `${baseUrl}?${params.toString()}`;
-    
-    // 打开新窗口
-    const newWindow = window.open(forwardUrl, '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes');
-    
-    if (!newWindow) {
-      alert('无法打开新窗口，请检查浏览器弹窗设置');
-      return;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
     
-    console.log('✅ 转发到外部表单成功:', forwardUrl);
+    const result = await response.json();
+    console.log('📤 转发API响应:', result);
     
-    // 显示成功提示
-    showNotification('已转发到外部表单，请在新窗口中填写跟踪内容', 'success');
+    if (result.message && result.message.includes('成功')) {
+      showNotification('事件已成功转发到外部表单！', 'success');
+      console.log('✅ 转发到外部表单成功');
+    } else {
+      throw new Error(result.message || '转发失败');
+    }
     
   } catch (error) {
-    console.error('❌ 转发到外部表单失败:', error);
-    alert('转发失败：' + error.message);
+    console.error('❌ 转发失败:', error);
+    showNotification('转发失败：' + error.message, 'error');
+  }
+}
+
+/**
+ * 获取外部表单认证token
+ * 功能：获取外部表单系统的JWT认证token
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+async function getExternalFormToken() {
+  try {
+    // 检查是否已有有效token
+    if (window.externalFormConfig && window.externalFormConfig.auth.token) {
+      // 简单检查token是否过期（这里可以添加更复杂的token验证）
+      return window.externalFormConfig.auth.token;
+    }
+    
+    // 登录获取新token
+    const response = await fetch(`${window.externalFormConfig.apiBaseUrl}${window.externalFormConfig.endpoints.login}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: window.externalFormConfig.auth.username,
+        password: window.externalFormConfig.auth.password
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`登录失败: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    if (result.token) {
+      // 缓存token
+      window.externalFormConfig.auth.token = result.token;
+      console.log('✅ 外部表单认证成功');
+      return result.token;
+    } else {
+      throw new Error('登录响应中未包含token');
+    }
+    
+  } catch (error) {
+    console.error('❌ 获取外部表单token失败:', error);
+    throw error;
   }
 }
 
 /**
  * 抓取外部表单数据
- * 功能：从pub.baishuyun.com获取已填写的表单数据
+ * 功能：从外部表单系统获取已填写的表单数据
  * 作者：MSH系统
  * 版本：2.0
  */
@@ -588,38 +630,40 @@ async function fetchExternalFormData(eventId) {
   try {
     console.log(`🔄 开始抓取外部表单数据: ${eventId}`);
     
+    // 检查外部表单功能是否启用
+    if (!window.externalFormConfig || !window.externalFormConfig.features.enableFetching) {
+      throw new Error('外部表单抓取功能未启用');
+    }
+    
     // 显示加载状态
     showLoadingState('正在抓取外部表单数据...');
     
+    // 获取认证token
+    const token = await getExternalFormToken();
+    if (!token) {
+      throw new Error('无法获取外部表单认证token');
+    }
+    
     // 构建API请求
-    const apiUrl = 'https://pub.baishuyun.com/api/form-data';
-    const requestData = {
-      eventId: eventId,
-      action: 'fetch',
-      timestamp: Date.now()
-    };
-    
-    console.log('📤 发送API请求:', requestData);
-    
-    const response = await fetch(apiUrl, {
-      method: 'POST',
+    const response = await fetch(`${window.externalFormConfig.apiBaseUrl}${window.externalFormConfig.endpoints.submissions}?eventId=${eventId}`, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(requestData)
+        'Authorization': `Bearer ${token}`
+      }
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
     
     const result = await response.json();
     console.log('📥 API响应:', result);
     
-    if (result.success && result.data) {
+    if (result && result.length > 0) {
       // 处理抓取到的数据
-      await processExternalFormData(eventId, result.data);
+      await processExternalFormData(eventId, result);
       showNotification('外部表单数据抓取成功！', 'success');
     } else {
       showNotification('未找到相关的外部表单数据', 'warning');

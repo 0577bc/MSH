@@ -53,82 +53,93 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeDOMElements();
   initializePageSyncManager();
   
-  // 使用新数据管理器加载数据
+  // 【优化V2.0】只加载基础数据和当天的签到记录
+  await loadBasicDataAndToday();
+  
+  // 创建同步按钮
   if (window.newDataManager) {
-    try {
-      // 先初始化Firebase（如果还没有初始化）
-      if (!firebase.apps.length && window.firebaseConfig) {
-        firebase.initializeApp(window.firebaseConfig);
-        console.log('✅ Firebase应用创建成功');
-      }
-      
-      // 等待NewDataManager完成初始化
-      let attempts = 0;
-      const maxAttempts = 10;
-      while (attempts < maxAttempts && (!window.newDataManager || !window.newDataManager.isDataLoaded)) {
-        console.log(`⏳ 等待NewDataManager初始化... (${attempts + 1}/${maxAttempts})`);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      // 检查NewDataManager是否已经加载了数据
-      if (window.newDataManager && window.newDataManager.isDataLoaded) {
-        console.log('📋 数据已通过NewDataManager加载，直接使用');
-        groups = window.groups || {};
-        groupNames = window.groupNames || {};
-        attendanceRecords = window.attendanceRecords || [];
-      } else {
-        // 检查是否有本地数据可以直接使用
-        const hasLocalData = window.groups && Object.keys(window.groups).length > 0;
-        if (hasLocalData) {
-          console.log('📋 检测到本地数据，直接使用，跳过Firebase拉取');
-          groups = window.groups;
-          groupNames = window.groupNames || {};
-          attendanceRecords = window.attendanceRecords || [];
-        } else {
-          console.log('🔄 首次加载，从Firebase拉取数据');
-          await window.newDataManager.loadAllDataFromFirebase();
-          
-          // 从全局变量获取数据
-          groups = window.groups || {};
-          groupNames = window.groupNames || {};
-          attendanceRecords = window.attendanceRecords || [];
-        }
-      }
-      
-      // 初始化页面
-      initializePage();
-      
-      // 创建同步按钮
-      if (window.newDataManager) {
-        window.newDataManager.createSyncButton('syncButtonContainer');
-      }
-      
-      console.log("✅ 签到原始记录页面数据加载成功");
-    } catch (error) {
-      console.error("❌ 签到原始记录页面数据加载失败:", error);
-    }
-  } else {
-    console.error("❌ 新数据管理器未找到，无法加载数据");
-    alert('数据管理器初始化失败，请刷新页面重试');
+    window.newDataManager.createSyncButton('syncButtonContainer');
   }
   
   initializeEventListeners();
-  console.log("签到原始记录页面初始化完成");
+  console.log("✅ 签到原始记录页面初始化完成（优化加载模式）");
 });
 
-// ==================== 页面初始化 ====================
-function initializePage() {
-  // 设置默认日期为今天
-  const today = new Date().toISOString().split('T')[0];
-  if (dateSelect) dateSelect.value = today;
-  
-  // 加载签到数据
-  loadAttendanceData(today);
-  
-  // 填充组别选择器
-  populateGroupSelect();
+// ==================== 基础数据和当天数据加载（优化V2.0）====================
+/**
+ * 加载基础数据和当天的签到记录
+ */
+async function loadBasicDataAndToday() {
+  try {
+    // 先初始化Firebase（如果还没有初始化）
+    if (!firebase.apps.length && window.firebaseConfig) {
+      firebase.initializeApp(window.firebaseConfig);
+      console.log('✅ Firebase应用创建成功');
+    }
+    
+    // 1. 加载基础数据
+    await loadBasicData();
+    
+    // 2. 设置默认日期为今天
+    const today = new Date().toISOString().split('T')[0];
+    if (dateSelect) dateSelect.value = today;
+    
+    // 3. 只加载今天的签到记录
+    await loadAttendanceDataByDate(today);
+    
+    console.log("✅ 签到原始记录页面数据加载成功");
+    
+  } catch (error) {
+    console.error("❌ 签到原始记录页面数据加载失败:", error);
+    alert('数据加载失败，请刷新页面重试');
+  }
 }
+
+/**
+ * 加载基础数据（groups、groupNames）
+ */
+async function loadBasicData() {
+  // 优先使用全局变量
+  if (window.groups && Object.keys(window.groups).length > 0) {
+    groups = window.groups;
+    groupNames = window.groupNames || {};
+    console.log("✅ 使用全局基础数据");
+    return;
+  }
+  
+  // 从本地存储加载
+  const localGroups = localStorage.getItem('msh_groups');
+  const localGroupNames = localStorage.getItem('msh_group_names');
+  
+  if (localGroups && localGroupNames) {
+    groups = JSON.parse(localGroups);
+    groupNames = JSON.parse(localGroupNames);
+    console.log("✅ 从本地存储加载基础数据");
+    return;
+  }
+  
+  // 从Firebase加载
+  console.log("🔄 从Firebase加载基础数据...");
+  const db = firebase.database();
+  const [groupsSnap, groupNamesSnap] = await Promise.all([
+    db.ref('groups').once('value'),
+    db.ref('groupNames').once('value')
+  ]);
+  
+  groups = groupsSnap.val() || {};
+  groupNames = groupNamesSnap.val() || {};
+  
+  // 保存到全局和本地
+  window.groups = groups;
+  window.groupNames = groupNames;
+  localStorage.setItem('msh_groups', JSON.stringify(groups));
+  localStorage.setItem('msh_group_names', JSON.stringify(groupNames));
+  
+  console.log("✅ Firebase基础数据加载完成");
+}
+
+// ==================== 页面初始化 ====================
+// initializePage函数已移除，逻辑整合到loadBasicDataAndToday中
 
 // ==================== 事件监听器初始化 ====================
 function initializeEventListeners() {
@@ -150,17 +161,19 @@ function initializeEventListeners() {
 
   // 日期选择事件
   if (dateSelect) {
-    dateSelect.addEventListener('change', () => {
+    dateSelect.addEventListener('change', async () => {
       const selectedDate = dateSelect.value;
-      loadAttendanceData(selectedDate);
+      // 【优化V2.0】按需加载该日期的签到数据
+      await loadAttendanceDataByDate(selectedDate);
     });
   }
 
   // 查看数据按钮事件
   if (viewDateData) {
-    viewDateData.addEventListener('click', () => {
+    viewDateData.addEventListener('click', async () => {
       const selectedDate = dateSelect ? dateSelect.value : '';
-      loadAttendanceData(selectedDate);
+      // 【优化V2.0】按需加载该日期的签到数据
+      await loadAttendanceDataByDate(selectedDate);
     });
   }
 
@@ -197,27 +210,73 @@ function initializeEventListeners() {
   });
 }
 
-// ==================== 数据加载 ====================
-function loadAttendanceData(date) {
+// ==================== 数据加载（优化V2.0）====================
+/**
+ * 按日期加载签到数据
+ * @param {string} date - 日期字符串 YYYY-MM-DD
+ */
+async function loadAttendanceDataByDate(date) {
   if (!attendanceDataList) return;
   
-  console.log('加载签到数据，日期:', date);
+  console.log(`🔄 加载 ${date} 的签到数据...`);
   
-  let filteredRecords = attendanceRecords;
+  // 检查sessionStorage缓存
+  const cacheKey = `attendance_${date}`;
+  let dateRecords = sessionStorage.getItem(cacheKey);
   
-  // 如果指定了日期，过滤记录
-  if (date) {
-    const targetDate = new Date(date).toLocaleDateString('zh-CN');
-    filteredRecords = attendanceRecords.filter(record => 
-      new Date(record.time).toLocaleDateString('zh-CN') === targetDate
-    );
+  // 验证缓存数据，如果缓存为空数组则重新加载
+  if (dateRecords) {
+    const cachedData = JSON.parse(dateRecords);
+    if (cachedData && cachedData.length > 0) {
+      console.log(`✅ 从缓存获取 ${date} 数据: ${cachedData.length} 条`);
+      dateRecords = cachedData;
+      // 直接渲染缓存数据
+      renderAttendanceRecords(dateRecords);
+      return;
+    } else {
+      console.log(`⚠️ 缓存数据为空，重新从Firebase加载`);
+      sessionStorage.removeItem(cacheKey); // 清除空缓存
+      dateRecords = null;
+    }
   }
   
-  console.log('加载签到数据，记录数量:', filteredRecords.length);
+  if (!dateRecords) {
+    console.log(`🔄 从Firebase加载 ${date} 数据...`);
+    
+    const db = firebase.database();
+    // 构建ISO字符串范围（符合系统历史决策：time字段使用ISO标准格式）
+    const dateStart = `${date}T00:00:00.000Z`;
+    const dateEnd = `${date}T23:59:59.999Z`;
+    
+    console.log(`🔍 Firebase查询范围 (ISO): ${dateStart} - ${dateEnd}`);
+    
+    const snapshot = await db.ref('attendanceRecords')
+      .orderByChild('time')
+      .startAt(dateStart)
+      .endAt(dateEnd)
+      .once('value');
+    
+    dateRecords = snapshot.val() ? Object.values(snapshot.val()) : [];
+    
+    // 缓存数据
+    sessionStorage.setItem(cacheKey, JSON.stringify(dateRecords));
+    console.log(`✅ 加载了 ${dateRecords.length} 条记录`);
+  }
+  
+  // 渲染数据
+  renderAttendanceRecords(dateRecords);
+}
+
+/**
+ * 渲染签到记录
+ * @param {Array} records - 签到记录数组
+ */
+function renderAttendanceRecords(records) {
+  if (!attendanceDataList) return;
   
   attendanceDataList.innerHTML = '';
   
-  if (filteredRecords.length === 0) {
+  if (records.length === 0) {
     const emptyRow = document.createElement('tr');
     emptyRow.innerHTML = `
       <td colspan="5" class="empty-cell">
@@ -232,27 +291,24 @@ function loadAttendanceData(date) {
   }
 
   // 按时间排序（最新的在前）
-  filteredRecords.sort((a, b) => new Date(b.time) - new Date(a.time));
+  records.sort((a, b) => new Date(b.time) - new Date(a.time));
   
-  filteredRecords.forEach((record, index) => {
+  records.forEach((record, index) => {
     const row = document.createElement('tr');
-    const displayGroup = groupNames[record.group] || record.group;
-    const signinTime = new Date(record.time).toLocaleString('zh-CN');
     
-    // 找到记录在原始数组中的索引
-    const originalIndex = attendanceRecords.findIndex(r => 
-      r.name === record.name && 
-      r.group === record.group && 
-      r.time === record.time
-    );
+    // 使用快照数据
+    const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
+    const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
+    const displayName = window.utils.getDisplayName(memberInfo);
+    const signinTime = new Date(record.time).toISOString();
     
     row.innerHTML = `
       <td>${index + 1}</td>
-      <td>${record.name}</td>
+      <td>${displayName}</td>
       <td>${displayGroup}</td>
       <td>${signinTime}</td>
       <td>
-        <button class="btn btn-sm btn-primary edit-btn" data-original-index="${originalIndex}" data-display-index="${index}">编辑</button>
+        <button class="btn btn-sm btn-primary edit-btn" data-record='${JSON.stringify(record)}' data-index="${index}">编辑</button>
       </td>
     `;
     
@@ -263,37 +319,32 @@ function loadAttendanceData(date) {
   addEditEventListeners();
 }
 
-// ==================== 编辑事件监听器 ====================
+// ==================== 编辑事件监听器（优化V2.0）====================
 function addEditEventListeners() {
   // 编辑按钮事件
   const editButtons = attendanceDataList.querySelectorAll('.edit-btn');
   editButtons.forEach(button => {
     button.addEventListener('click', (e) => {
-      const originalIndex = parseInt(e.target.dataset.originalIndex);
-      const displayIndex = parseInt(e.target.dataset.displayIndex);
+      // 【优化V2.0】从按钮的data属性中直接获取记录
+      const recordData = e.target.dataset.record;
+      const record = JSON.parse(recordData);
       
-      console.log('编辑按钮点击，显示索引:', displayIndex, '原始索引:', originalIndex);
+      console.log('编辑按钮点击，记录:', record);
       
-      // 直接使用原始索引获取记录
-      if (originalIndex >= 0 && originalIndex < attendanceRecords.length) {
-        const record = attendanceRecords[originalIndex];
-        console.log('要编辑的记录:', record);
-        console.log('记录姓名:', record.name, '记录组别:', record.group, '记录时间:', record.time);
-        
-        openEditModal(record, originalIndex);
-      } else {
-        console.error('原始索引超出范围:', originalIndex);
-        alert('编辑失败：记录索引错误');
-      }
+      openEditModal(record);
     });
   });
 }
 
-// ==================== 编辑功能 ====================
-function openEditModal(record, index) {
-  currentEditRecord = { record, index };
+// ==================== 编辑功能（优化V2.0）====================
+function openEditModal(record) {
+  currentEditRecord = record;
   
-  if (editName) editName.value = record.name;
+  // 使用快照数据中的姓名，如果有花名则显示花名
+  const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
+  const displayName = window.utils.getDisplayName(memberInfo);
+  
+  if (editName) editName.value = displayName;
   if (editTime) {
     // 转换时间格式为datetime-local需要的格式
     const date = new Date(record.time);
@@ -332,10 +383,10 @@ function closeEditModal() {
   currentEditRecord = null;
 }
 
-function saveEditedRecord() {
+async function saveEditedRecord() {
   if (!currentEditRecord) return;
   
-  const { record, index } = currentEditRecord;
+  const record = currentEditRecord;
   
   // 获取表单数据
   const newName = editName ? editName.value.trim() : '';
@@ -367,36 +418,72 @@ function saveEditedRecord() {
     return;
   }
   
-  // 更新记录，同时更新timeSlot字段
+  // 【优化V2.0】更新记录（需要更新Firebase中的记录）
   const updatedRecord = {
     ...record,
     name: newName,
     group: newGroup,
     time: new Date(newTime).toISOString(),
-    timeSlot: window.utils.getAttendanceType(new Date(newTime)) // 自动更新timeSlot字段
+    timeSlot: window.utils.getAttendanceType(new Date(newTime))
   };
   
-  // 更新数组
-  attendanceRecords[index] = updatedRecord;
+  console.log('📝 签到记录已更新:', {
+    oldTime: record.time,
+    newTime: updatedRecord.time,
+    timeSlot: updatedRecord.timeSlot
+  });
   
-  // 保存到本地存储
-  if (window.newDataManager) {
-    window.newDataManager.saveToLocalStorage('attendanceRecords', attendanceRecords);
-    window.newDataManager.markDataChange('attendanceRecords', 'modified', record.uuid || record.time);
+  // 【优化V2.0】直接更新Firebase（不依赖全局数组）
+  try {
+    const db = firebase.database();
+    
+    // 找到并更新Firebase中的记录
+    // 方案：通过唯一标识查找记录（name + group + 原time）
+    const recordsRef = db.ref('attendanceRecords');
+    const snapshot = await recordsRef.once('value');
+    const allRecords = snapshot.val() || {};
+    
+    // 找到匹配的记录
+    let recordKey = null;
+    for (const [key, value] of Object.entries(allRecords)) {
+      if (value.name === record.name && 
+          value.group === record.group && 
+          value.time === record.time) {
+        recordKey = key;
+        break;
+      }
+    }
+    
+    if (recordKey) {
+      // 更新找到的记录
+      await recordsRef.child(recordKey).update(updatedRecord);
+      console.log('✅ Firebase记录已更新');
+    } else {
+      console.warn('⚠️ 未找到匹配的Firebase记录');
+    }
+    
+    // 清除该日期的缓存
+    const oldDate = new Date(record.time).toISOString().split('T')[0];
+    const newDate = new Date(updatedRecord.time).toISOString().split('T')[0];
+    sessionStorage.removeItem(`attendance_${oldDate}`);
+    if (oldDate !== newDate) {
+      sessionStorage.removeItem(`attendance_${newDate}`);
+    }
+    
+    // 重新加载当前日期的数据
+    const currentDate = dateSelect ? dateSelect.value : '';
+    await loadAttendanceDataByDate(currentDate);
+    
+    // 关闭模态框
+    closeEditModal();
+    
+    // 显示成功提示
+    alert('✅ 签到记录已成功更新');
+    
+  } catch (error) {
+    console.error('❌ Firebase更新失败:', error);
+    alert('更新失败，请重试');
   }
-  
-  // 更新全局变量
-  window.attendanceRecords = attendanceRecords;
-  
-  // 重新加载数据
-  const currentDate = dateSelect ? dateSelect.value : '';
-  loadAttendanceData(currentDate);
-  
-  // 关闭模态框
-  closeEditModal();
-  
-  console.log('签到记录已更新');
-  alert('签到记录已更新！');
 }
 
 
@@ -434,12 +521,15 @@ function convertToCSV(data) {
   const csvRows = [headers.join(',')];
   
   data.forEach((record, index) => {
-    const displayGroup = groupNames[record.group] || record.group;
-    const signinTime = new Date(record.time).toLocaleString('zh-CN');
+    // 使用快照数据，确保显示的是签到时的真实信息
+    const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
+    const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
+    const displayName = window.utils.getDisplayName(memberInfo);
+    const signinTime = new Date(record.time).toISOString();
     
     const row = [
       index + 1,
-      `"${record.name}"`,
+      `"${displayName}"`,
       `"${displayGroup}"`,
       `"${signinTime}"`
     ];

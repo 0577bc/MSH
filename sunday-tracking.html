@@ -84,6 +84,41 @@
       font-weight: 500;
       color: #495057;
     }
+    
+    /* 已转发按钮样式 */
+    .forward-btn.forwarded {
+      background-color: #28a745;
+      color: white;
+      border-color: #28a745;
+    }
+    
+    .forward-btn.forwarded:hover {
+      background-color: #218838;
+      border-color: #1e7e34;
+    }
+    
+    /* 事件控制按钮样式 */
+    .terminate-btn {
+      background-color: #dc3545;
+      color: white;
+      border-color: #dc3545;
+    }
+    
+    .terminate-btn:hover {
+      background-color: #c82333;
+      border-color: #bd2130;
+    }
+    
+    .restart-btn {
+      background-color: #17a2b8;
+      color: white;
+      border-color: #17a2b8;
+    }
+    
+    .restart-btn:hover {
+      background-color: #138496;
+      border-color: #117a8b;
+    }
   </style>
   <!-- 引入配置文件 -->
   <script src="./config.js"></script>
@@ -93,9 +128,20 @@
   <script src="./src/unified-cache-manager.js"></script>
   <!-- 引入实时更新管理器 -->
   <script src="./src/real-time-update-manager.js"></script>
-  <!-- 引入 Firebase SDK -->
+  <!-- 引入 Firebase SDK v8 (兼容模式) - 与签到页面保持一致 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script>
+    // Firebase SDK加载检查
+    window.addEventListener('load', function() {
+      if (typeof firebase === 'undefined') {
+        console.error('❌ Firebase SDK未正确加载，请检查网络连接');
+        console.log('💡 建议：刷新页面或检查网络连接');
+      } else {
+        console.log('✅ Firebase SDK已正确加载');
+      }
+    });
+  </script>
 </head>
 <body>
   <main>
@@ -125,6 +171,7 @@
         <div class="summary-item">
           <button id="showTerminatedButton" type="button" class="main-button secondary-button" aria-label="显示已终止事件">查看已终止事件</button>
           <button id="showAllButton" type="button" class="main-button secondary-button" aria-label="显示所有事件">显示所有事件</button>
+          <button id="showForwardHistoryButton" type="button" class="main-button info-button" aria-label="查看转发历史">📤 转发历史</button>
         </div>
       </div>
       <table id="sundayTrackingTable" class="attendance-table">

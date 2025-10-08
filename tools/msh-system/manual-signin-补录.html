@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📝 手动签到补录工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #27ae60;
+        }
+
+        .btn-info {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #2980b9;
+        }
+
+        .preview {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .preview h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+
+        .preview-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #c8e6c9;
+        }
+
+        .preview-item:last-child {
+            border-bottom: none;
+        }
+
+        .preview-label {
+            font-weight: 600;
+            color: #1b5e20;
+            display: inline-block;
+            width: 120px;
+        }
+
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+        }
+
+        .log-success { color: #2ecc71; }
+        .log-error { color: #e74c3c; }
+        .log-warning { color: #f39c12; }
+        .log-info { color: #3498db; }
+
+        .alert {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .alert h4 {
+            color: #856404;
+            margin-bottom: 5px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 手动签到补录工具</h1>
+        <p class="subtitle">用于补录历史签到记录</p>
+
+        <div class="alert">
+            <h4>⚠️ 使用说明</h4>
+            <p>此工具用于补录缺失的签到记录，请确保信息准确无误！</p>
+            <p style="margin-top: 10px; color: #856404;">
+                <strong>📌 如果小组列表为空：</strong><br>
+                1. 请先访问<a href="../../admin.html" style="color: #007bff;">成员管理页面</a>加载数据<br>
+                2. 然后再次打开此工具，工具会从全局变量读取数据
+            </p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalRecords">0</div>
+                <div class="stat-label">当前总记录数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="addedCount">0</div>
+                <div class="stat-label">本次已补录</div>
+            </div>
+        </div>
+
+        <div id="noDataWarning" style="background: #ffebee; border: 2px solid #f44336; border-radius: 10px; padding: 20px; margin-bottom: 20px; display: none;">
+            <h4 style="color: #c62828; margin-bottom: 10px;">⚠️ 未检测到小组数据</h4>
+            <p style="color: #b71c1c; margin-bottom: 15px;">工具需要小组数据才能正常工作。请选择以下操作：</p>
+            <button class="btn-primary" onclick="loadFromFirebase()">
+                ☁️ 从Firebase加载数据
+            </button>
+            <p style="margin-top: 10px; font-size: 14px; color: #d32f2f;">
+                或者先访问<a href="../../group-management.html" style="color: #1976d2;">成员管理页面</a>，然后重新打开此工具
+            </p>
+        </div>
+
+        <div class="form-section">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">📋 补录信息</h3>
+            
+            <div class="form-group">
+                <label for="signinDate">补录日期 *</label>
+                <input type="date" id="signinDate" required>
+                <div style="margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button type="button" onclick="setQuickDate('2025-10-05')" style="padding: 5px 10px; font-size: 12px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        10月5日
+                    </button>
+                    <button type="button" onclick="setQuickDate('2025-10-06')" style="padding: 5px 10px; font-size: 12px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        10月6日
+                    </button>
+                    <button type="button" onclick="setQuickDate('2025-10-07')" style="padding: 5px 10px; font-size: 12px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        今天
+                    </button>
+                </div>
+            </div>
+
+            <div class="time-inputs">
+                <div class="form-group">
+                    <label for="signinHour">签到时间 - 小时 *</label>
+                    <select id="signinHour" required>
+                        <option value="">--小时--</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="signinMinute">签到时间 - 分钟 *</label>
+                    <select id="signinMinute" required>
+                        <option value="">--分钟--</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="timeSlot">时段 *</label>
+                <select id="timeSlot" required>
+                    <option value="">--自动判断--</option>
+                    <option value="early">早到 (9:20前)</option>
+                    <option value="onTime">准时 (9:20-9:30)</option>
+                    <option value="late">迟到 (9:30-10:40)</option>
+                    <option value="afternoon">下午 (10:40后)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="memberSearch">🔍 搜索成员（输入姓名筛选）</label>
+                <input type="text" id="memberSearch" placeholder="输入姓名快速筛选..." oninput="filterMembers()">
+            </div>
+
+            <div class="form-group">
+                <label for="signinMember">选择成员（多选） *</label>
+                <select id="signinMember" multiple size="15" required style="height: 400px; width: 100%;">
+                </select>
+                <div style="margin-top: 8px; display: flex; gap: 10px;">
+                    <button type="button" onclick="selectAllMembers()" style="flex: 1; padding: 8px; font-size: 14px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        ✅ 全选 (<span id="visibleCount">0</span>人)
+                    </button>
+                    <button type="button" onclick="clearAllMembers()" style="flex: 1; padding: 8px; font-size: 14px; background: #95a5a6; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        ❌ 清空
+                    </button>
+                    <button type="button" onclick="showSelected()" style="flex: 1; padding: 8px; font-size: 14px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        👁️ 已选 (<span id="selectedCount">0</span>人)
+                    </button>
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: #7f8c8d;">
+                    💡 多选方法：<br>
+                    • 按住 Ctrl (Windows) 或 Cmd (Mac) 点击多选<br>
+                    • 按住 Shift 点击可连续选择<br>
+                    • 点击"全选"按钮一键选择所有
+                </div>
+            </div>
+
+            <button class="btn-info" onclick="previewBatchSignin()">
+                👁️ 预览批量签到
+            </button>
+        </div>
+
+        <div class="preview" id="preview">
+            <h3>📋 批量签到预览</h3>
+            <div id="previewContent"></div>
+            <button class="btn-success" onclick="addBatchSignin()">
+                ✅ 确认批量补录
+            </button>
+        </div>
+
+        <button class="btn-primary" onclick="batchComplete()" style="display:none;" id="completeBtn">
+            🚀 完成补录并同步到Firebase
+        </button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+    <script src="../../src/utils.js"></script>
+
+    <script>
+        let db = null;
+        let groups = {};
+        let groupNames = {};
+        let attendanceRecords = [];
+        let tempRecords = []; // 临时存储本次补录的记录
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            logDiv.style.display = 'block';
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 更新统计
+        function updateStats() {
+            document.getElementById('totalRecords').textContent = attendanceRecords.length;
+            document.getElementById('addedCount').textContent = tempRecords.length;
+        }
+
+        // 初始化时间选项
+        function initTimeOptions() {
+            const hourSelect = document.getElementById('signinHour');
+            const minuteSelect = document.getElementById('signinMinute');
+
+            // 小时：6-12点
+            for (let i = 6; i <= 12; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i.toString().padStart(2, '0') + '时';
+                hourSelect.appendChild(option);
+            }
+
+            // 分钟：每5分钟
+            for (let i = 0; i < 60; i += 5) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i.toString().padStart(2, '0') + '分';
+                minuteSelect.appendChild(option);
+            }
+
+            // 默认选择9:00
+            hourSelect.value = 9;
+            minuteSelect.value = 0;
+        }
+
+        // 存储所有成员的完整列表
+        let allMembers = [];
+
+        // 加载所有成员到列表
+        function loadGroups() {
+            allMembers = [];
+            
+            // 收集所有小组的所有成员
+            Object.keys(groups).forEach(groupKey => {
+                const groupName = groupNames[groupKey] || groupKey;
+                
+                if (groups[groupKey] && Array.isArray(groups[groupKey])) {
+                    groups[groupKey].forEach(member => {
+                        allMembers.push({
+                            ...member,
+                            groupKey: groupKey,
+                            groupName: groupName,
+                            displayName: `${member.nickname || member.name} (${groupName})`
+                        });
+                    });
+                }
+            });
+
+            log(`✅ 已加载所有成员: ${allMembers.length} 人，来自 ${Object.keys(groups).length} 个小组`, 'success');
+            
+            // 显示所有成员
+            displayMembers(allMembers);
+        }
+
+        // 显示成员列表
+        function displayMembers(members) {
+            const memberSelect = document.getElementById('signinMember');
+            memberSelect.innerHTML = '';
+            
+            members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.uuid;
+                option.textContent = member.displayName;
+                option.dataset.name = member.name;
+                option.dataset.uuid = member.uuid;
+                option.dataset.groupKey = member.groupKey;
+                option.dataset.groupName = member.groupName;
+                memberSelect.appendChild(option);
+            });
+            
+            // 更新可见人数
+            document.getElementById('visibleCount').textContent = members.length;
+            updateSelectedCount();
+        }
+
+        // 更新已选人数
+        function updateSelectedCount() {
+            const memberSelect = document.getElementById('signinMember');
+            const selectedCount = memberSelect.selectedOptions.length;
+            document.getElementById('selectedCount').textContent = selectedCount;
+        }
+
+        // 显示已选成员
+        function showSelected() {
+            const memberSelect = document.getElementById('signinMember');
+            const selected = Array.from(memberSelect.selectedOptions);
+            
+            if (selected.length === 0) {
+                alert('尚未选择任何成员');
+                return;
+            }
+            
+            const names = selected.map(opt => opt.textContent).join('\n');
+            alert(`已选择 ${selected.length} 人：\n\n${names}`);
+        }
+
+        // 监听选择变化
+        document.addEventListener('change', function(e) {
+            if (e.target.id === 'signinMember') {
+                updateSelectedCount();
+            }
+        });
+
+        // 筛选成员
+        function filterMembers() {
+            const searchText = document.getElementById('memberSearch').value.toLowerCase();
+            
+            if (!searchText) {
+                // 没有搜索词，显示所有成员
+                displayMembers(allMembers);
+                return;
+            }
+            
+            // 筛选匹配的成员
+            const filtered = allMembers.filter(member => {
+                const name = (member.name || '').toLowerCase();
+                const nickname = (member.nickname || '').toLowerCase();
+                const groupName = (member.groupName || '').toLowerCase();
+                
+                return name.includes(searchText) || 
+                       nickname.includes(searchText) || 
+                       groupName.includes(searchText);
+            });
+            
+            displayMembers(filtered);
+            log(`🔍 筛选结果: ${filtered.length} 人`, 'info');
+        }
+
+        // 全选成员
+        function selectAllMembers() {
+            const memberSelect = document.getElementById('signinMember');
+            for (let i = 0; i < memberSelect.options.length; i++) {
+                memberSelect.options[i].selected = true;
+            }
+            log(`✅ 已全选 ${memberSelect.selectedOptions.length} 名成员`, 'info');
+        }
+
+        // 清空选择
+        function clearAllMembers() {
+            const memberSelect = document.getElementById('signinMember');
+            memberSelect.selectedIndex = -1;
+            log('✅ 已清空成员选择', 'info');
+        }
+
+        // 快速设置日期
+        function setQuickDate(dateStr) {
+            document.getElementById('signinDate').value = dateStr;
+            log(`✅ 已设置日期: ${dateStr}`, 'info');
+        }
+
+        // 自动判断时段
+        function autoDetectTimeSlot(hour, minute) {
+            const timeInMinutes = hour * 60 + minute;
+            
+            if (timeInMinutes < 9 * 60 + 20) return 'early';      // 9:20前
+            if (timeInMinutes < 9 * 60 + 30) return 'onTime';     // 9:20-9:30
+            if (timeInMinutes < 10 * 60 + 40) return 'late';      // 9:30-10:40
+            return 'afternoon';                                    // 10:40后
+        }
+
+        // 预览批量签到信息
+        function previewBatchSignin() {
+            const date = document.getElementById('signinDate').value;
+            const memberSelect = document.getElementById('signinMember');
+            const selectedMembers = Array.from(memberSelect.selectedOptions);
+            const hour = parseInt(document.getElementById('signinHour').value);
+            const minute = parseInt(document.getElementById('signinMinute').value);
+            const timeSlot = document.getElementById('timeSlot').value;
+
+            // 验证必填项
+            if (!date || selectedMembers.length === 0 || isNaN(hour) || isNaN(minute)) {
+                alert('请填写日期、时间并至少选择一个成员！');
+                return;
+            }
+
+            // 构建时间戳
+            const signinTime = new Date(date);
+            signinTime.setHours(hour, minute, 0, 0);
+            const timestamp = signinTime.getTime();
+
+            // 自动判断时段
+            const detectedTimeSlot = timeSlot || autoDetectTimeSlot(hour, minute);
+
+            // 构建批量签到信息（每个成员保留自己的小组信息）
+            const batchSignins = selectedMembers.map(option => ({
+                date,
+                groupKey: option.dataset.groupKey,
+                groupName: option.dataset.groupName,
+                memberUuid: option.value,
+                memberName: option.dataset.name,
+                hour,
+                minute,
+                timestamp,
+                timeSlot: detectedTimeSlot
+            }));
+
+            // 统计小组分布
+            const groupStats = {};
+            batchSignins.forEach(signin => {
+                if (!groupStats[signin.groupName]) {
+                    groupStats[signin.groupName] = 0;
+                }
+                groupStats[signin.groupName]++;
+            });
+
+            // 显示预览
+            const previewDiv = document.getElementById('preview');
+            const previewContent = document.getElementById('previewContent');
+            
+            // 构建小组统计显示
+            const groupStatsHTML = Object.keys(groupStats)
+                .map(groupName => `${groupName}: ${groupStats[groupName]}人`)
+                .join('、');
+            
+            let previewHTML = `
+                <div class="preview-item">
+                    <span class="preview-label">日期：</span>${date}
+                </div>
+                <div class="preview-item">
+                    <span class="preview-label">时间：</span>${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}
+                </div>
+                <div class="preview-item">
+                    <span class="preview-label">时段：</span>${getTimeSlotText(detectedTimeSlot)}
+                </div>
+                <div class="preview-item">
+                    <span class="preview-label">成员总数：</span>${selectedMembers.length} 人
+                </div>
+                <div class="preview-item">
+                    <span class="preview-label">小组分布：</span>${groupStatsHTML}
+                </div>
+                <div class="preview-item">
+                    <span class="preview-label">成员列表：</span>
+                    <div style="margin-left: 120px; margin-top: 5px; max-height: 150px; overflow-y: auto; border: 1px solid #c8e6c9; padding: 10px; border-radius: 5px;">
+                        ${batchSignins.map(s => `${s.memberName} (${s.groupName})`).join('、')}
+                    </div>
+                </div>
+            `;
+            
+            previewContent.innerHTML = previewHTML;
+            previewDiv.style.display = 'block';
+            
+            // 保存到临时对象
+            window.currentBatchSignins = batchSignins;
+        }
+
+        // 获取时段文本
+        function getTimeSlotText(timeSlot) {
+            const map = {
+                'early': '早到 (9:20前)',
+                'onTime': '准时 (9:20-9:30)',
+                'late': '迟到 (9:30-10:40)',
+                'afternoon': '下午 (10:40后)'
+            };
+            return map[timeSlot] || timeSlot;
+        }
+
+        // 批量添加签到记录
+        function addBatchSignin() {
+            if (!window.currentBatchSignins || window.currentBatchSignins.length === 0) {
+                alert('请先预览签到信息！');
+                return;
+            }
+
+            const batchSignins = window.currentBatchSignins;
+            let successCount = 0;
+            let errorCount = 0;
+
+            batchSignins.forEach(signin => {
+                try {
+                    // 查找成员详细信息
+                    const member = groups[signin.groupKey].find(m => m.uuid === signin.memberUuid);
+                    if (!member) {
+                        log(`⚠️ 找不到成员: ${signin.memberName}`, 'warning');
+                        errorCount++;
+                        return;
+                    }
+
+                    // 生成recordId（每个成员有独立的recordId）
+                    const randomSuffix = Math.random().toString(36).substr(2, 9);
+                    const recordId = `att_${signin.timestamp}_${randomSuffix}`;
+
+                    // 构建签到时间（使用ISO标准格式，符合系统历史决策）
+                    const signinDateTime = new Date(signin.timestamp);
+                    
+                    // 构建签到记录（完全对齐index.html的createAttendanceRecord格式）
+                    const record = {
+                        // 基本信息
+                        group: signin.groupKey,
+                        name: signin.memberName,
+                        memberUUID: signin.memberUuid,
+                        time: signinDateTime.toISOString(), // ✅ ISO标准格式（符合历史决策）
+                        date: signinDateTime.toISOString().split('T')[0], // ✅ YYYY-MM-DD格式
+                        timeSlot: signin.timeSlot,
+                        
+                        // 精简的人员信息快照（只保留签到记录必需的信息）
+                        memberSnapshot: {
+                            uuid: member.uuid || '',
+                            id: member.id || '',
+                            name: member.name,
+                            nickname: member.nickname || ''
+                        },
+                        
+                        // 小组信息快照
+                        groupSnapshot: {
+                            groupId: signin.groupKey,
+                            groupName: signin.groupName
+                        },
+                        
+                        // 记录创建时间戳
+                        createdAt: signinDateTime.getTime(),
+                        
+                        // 记录ID（用于唯一标识）
+                        recordId: recordId
+                    };
+
+                    // 添加到临时记录
+                    tempRecords.push(record);
+                    attendanceRecords.push(record);
+                    successCount++;
+
+                    log(`✅ 已添加签到: ${signin.memberName} - ${signin.date} ${signin.hour}:${signin.minute.toString().padStart(2, '0')}`, 'success');
+                } catch (error) {
+                    log(`❌ 添加失败: ${signin.memberName} - ${error.message}`, 'error');
+                    errorCount++;
+                }
+            });
+            
+            updateStats();
+            
+            // 显示完成按钮
+            document.getElementById('completeBtn').style.display = 'block';
+            
+            // 清空选择
+            document.getElementById('signinMember').selectedIndex = -1;
+            document.getElementById('preview').style.display = 'none';
+            
+            log(`📊 批量补录完成: 成功${successCount}条, 失败${errorCount}条`, 'info');
+            alert(`✅ 批量补录完成！\n成功：${successCount} 条\n失败：${errorCount} 条\n总计已补录：${tempRecords.length} 条`);
+        }
+
+        // 完成补录并同步
+        async function batchComplete() {
+            if (tempRecords.length === 0) {
+                alert('没有需要同步的记录！');
+                return;
+            }
+
+            const confirm = window.confirm(`确定要同步 ${tempRecords.length} 条补录记录吗？\n\n将同步到：\n1. Firebase数据库\n2. 本地存储\n3. 全局变量`);
+            if (!confirm) return;
+
+            try {
+                log('🔄 开始同步补录记录...', 'info');
+
+                // 1. 同步到Firebase
+                if (db) {
+                    await db.ref('attendanceRecords').set(attendanceRecords);
+                    log('✅ 已同步到Firebase', 'success');
+                } else {
+                    log('⚠️ Firebase未连接，跳过Firebase同步', 'warning');
+                }
+
+                // 2. 更新本地存储
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+                log('✅ 已更新本地存储', 'success');
+
+                // 3. 更新全局变量
+                window.attendanceRecords = attendanceRecords;
+                log('✅ 已更新全局变量', 'success');
+
+                // 4. 触发数据同步事件
+                try {
+                    const event = new CustomEvent('attendanceRecordsUpdated', {
+                        detail: { records: attendanceRecords }
+                    });
+                    window.dispatchEvent(event);
+                    log('✅ 已触发数据同步事件', 'success');
+                } catch (eventError) {
+                    log('⚠️ 触发事件失败: ' + eventError.message, 'warning');
+                }
+
+                // 5. 清除缓存
+                sessionStorage.clear();
+                log('✅ 已清除页面缓存', 'success');
+
+                log(`🎉 补录完成！共添加 ${tempRecords.length} 条记录`, 'success');
+                alert(`🎉 补录完成！\n共添加 ${tempRecords.length} 条记录\n\n请刷新其他页面查看数据`);
+
+                // 清空临时记录
+                tempRecords = [];
+                updateStats();
+                document.getElementById('completeBtn').style.display = 'none';
+
+            } catch (error) {
+                log(`❌ 同步失败: ${error.message}`, 'error');
+                alert('同步失败: ' + error.message);
+            }
+        }
+
+        // 初始化Firebase
+        function initFirebase() {
+            try {
+                if (typeof firebase !== 'undefined' && window.firebaseConfig) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    }
+                    db = firebase.database();
+                    log('✅ Firebase初始化成功', 'success');
+                    return true;
+                }
+            } catch (error) {
+                log(`❌ Firebase初始化失败: ${error.message}`, 'error');
+            }
+            return false;
+        }
+
+        // 加载数据
+        async function loadData() {
+            try {
+                log('🔍 开始加载数据...', 'info');
+                log(`🔍 检查全局变量: window.groups=${!!window.groups}, window.groupNames=${!!window.groupNames}`, 'info');
+                log(`🔍 检查本地存储键: msh_groups=${!!localStorage.getItem('msh_groups')}, msh_groupNames=${!!localStorage.getItem('msh_groupNames')}`, 'info');
+                
+                // 优先从全局变量加载
+                if (window.groups && Object.keys(window.groups).length > 0) {
+                    groups = window.groups;
+                    log(`✅ 从全局变量加载小组数据: ${Object.keys(groups).length} 个小组`, 'success');
+                } else {
+                    // 从本地存储加载
+                    const groupsData = localStorage.getItem('msh_groups');
+                    if (groupsData) {
+                        const parsed = JSON.parse(groupsData);
+                        // 处理可能的数组或对象格式
+                        groups = parsed;
+                        log(`✅ 从本地存储加载小组数据: ${Object.keys(groups).length} 个小组`, 'success');
+                        log(`🔍 小组详情: ${JSON.stringify(Object.keys(groups))}`, 'info');
+                    } else {
+                        log('⚠️ 未找到本地小组数据，尝试从Firebase加载...', 'warning');
+                        // 从Firebase加载
+                        if (db) {
+                            const snapshot = await db.ref('groups').once('value');
+                            groups = snapshot.val() || {};
+                            log(`✅ 从Firebase加载小组数据: ${Object.keys(groups).length} 个小组`, 'success');
+                        } else {
+                            log('❌ Firebase不可用，无法加载小组数据', 'error');
+                        }
+                    }
+                }
+
+                // 加载小组名称
+                if (window.groupNames && Object.keys(window.groupNames).length > 0) {
+                    groupNames = window.groupNames;
+                } else {
+                    const groupNamesData = localStorage.getItem('msh_groupNames');
+                    if (groupNamesData) {
+                        groupNames = JSON.parse(groupNamesData);
+                    } else if (db) {
+                        const snapshot = await db.ref('groupNames').once('value');
+                        groupNames = snapshot.val() || {};
+                    }
+                }
+
+                // 加载签到记录
+                if (window.attendanceRecords && window.attendanceRecords.length > 0) {
+                    attendanceRecords = window.attendanceRecords;
+                    log(`✅ 从全局变量加载签到记录: ${attendanceRecords.length} 条`, 'success');
+                } else {
+                    const attendanceData = localStorage.getItem('msh_attendanceRecords');
+                    if (attendanceData) {
+                        attendanceRecords = JSON.parse(attendanceData);
+                        log(`✅ 从本地存储加载签到记录: ${attendanceRecords.length} 条`, 'success');
+                    } else if (db) {
+                        const snapshot = await db.ref('attendanceRecords').once('value');
+                        const data = snapshot.val();
+                        attendanceRecords = Array.isArray(data) ? data : Object.values(data || {});
+                        log(`✅ 从Firebase加载签到记录: ${attendanceRecords.length} 条`, 'success');
+                    }
+                }
+
+                log(`📊 数据加载总结: ${Object.keys(groups).length}个小组, ${attendanceRecords.length}条记录`, 'info');
+
+                // 检查是否成功加载小组数据
+                if (Object.keys(groups).length === 0) {
+                    document.getElementById('noDataWarning').style.display = 'block';
+                    log('⚠️ 未加载到小组数据，请从Firebase加载或访问其他页面', 'warning');
+                } else {
+                    document.getElementById('noDataWarning').style.display = 'none';
+                }
+
+                // 初始化界面
+                loadGroups();
+                initTimeOptions();
+                updateStats();
+
+            } catch (error) {
+                log(`❌ 数据加载失败: ${error.message}`, 'error');
+                alert('数据加载失败，请刷新页面重试！');
+            }
+        }
+
+        // 从Firebase加载数据
+        async function loadFromFirebase() {
+            if (!db) {
+                alert('Firebase未连接，无法加载！');
+                return;
+            }
+
+            try {
+                log('🔄 从Firebase加载所有数据...', 'info');
+
+                // 加载小组数据
+                const groupsSnapshot = await db.ref('groups').once('value');
+                groups = groupsSnapshot.val() || {};
+                log(`✅ 已加载小组: ${Object.keys(groups).length} 个`, 'success');
+
+                // 加载小组名称
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                groupNames = groupNamesSnapshot.val() || {};
+                log(`✅ 已加载小组名称: ${Object.keys(groupNames).length} 个`, 'success');
+
+                // 加载签到记录
+                const recordsSnapshot = await db.ref('attendanceRecords').once('value');
+                const data = recordsSnapshot.val();
+                attendanceRecords = Array.isArray(data) ? data : Object.values(data || {});
+                log(`✅ 已加载签到记录: ${attendanceRecords.length} 条`, 'success');
+
+                // 保存到本地存储
+                localStorage.setItem('msh_groups', JSON.stringify(groups));
+                localStorage.setItem('msh_groupNames', JSON.stringify(groupNames));
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+
+                // 隐藏警告
+                document.getElementById('noDataWarning').style.display = 'none';
+
+                // 重新初始化界面
+                loadGroups();
+                updateStats();
+
+                alert(`✅ 数据加载成功！\n小组: ${Object.keys(groups).length} 个\n记录: ${attendanceRecords.length} 条`);
+
+            } catch (error) {
+                log(`❌ Firebase加载失败: ${error.message}`, 'error');
+                alert('Firebase加载失败: ' + error.message);
+            }
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', async () => {
+            log('🚀 签到补录工具启动', 'info');
+            
+            if (initFirebase()) {
+                await loadData();
+                log('✅ 系统就绪，可以开始补录', 'success');
+            } else {
+                log('⚠️ Firebase初始化失败，仅能更新本地存储', 'warning');
+                await loadData();
+            }
+        });
+    </script>
+</body>
+</html>
+

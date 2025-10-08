@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主日跟踪数据结构诊断工具</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }
+        .button-group { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            color: white;
+        }
+        button.primary { background-color: #3498db; }
+        button.primary:hover { background-color: #2980b9; transform: translateY(-2px); }
+        button.secondary { background-color: #2ecc71; }
+        button.secondary:hover { background-color: #27ae60; transform: translateY(-2px); }
+        button.warning { background-color: #f39c12; }
+        button.warning:hover { background-color: #e67e22; transform: translateY(-2px); }
+        button.danger { background-color: #e74c3c; }
+        button.danger:hover { background-color: #c0392b; transform: translateY(-2px); }
+        .log-container { background-color: #ecf0f1; border-radius: 5px; padding: 15px; max-height: 600px; overflow-y: auto; border: 1px solid #ddd; }
+        .log-item { margin-bottom: 8px; font-size: 14px; line-height: 1.4; }
+        .log-item.info { color: #34495e; }
+        .log-item.success { color: #27ae60; }
+        .log-item.warning { color: #f39c12; }
+        .log-item.error { color: #c0392b; font-weight: bold; }
+        .summary { margin-top: 20px; font-size: 16px; font-weight: bold; color: #2c3e50; }
+        .data-structure { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; padding: 15px; margin: 15px 0; }
+        .record-item { background-color: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; }
+        .record-header { font-weight: bold; color: #2c3e50; margin-bottom: 5px; }
+        .record-field { margin: 2px 0; font-size: 12px; }
+        .field-missing { color: #dc3545; font-weight: bold; }
+        .field-present { color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>主日跟踪数据结构诊断工具</h1>
+        <div class="button-group">
+            <button class="primary" id="diagnoseButton">诊断Firebase数据结构</button>
+            <button class="secondary" id="fixButton">修复数据结构</button>
+            <button class="warning" id="regenerateButton">重新生成事件</button>
+            <button class="danger" id="clearLogButton">清空日志</button>
+        </div>
+        
+        <div class="summary" id="summary"></div>
+        <div class="log-container">
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase初始化
+        if (!firebase.apps.length) {
+            firebase.initializeApp(window.firebaseConfig);
+        }
+        const db = firebase.database();
+        const logElement = document.getElementById('log');
+        const summaryElement = document.getElementById('summary');
+
+        function appendLog(message, type = 'info') {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(logItem);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        document.getElementById('clearLogButton').addEventListener('click', () => {
+            logElement.innerHTML = '';
+            summaryElement.innerHTML = '';
+            appendLog('日志已清空。', 'info');
+        });
+
+        document.getElementById('diagnoseButton').addEventListener('click', async () => {
+            appendLog('开始诊断Firebase数据结构...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 1. 检查sundayTracking根节点
+                const sundayTrackingSnapshot = await db.ref('sundayTracking').once('value');
+                const sundayTrackingData = sundayTrackingSnapshot.val();
+                
+                appendLog('=== Firebase sundayTracking 数据结构分析 ===', 'info');
+                
+                if (!sundayTrackingData) {
+                    appendLog('❌ sundayTracking节点不存在或为空', 'error');
+                    return;
+                }
+                
+                // 分析数据结构
+                const dataKeys = Object.keys(sundayTrackingData);
+                appendLog(`📊 sundayTracking节点包含 ${dataKeys.length} 个键`, 'info');
+                
+                // 检查是否是UUID格式的键
+                const uuidKeys = dataKeys.filter(key => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key));
+                const numericKeys = dataKeys.filter(key => /^\d+$/.test(key));
+                
+                appendLog(`🔍 UUID格式键: ${uuidKeys.length} 个`, 'info');
+                appendLog(`🔍 数字格式键: ${numericKeys.length} 个`, 'info');
+                
+                if (numericKeys.length > 0) {
+                    appendLog('⚠️ 发现数字格式键，这可能是数据结构问题', 'warning');
+                }
+                
+                // 分析前几个记录的结构
+                const sampleKeys = dataKeys.slice(0, 3);
+                for (const key of sampleKeys) {
+                    const record = sundayTrackingData[key];
+                    appendLog(`\n📋 记录 ${key}:`, 'info');
+                    appendLog(`  类型: ${typeof record}`, 'info');
+                    
+                    if (typeof record === 'object' && record !== null) {
+                        const recordKeys = Object.keys(record);
+                        appendLog(`  包含字段: ${recordKeys.join(', ')}`, 'info');
+                        
+                        // 检查关键字段
+                        const criticalFields = ['recordId', 'status', 'updatedAt', 'createdAt', 'memberUUID'];
+                        criticalFields.forEach(field => {
+                            if (record[field] !== undefined) {
+                                appendLog(`  ✅ ${field}: ${record[field]}`, 'success');
+                            } else {
+                                appendLog(`  ❌ ${field}: 缺失`, 'error');
+                            }
+                        });
+                        
+                        // 检查是否有mainTracking子节点
+                        if (record.mainTracking) {
+                            appendLog(`  ✅ mainTracking: 存在`, 'success');
+                        } else {
+                            appendLog(`  ❌ mainTracking: 缺失`, 'error');
+                        }
+                        
+                        // 检查是否有personalTracking子节点
+                        if (record.personalTracking) {
+                            appendLog(`  ✅ personalTracking: 存在`, 'success');
+                        } else {
+                            appendLog(`  ❌ personalTracking: 缺失`, 'error');
+                        }
+                    }
+                }
+                
+                // 2. 检查localStorage中的数据
+                appendLog('\n=== localStorage 数据分析 ===', 'info');
+                const localData = localStorage.getItem('msh_sunday_tracking');
+                if (localData) {
+                    const parsedData = JSON.parse(localData);
+                    appendLog(`📊 localStorage中有 ${parsedData.length} 条记录`, 'info');
+                    
+                    if (parsedData.length > 0) {
+                        const sampleRecord = parsedData[0];
+                        appendLog(`📋 示例记录结构:`, 'info');
+                        Object.keys(sampleRecord).forEach(key => {
+                            const value = sampleRecord[key];
+                            if (value !== undefined && value !== null) {
+                                appendLog(`  ✅ ${key}: ${typeof value === 'object' ? JSON.stringify(value).substring(0, 50) + '...' : value}`, 'success');
+                            } else {
+                                appendLog(`  ❌ ${key}: ${value}`, 'error');
+                            }
+                        });
+                    }
+                } else {
+                    appendLog('❌ localStorage中没有msh_sunday_tracking数据', 'error');
+                }
+                
+                summaryElement.innerHTML = `
+                    <p><strong>诊断总结:</strong></p>
+                    <p>Firebase sundayTracking: ${dataKeys.length} 个键</p>
+                    <p>UUID格式键: ${uuidKeys.length} 个</p>
+                    <p>数字格式键: ${numericKeys.length} 个</p>
+                    <p>localStorage记录: ${localData ? JSON.parse(localData).length : 0} 条</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`诊断失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+
+        document.getElementById('fixButton').addEventListener('click', async () => {
+            if (!confirm('确定要修复Firebase数据结构吗？此操作将修改Firebase数据。')) {
+                return;
+            }
+            
+            appendLog('开始修复Firebase数据结构...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 获取当前数据
+                const sundayTrackingSnapshot = await db.ref('sundayTracking').once('value');
+                const currentData = sundayTrackingSnapshot.val();
+                
+                if (!currentData) {
+                    appendLog('❌ 没有找到sundayTracking数据', 'error');
+                    return;
+                }
+                
+                const dataKeys = Object.keys(currentData);
+                const numericKeys = dataKeys.filter(key => /^\d+$/.test(key));
+                
+                if (numericKeys.length === 0) {
+                    appendLog('✅ 数据结构看起来正常，无需修复', 'success');
+                    return;
+                }
+                
+                appendLog(`发现 ${numericKeys.length} 个数字格式键，开始修复...`, 'warning');
+                
+                // 备份原始数据
+                await db.ref('sundayTracking_backup_before_fix').set(currentData);
+                appendLog('✅ 已备份原始数据到 sundayTracking_backup_before_fix', 'success');
+                
+                // 修复数据结构
+                const fixedData = {};
+                let fixedCount = 0;
+                
+                for (const key of dataKeys) {
+                    const record = currentData[key];
+                    
+                    if (/^\d+$/.test(key)) {
+                        // 这是数字格式的键，需要修复
+                        if (record && typeof record === 'object') {
+                            // 为记录添加必要的字段
+                            const fixedRecord = {
+                                ...record,
+                                recordId: record.recordId || `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                status: record.status || 'active',
+                                createdAt: record.createdAt || Date.now(),
+                                updatedAt: record.updatedAt || Date.now(),
+                                mainTracking: record.mainTracking || {},
+                                personalTracking: record.personalTracking || {}
+                            };
+                            
+                            // 使用UUID作为新键（如果记录中有memberUUID）
+                            const newKey = record.memberUUID || `fixed_${key}`;
+                            fixedData[newKey] = fixedRecord;
+                            fixedCount++;
+                            appendLog(`修复记录 ${key} -> ${newKey}`, 'success');
+                        }
+                    } else {
+                        // 保持原有记录
+                        fixedData[key] = record;
+                    }
+                }
+                
+                // 保存修复后的数据
+                await db.ref('sundayTracking').set(fixedData);
+                appendLog(`✅ 数据结构修复完成！共修复 ${fixedCount} 条记录`, 'success');
+                
+                summaryElement.innerHTML = `
+                    <p><strong>修复总结:</strong></p>
+                    <p>修复记录数: ${fixedCount}</p>
+                    <p>原始数据已备份到 sundayTracking_backup_before_fix</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`修复失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+
+        document.getElementById('regenerateButton').addEventListener('click', async () => {
+            if (!confirm('确定要重新生成所有事件吗？此操作将清空现有事件并重新生成。')) {
+                return;
+            }
+            
+            appendLog('开始重新生成所有事件...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 清空现有数据
+                await db.ref('sundayTracking').remove();
+                appendLog('✅ 已清空现有sundayTracking数据', 'success');
+                
+                // 这里需要调用MSH系统的事件生成逻辑
+                appendLog('⚠️ 需要调用MSH系统的事件生成逻辑来重新生成事件', 'warning');
+                appendLog('请使用主日跟踪页面的"重新生成事件"功能', 'info');
+                
+                summaryElement.innerHTML = `
+                    <p><strong>重新生成总结:</strong></p>
+                    <p>已清空现有数据</p>
+                    <p>请使用主日跟踪页面重新生成事件</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`重新生成失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>
+
+

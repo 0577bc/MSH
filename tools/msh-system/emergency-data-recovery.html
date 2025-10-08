@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紧急数据恢复工具 - MSH管理系统</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: #dc3545; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .log { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 10px 0; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .error { color: #dc3545; font-weight: bold; }
+        .success { color: #28a745; font-weight: bold; }
+        .warning { color: #856404; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 紧急数据恢复工具</h1>
+            <p>用于恢复因错误同步而丢失的Firebase数据</p>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>⚠️ 紧急恢复步骤</h3>
+            <ol>
+                <li><strong>检查本地数据</strong> - 确认本地存储中的数据完整性</li>
+                <li><strong>检查Firebase数据</strong> - 确认云端数据的当前状态</li>
+                <li><strong>选择恢复策略</strong> - 根据实际情况选择合适的恢复方案</li>
+                <li><strong>执行恢复操作</strong> - 恢复数据到正确状态</li>
+            </ol>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button class="btn btn-warning" onclick="checkLocalData()">检查本地数据</button>
+            <button class="btn btn-warning" onclick="checkFirebaseData()">检查Firebase数据</button>
+            <button class="btn btn-danger" onclick="restoreFromLocal()">从本地恢复Firebase</button>
+            <button class="btn btn-success" onclick="backupCurrentState()">备份当前状态</button>
+        </div>
+
+        <div id="log" class="log">
+            <div class="warning">等待操作...</div>
+        </div>
+    </div>
+
+    <script src="../../config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script>
+        let db = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (firebase.apps.length === 0) {
+                    const firebaseConfig = window.firebaseConfig || config?.firebaseConfig;
+                    if (firebaseConfig) {
+                        firebase.initializeApp(firebaseConfig);
+                    }
+                }
+                db = firebase.database();
+                addLog('success', 'Firebase连接成功');
+            } catch (error) {
+                addLog('error', 'Firebase连接失败: ' + error.message);
+            }
+        });
+
+        function addLog(type, message) {
+            const log = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.innerHTML = `[${timestamp}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        async function checkLocalData() {
+            addLog('info', '检查本地数据...');
+            try {
+                const localData = localStorage.getItem('msh_attendanceRecords');
+                if (localData) {
+                    const records = JSON.parse(localData);
+                    addLog('success', `本地数据: ${records.length} 条记录`);
+                    addLog('info', `本地数据大小: ${(localData.length / 1024).toFixed(2)} KB`);
+                } else {
+                    addLog('error', '本地没有找到签到记录数据');
+                }
+            } catch (error) {
+                addLog('error', '检查本地数据失败: ' + error.message);
+            }
+        }
+
+        async function checkFirebaseData() {
+            if (!db) {
+                addLog('error', 'Firebase未连接');
+                return;
+            }
+            
+            addLog('info', '检查Firebase数据...');
+            try {
+                const snapshot = await db.ref('attendanceRecords').once('value');
+                const data = snapshot.val();
+                if (data) {
+                    const records = Array.isArray(data) ? data : Object.values(data);
+                    addLog('success', `Firebase数据: ${records.length} 条记录`);
+                } else {
+                    addLog('error', 'Firebase中没有签到记录数据');
+                }
+            } catch (error) {
+                addLog('error', '检查Firebase数据失败: ' + error.message);
+            }
+        }
+
+        async function restoreFromLocal() {
+            if (!db) {
+                addLog('error', 'Firebase未连接');
+                return;
+            }
+
+            const localData = localStorage.getItem('msh_attendanceRecords');
+            if (!localData) {
+                addLog('error', '本地没有数据可以恢复');
+                return;
+            }
+
+            const confirmMessage = `⚠️ 警告：这将用本地数据完全替换Firebase中的数据！\n\n` +
+                `本地记录数: ${JSON.parse(localData).length}\n\n` +
+                `此操作不可逆，请确认本地数据是正确和完整的。\n\n` +
+                `是否继续恢复？`;
+
+            if (!confirm(confirmMessage)) {
+                addLog('warning', '用户取消恢复操作');
+                return;
+            }
+
+            try {
+                addLog('warning', '开始从本地恢复Firebase数据...');
+                const records = JSON.parse(localData);
+                
+                await db.ref('attendanceRecords').set(records);
+                
+                addLog('success', `恢复完成！已恢复 ${records.length} 条记录到Firebase`);
+                addLog('success', '✅ Firebase数据已从本地完全恢复');
+                
+            } catch (error) {
+                addLog('error', '恢复失败: ' + error.message);
+            }
+        }
+
+        async function backupCurrentState() {
+            try {
+                // 备份本地数据
+                const localData = localStorage.getItem('msh_attendanceRecords');
+                if (localData) {
+                    const records = JSON.parse(localData);
+                    const backup = {
+                        timestamp: new Date().toISOString(),
+                        type: 'local_backup',
+                        recordCount: records.length,
+                        data: records
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `emergency-backup-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    addLog('success', '本地数据备份已导出');
+                }
+
+                // 备份Firebase数据
+                if (db) {
+                    const snapshot = await db.ref('attendanceRecords').once('value');
+                    const firebaseData = snapshot.val();
+                    if (firebaseData) {
+                        const records = Array.isArray(firebaseData) ? firebaseData : Object.values(firebaseData);
+                        const backup = {
+                            timestamp: new Date().toISOString(),
+                            type: 'firebase_backup',
+                            recordCount: records.length,
+                            data: records
+                        };
+                        
+                        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `firebase-backup-${new Date().toISOString().split('T')[0]}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        addLog('success', 'Firebase数据备份已导出');
+                    }
+                }
+                
+            } catch (error) {
+                addLog('error', '备份失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

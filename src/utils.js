@@ -13,6 +13,12 @@
  */
 function initializeFirebase() {
   try {
+    // 检查Firebase SDK是否已加载
+    if (typeof firebase === 'undefined') {
+      console.error('❌ Firebase SDK未加载，请检查网络连接或CDN状态');
+      return { app: null, db: null, success: false };
+    }
+    
     // 检查是否已经初始化
     if (firebase.apps.length > 0) {
       const app = firebase.app();
@@ -174,9 +180,7 @@ const EncryptedStorage = {
     try {
       const encryptedData = DataEncryption.encrypt(data);
       localStorage.setItem(key, encryptedData);
-      console.log(`数据已加密存储: ${key}`);
     } catch (error) {
-      console.error(`加密存储失败 ${key}:`, error);
       // 降级到普通存储
       localStorage.setItem(key, JSON.stringify(data));
     }
@@ -192,7 +196,6 @@ const EncryptedStorage = {
       if (DataEncryption.isEncrypted(encryptedData)) {
         const decryptedData = DataEncryption.decrypt(encryptedData);
         if (decryptedData !== null) {
-          console.log(`数据已解密读取: ${key}`);
           return decryptedData;
         }
       }
@@ -200,7 +203,6 @@ const EncryptedStorage = {
       // 如果不是加密数据或解密失败，尝试直接解析JSON
       return JSON.parse(encryptedData);
     } catch (error) {
-      console.error(`解密读取失败 ${key}:`, error);
       return null;
     }
   },
@@ -432,20 +434,38 @@ const SundayTrackingManager = {
   },
   // 判断是否为周日上午签到（9:00之前到10:40）
   isSundayAttendance: function(record) {
-    const date = new Date(record.time);
-    const dayOfWeek = date.getDay(); // 0=周日, 1=周一, ...
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    
-    // 判断是否为周日
-    if (dayOfWeek !== 0) return false;
-    
-    // 判断时间范围：9:00之前到10:40
-    if (hour < 9) return true; // 9点之前可以签到
-    if (hour === 9) return true; // 9点整可以签到
-    if (hour === 10 && minute <= 40) return true; // 10:40之前可以签到
-    
-    return false;
+    // 如果记录没有time字段，直接判定为未签到
+    if (!record.time) {
+      console.log(`⚠️ 记录缺少time字段，判定为未签到:`, record);
+      return false;
+    }
+
+    try {
+      const date = new Date(record.time);
+      
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        console.log(`⚠️ 记录time字段无效，判定为未签到:`, record);
+        return false;
+      }
+      
+      const dayOfWeek = date.getDay(); // 0=周日, 1=周一, ...
+      const hour = date.getHours();
+      const minute = date.getMinutes();
+      
+      // 判断是否为周日
+      if (dayOfWeek !== 0) return false;
+      
+      // 判断时间范围：9:00之前到10:40
+      if (hour < 9) return true; // 9点之前可以签到
+      if (hour === 9) return true; // 9点整可以签到
+      if (hour === 10 && minute <= 40) return true; // 10:40之前可以签到
+      
+      return false;
+    } catch (error) {
+      console.log(`⚠️ 解析记录time字段出错，判定为未签到:`, record, error);
+      return false;
+    }
   },
   
   // 从指定日期开始生成主日日期列表
@@ -748,10 +768,17 @@ const SundayTrackingManager = {
       // 保存签到记录数据（包含新添加的memberUUID）
       if (window.attendanceRecords) {
         localStorage.setItem('msh_attendance_records', JSON.stringify(window.attendanceRecords));
+        
+        // 🚨 紧急修复：添加数据量检查，防止覆盖历史数据
         if (window.db) {
-          window.db.ref('attendanceRecords').set(window.attendanceRecords).catch(error => {
-            console.error('同步签到记录到Firebase失败:', error);
-          });
+          if (window.attendanceRecords.length < 50) {
+            console.warn(`⚠️ 警告：签到记录数量较少(${window.attendanceRecords.length}条)，UUID迁移同步已禁用`);
+            console.warn('💡 请确保已加载完整数据后再执行UUID迁移');
+          } else {
+            window.db.ref('attendanceRecords').set(window.attendanceRecords).catch(error => {
+              console.error('同步签到记录到Firebase失败:', error);
+            });
+          }
         }
       }
       
@@ -938,16 +965,12 @@ const SundayTrackingManager = {
     
     // 获取所有人员（排除未签到不统计的人员）
     const allMembers = this.getAllMembers();
-    const excludedMembers = this.getExcludedMembers();
     
-    console.log(`🔍 排除人员检查: 总人员${allMembers.length}个, 排除人员${excludedMembers.length}个`);
-    if (excludedMembers.length > 0) {
-      console.log(`🔍 排除人员详情:`, excludedMembers.map(m => `${m.name}(${m.group})`));
-    }
+    console.log(`🔍 排除人员检查: 总人员${allMembers.length}个`);
     
     allMembers.forEach(member => {
-      // 检查是否在排除列表中
-      if (this.isMemberExcluded(member, excludedMembers)) {
+      // 检查是否在排除列表中（新版本：直接检查成员标记）
+      if (this.isMemberExcluded(member)) {
         console.log(`🚫 排除成员: ${member.name}(${member.group}) - 不生成跟踪事件`);
         return;
       }
@@ -1113,59 +1136,183 @@ const SundayTrackingManager = {
     return allMembers;
   },
   
-  // 获取排除的人员列表
+  // 获取排除的人员列表（新版本：从成员标记中获取）
   getExcludedMembers: function() {
     try {
-      console.log(`🔍 getExcludedMembers: window.excludedMembers =`, window.excludedMembers);
+      console.log(`🔍 getExcludedMembers: 从成员标记中获取排除人员`);
       
-      // 优先从全局变量获取
-      if (window.excludedMembers) {
-        console.log(`🔍 getExcludedMembers: 从全局变量获取，类型:`, typeof window.excludedMembers, '是否为数组:', Array.isArray(window.excludedMembers));
-        // 如果是对象形式（使用UUID作为键），转换为数组
-        if (typeof window.excludedMembers === 'object' && !Array.isArray(window.excludedMembers)) {
-          const result = Object.values(window.excludedMembers);
-          console.log(`🔍 getExcludedMembers: 对象转数组，结果:`, result);
-          return result;
-        }
-        // 如果已经是数组，直接返回
-        const result = Array.isArray(window.excludedMembers) ? window.excludedMembers : [];
-        console.log(`🔍 getExcludedMembers: 数组结果:`, result);
-        return result;
-      }
+      // 获取所有成员数据
+      const allMembers = this.getAllMembers();
+      console.log(`🔍 getExcludedMembers: 总成员数: ${allMembers.length}`);
       
-      // 如果全局变量没有，从localStorage获取
-      const stored = localStorage.getItem('msh_excludedMembers');
-      console.log(`🔍 getExcludedMembers: localStorage数据:`, stored);
-      if (!stored) return [];
+      // 筛选出标记为排除的成员
+      const excludedMembers = allMembers.filter(member => {
+        return member.excluded === true || member.excluded === 'true';
+      });
       
-      const data = JSON.parse(stored);
-      console.log(`🔍 getExcludedMembers: 解析后的数据:`, data);
+      console.log(`🔍 getExcludedMembers: 排除人员数: ${excludedMembers.length}`);
+      console.log(`🔍 getExcludedMembers: 排除人员详情:`, excludedMembers.map(m => `${m.name}(${m.group})`));
       
-      // 如果是对象形式（使用UUID作为键），转换为数组
-      if (typeof data === 'object' && !Array.isArray(data)) {
-        const result = Object.values(data);
-        console.log(`🔍 getExcludedMembers: localStorage对象转数组，结果:`, result);
-        return result;
-      }
-      
-      // 如果已经是数组，直接返回
-      const result = Array.isArray(data) ? data : [];
-      console.log(`🔍 getExcludedMembers: localStorage数组结果:`, result);
-      return result;
+      return excludedMembers;
     } catch (error) {
       console.error('获取排除人员列表失败:', error);
       return [];
     }
   },
   
-  // 检查人员是否被排除
-  isMemberExcluded: function(member, excludedMembers) {
-    if (!excludedMembers || excludedMembers.length === 0) return false;
-    
-    return excludedMembers.some(excluded => 
-      (excluded.uuid && excluded.uuid === member.uuid) ||
-      (excluded.name === member.name && excluded.group === member.group)
-    );
+  // 设置成员排除状态（新版本：直接在成员数据中标记）
+  setMemberExcluded: function(memberUUID, excluded = true, reason = '') {
+    try {
+      console.log(`🔍 setMemberExcluded: 设置成员 ${memberUUID} 排除状态为 ${excluded}`);
+      
+      // 获取所有小组数据
+      const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+      let memberFound = false;
+      
+      // 遍历所有小组查找成员
+      for (const groupKey in groups) {
+        if (groups[groupKey] && Array.isArray(groups[groupKey])) {
+          const memberIndex = groups[groupKey].findIndex(member => member.uuid === memberUUID);
+          if (memberIndex !== -1) {
+            // 更新成员排除状态
+            groups[groupKey][memberIndex] = {
+              ...groups[groupKey][memberIndex],
+              excluded: excluded,
+              excludedAt: excluded ? new Date().toISOString() : null,
+              excludedReason: excluded ? reason : null
+            };
+            
+            memberFound = true;
+            console.log(`✅ 成员 ${memberUUID} 排除状态已更新`);
+            break;
+          }
+        }
+      }
+      
+      if (!memberFound) {
+        console.warn(`⚠️ 未找到成员 ${memberUUID}`);
+        return false;
+      }
+      
+      // 保存更新后的数据
+      localStorage.setItem('msh_groups', JSON.stringify(groups));
+      
+      // 同步到Firebase
+      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        const db = firebase.database();
+        db.ref('groups').set(groups).then(() => {
+          console.log('✅ 排除状态已同步到Firebase');
+        }).catch(error => {
+          console.error('❌ 同步到Firebase失败:', error);
+        });
+      }
+      
+      // 更新全局变量
+      if (window.groups) {
+        window.groups = groups;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('设置成员排除状态失败:', error);
+      return false;
+    }
+  },
+  
+  // 检查成员是否被排除（新版本：直接检查成员标记）
+  isMemberExcluded: function(member) {
+    try {
+      // 检查成员是否有排除标记
+      return member.excluded === true || member.excluded === 'true';
+    } catch (error) {
+      console.error('检查成员排除状态失败:', error);
+      return false;
+    }
+  },
+  
+  // 迁移排除人员数据（从独立数组到成员标记）
+  migrateExcludedMembers: function() {
+    try {
+      console.log('🔄 开始迁移排除人员数据...');
+      
+      // 获取现有的排除人员数组
+      const oldExcludedMembers = JSON.parse(localStorage.getItem('msh_excludedMembers') || '[]');
+      console.log(`📊 发现 ${oldExcludedMembers.length} 个排除人员需要迁移`);
+      
+      if (oldExcludedMembers.length === 0) {
+        console.log('✅ 没有排除人员需要迁移');
+        return true;
+      }
+      
+      // 获取所有小组数据
+      const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+      let migratedCount = 0;
+      
+      // 遍历排除人员，在成员数据中添加标记
+      oldExcludedMembers.forEach(excludedMember => {
+        let memberFound = false;
+        
+        // 遍历所有小组查找成员
+        for (const groupKey in groups) {
+          if (groups[groupKey] && Array.isArray(groups[groupKey])) {
+            const memberIndex = groups[groupKey].findIndex(member => 
+              (member.uuid && member.uuid === excludedMember.uuid) ||
+              (member.name === excludedMember.name && member.group === excludedMember.group)
+            );
+            
+            if (memberIndex !== -1) {
+              // 添加排除标记
+              groups[groupKey][memberIndex] = {
+                ...groups[groupKey][memberIndex],
+                excluded: true,
+                excludedAt: new Date().toISOString(),
+                excludedReason: '数据迁移'
+              };
+              
+              memberFound = true;
+              migratedCount++;
+              console.log(`✅ 已迁移排除人员: ${excludedMember.name} (${excludedMember.group})`);
+              break;
+            }
+          }
+        }
+        
+        if (!memberFound) {
+          console.warn(`⚠️ 未找到排除人员: ${excludedMember.name} (${excludedMember.group})`);
+        }
+      });
+      
+      // 保存更新后的数据
+      localStorage.setItem('msh_groups', JSON.stringify(groups));
+      
+      // 同步到Firebase
+      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        const db = firebase.database();
+        db.ref('groups').set(groups).then(() => {
+          console.log('✅ 排除人员标记已同步到Firebase');
+        }).catch(error => {
+          console.error('❌ 同步到Firebase失败:', error);
+        });
+      }
+      
+      // 备份旧的排除人员数据
+      const backupData = {
+        migratedAt: new Date().toISOString(),
+        originalData: oldExcludedMembers,
+        migratedCount: migratedCount
+      };
+      localStorage.setItem('msh_excludedMembers_backup', JSON.stringify(backupData));
+      
+      // 清空旧的排除人员数据
+      localStorage.removeItem('msh_excludedMembers');
+      
+      console.log(`✅ 排除人员迁移完成: ${migratedCount}/${oldExcludedMembers.length} 个成功迁移`);
+      
+      return true;
+    } catch (error) {
+      console.error('❌ 排除人员迁移失败:', error);
+      return false;
+    }
   },
   
   // 解决跟踪
@@ -1403,7 +1550,7 @@ const SundayTrackingManager = {
           allRecords.push({
             ...record,
             memberName: member.name,
-            group: member.group || '未分组'
+            group: member.group || 'group0'
           });
         });
       });
@@ -1525,50 +1672,9 @@ const SundayTrackingManager = {
     document.body.removeChild(downloadAnchorNode);
   },
   
-  // 自动删除超过3年的旧记录 - 已禁用，防止误删重要数据
+  // 自动删除功能已移除，防止误删重要数据
   autoDeleteOldRecords: function() {
-    console.warn('⚠️ 自动删除功能已禁用，防止误删重要数据');
     return true;
-    
-    // 原代码已注释，防止误删
-    /*
-    const threeYearsAgo = new Date();
-    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-    
-    const records = this.getTrackingRecords();
-    const oldRecords = records.filter(record => 
-      new Date(record.createdAt) < threeYearsAgo
-    );
-    
-    if (oldRecords.length > 0) {
-      // 先导出旧记录
-      this.exportOldRecords(oldRecords);
-      
-      // 删除旧记录
-      const remainingRecords = records.filter(record => 
-        new Date(record.createdAt) >= threeYearsAgo
-      );
-      
-      try {
-        localStorage.setItem('msh_sunday_tracking', JSON.stringify(remainingRecords));
-        
-        // 同步到Firebase
-        if (window.db) {
-          window.db.ref('sundayTracking').set(remainingRecords).catch(error => {
-            console.error('同步删除的跟踪记录到Firebase失败:', error);
-          });
-        }
-        
-        console.log(`已自动删除 ${oldRecords.length} 条超过3年的跟踪记录`);
-        return true;
-      } catch (error) {
-        console.error('删除旧记录失败:', error);
-        return false;
-      }
-    }
-    
-    return true;
-    */
   },
   
   // 初始化数据保留检查（在页面加载时调用）
@@ -1812,20 +1918,32 @@ function optimizeDataSync(localData, remoteData) {
 }
 
 /**
- * 加载不统计人员列表
+ * 加载不统计人员列表（已废弃 - 保留用于兼容）
+ * @deprecated 现在使用成员对象的 excluded 属性
  * @returns {Array} 不统计人员列表
  */
 function loadExcludedMembers() {
-  let excludedMembers = [];
-  try {
-    const localData = localStorage.getItem('msh_excludedMembers');
-    if (localData) {
-      excludedMembers = JSON.parse(localData);
-    }
-  } catch (error) {
-    console.error('加载不统计人员列表失败:', error);
+  console.warn('⚠️ loadExcludedMembers() 已废弃，请使用 member.excluded 属性');
+  
+  // 为了兼容，从groups中提取excluded=true的成员
+  if (window.groups) {
+    const excludedList = [];
+    Object.keys(window.groups).forEach(groupId => {
+      const members = window.groups[groupId] || [];
+      members.forEach(member => {
+        if (member.excluded === true) {
+          excludedList.push({
+            ...member,
+            group: groupId
+          });
+        }
+      });
+    });
+    console.log('✅ 从成员标记中提取排除人员:', excludedList.length, '个');
+    return excludedList;
   }
-  return excludedMembers;
+  
+  return [];
 }
 
 /**
@@ -1861,11 +1979,29 @@ function upgradeExcludedMembersWithUUID(excludedMembers, groups) {
       return excluded;
     }
     
-    // 查找对应人员的UUID
+    // 查找对应人员的UUID（支持姓名和花名匹配）
     for (const groupName in groups) {
-      const member = groups[groupName].find(m => 
-        m.name === excluded.name && groupName === excluded.group
-      );
+      const member = groups[groupName].find(m => {
+        // 直接姓名匹配
+        if (m.name === excluded.name && groupName === excluded.group) {
+          return true;
+        }
+        
+        // 花名匹配
+        const memberNickname = m.nickname || m.Nickname || m.花名 || m.alias || '';
+        if (memberNickname && memberNickname === excluded.name && groupName === excluded.group) {
+          return true;
+        }
+        
+        // 反向匹配：排除人员的花名 vs 成员的姓名
+        const excludedNickname = excluded.nickname || excluded.Nickname || excluded.花名 || excluded.alias || '';
+        if (excludedNickname && excludedNickname === m.name && groupName === excluded.group) {
+          return true;
+        }
+        
+        return false;
+      });
+      
       if (member && member.uuid) {
         return {
           ...excluded,
@@ -1884,16 +2020,16 @@ function upgradeExcludedMembersWithUUID(excludedMembers, groups) {
  * @param {Object} groups 小组数据
  * @param {Object} groupNames 小组名称映射
  * @returns {Array} 排序后的小组键数组
- * @note "未分组"永远排在最后
+ * @note "未分组"永远排在第一
  */
 function sortGroups(groups, groupNames) {
   return Object.keys(groups).sort((a, b) => {
     const nameA = groupNames[a] || a;
     const nameB = groupNames[b] || b;
     
-    // "未分组"永远排在最后
-    if (nameA === "未分组") return 1;
-    if (nameB === "未分组") return -1;
+    // "group0"永远排在第一（未分组）
+    if (a === "group0") return -1;
+    if (b === "group0") return 1;
     
     return nameA.localeCompare(nameB, 'zh-CN');
   });
@@ -1916,20 +2052,24 @@ function sortMembersByName(members) {
  * @returns {boolean} 是否在不统计列表中
  */
 function isMemberExcluded(member, group, excludedMembers) {
-  return excludedMembers.some(excluded => 
-    excluded.name === member.name && excluded.group === group
-  );
+  if (!member) {
+    return false;
+  }
+  
+  // 新逻辑：直接检查成员的 excluded 属性
+  return member.excluded === true || member.excluded === 'true';
 }
 
 /**
- * 过滤不统计的人员
+ * 过滤不统计的人员（简化版 - 使用成员标记）
  * @param {Array} members 成员数组
- * @param {string} group 小组名称
- * @param {Array} excludedMembers 不统计人员列表
+ * @param {string} group 小组名称（保留参数用于兼容）
+ * @param {Array} excludedMembers 不统计人员列表（保留参数用于兼容）
  * @returns {Array} 过滤后的成员数组
  */
 function filterExcludedMembers(members, group, excludedMembers) {
-  return members.filter(member => !isMemberExcluded(member, group, excludedMembers));
+  // 新逻辑：直接过滤 excluded 属性
+  return members.filter(member => !(member.excluded === true || member.excluded === 'true'));
 }
 
 /**
@@ -2637,11 +2777,11 @@ class SmartDataSyncManager {
     // 如果是数组（attendanceRecords），取最新记录的时间
     if (Array.isArray(data)) {
       const latestRecord = data.reduce((latest, record) => {
-        const recordTime = new Date(record.timestamp || record.date || 0).getTime();
-        const latestTime = new Date(latest.timestamp || latest.date || 0).getTime();
+        const recordTime = new Date(record.timestamp || (record.time ? new Date(record.time).toISOString().split('T')[0] : '') || 0).getTime();
+        const latestTime = new Date(latest.timestamp || (latest.time ? new Date(latest.time).toISOString().split('T')[0] : '') || 0).getTime();
         return recordTime > latestTime ? record : latest;
       }, { timestamp: 0, date: 0 });
-      return new Date(latestRecord.timestamp || latestRecord.date || 0).getTime();
+      return new Date(latestRecord.timestamp || (latestRecord.time ? new Date(latestRecord.time).toISOString().split('T')[0] : '') || 0).getTime();
     }
     
     // 如果是对象（groups, groupNames），取最新修改时间
@@ -2786,9 +2926,9 @@ class SmartDataSyncManager {
       
       if (!remoteRecord || 
           localRecord.memberName !== remoteRecord.memberName ||
-          localRecord.date !== remoteRecord.date ||
+          (localRecord.date || (localRecord.time ? new Date(localRecord.time).toISOString().split('T')[0] : '')) !== (remoteRecord.date || (remoteRecord.time ? new Date(remoteRecord.time).toISOString().split('T')[0] : '')) ||
           localRecord.group !== remoteRecord.group) {
-        console.log(`检测到考勤记录变化: ${localRecord.memberName} - ${localRecord.date}`);
+        console.log(`检测到考勤记录变化: ${localRecord.memberName} - ${localRecord.date || (localRecord.time ? new Date(localRecord.time).toISOString().split('T')[0] : '')}`);
         return true;
       }
     }
@@ -3167,7 +3307,7 @@ const DataConflictResolver = {
           // 如果没有ID，则通过姓名、日期和时间来匹配
           if (!remoteRecord.id && !localRecord.id) {
             return remoteRecord.name === localRecord.name && 
-                   remoteRecord.date === localRecord.date && 
+                   (remoteRecord.date || (remoteRecord.time ? new Date(remoteRecord.time).toISOString().split('T')[0] : '')) === (localRecord.date || (localRecord.time ? new Date(localRecord.time).toISOString().split('T')[0] : '')) && 
                    remoteRecord.time === localRecord.time;
           }
           
@@ -4086,7 +4226,7 @@ function getGroupPrefix(groupId) {
     '陈薛尚': 'AA', '乐清1组': 'AB', '乐清2组': 'AC', '乐清3组': 'AD',
     '乐清4组': 'AE', '乐清5组': 'AF', '乐清6组': 'AG', '乐清7组': 'AH',
     '乐清8组': 'AI', '乐清9组': 'AJ', '乐清10组': 'AK', '美团组': 'AL',
-    '未分组': 'AM'
+        'group0': 'AM'
   };
   if (groupPrefixes[groupId]) return groupPrefixes[groupId];
   const usedPrefixes = new Set(Object.values(groupPrefixes));

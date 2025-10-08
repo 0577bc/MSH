@@ -1,99 +1,165 @@
-# MSH签到系统 - 文件保护规则
-# 此文件定义了哪些文件应该被保护，不被自动清理
+# MSH签到系统 - Git忽略规则
+# 最后更新: 2025-10-08
+# 说明: 定义哪些文件不应上传到GitHub
 
-# ==================== 保护的重要文档 ====================
-# 系统需求文档 - 必须保护
-!SYSTEM_REQUIREMENTS.md
-!OPTIMIZATION_REPORT.md
-!CHANGELOG.md
-!API_DOCUMENTATION.md
+# ==================== 敏感信息（绝对禁止上传）====================
+# Firebase配置包含真实密钥
+config.js
 
-# 备份文件 - 必须保护
-!backup/
-!backup/**/*
+# 环境配置文件
+.env
+.env.local
+.env.production
+.env.development
+*.env
 
-# 配置文件备份 - 必须保护
-!config.backup.js
-!config.example.js
-
-# 部署和运维文档 - 必须保护
-!DEPLOYMENT.md
-!MAINTENANCE.md
-!TROUBLESHOOTING.md
-
-# ==================== 敏感信息保护 ====================
-# 凭据和敏感信息 - 必须忽略
-docs/technical/CREDENTIALS.md
+# 凭据文件
 *.credentials
 *.secrets
 *.keys
 *.password
+credentials.json
 
-# 环境配置文件
-.env.local
-.env.production
-.env.development
-.env
+# ==================== 云表单系统（不上传GitHub）====================
+# 云表单系统 - 基于阿里云平台，独立部署
+cloud-forms/
+cloud-forms/**
 
-# 临时敏感文件
-temp/
-tmp/
-*.backup
-*.bak
+# 外部表单系统备份
+backup/external-forms-backup-*/
 
-# ==================== 临时文件（可清理）====================
-# 测试文件
-test-*.html
-debug-*.html
-temp-*.html
+# ==================== 备份文件（不上传GitHub）====================
+# 本地备份目录 - 太大且无需版本控制
+backup/
+backup/**
 
 # 临时备份
+*.backup
+*.bak
 temp_backup/
+*_backup/
+
+# ==================== 记忆和工作流系统 ====================
+# 智能记忆系统 - 包含对话历史和敏感信息
+simple-memory-system/
+simple-memory-system/**
+
+# 工作流状态 - 临时工作状态
+cursorworkflow/
+cursorworkflow/**
+
+# ==================== 编辑器和系统文件 ====================
+# Cursor编辑器
+.cursor/
+.cursor/**
+
+# macOS系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux系统文件
+*~
+.directory
+
+# ==================== IDE配置文件 ====================
+# VSCode
+.vscode/
+*.code-workspace
+
+# WebStorm / IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==================== 临时文件 ====================
+# 临时文件
 *.tmp
 *.temp
+temp/
+tmp/
 
 # 日志文件
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # 缓存文件
 .cache/
 cache/
+*.cache
 
-# ==================== 开发文件（可清理）====================
-# 开发工具生成的文件
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
+# ==================== 测试和调试文件 ====================
+# 测试文件
+test-*.html
+test-*.js
+debug-*.html
+debug-*.js
+*-test.html
+*-debug.html
 
-# IDE文件
-.vscode/
-.idea/
-*.sublime-*
+# 临时HTML文件
+temp-*.html
 
-# Node.js
+# ==================== Node.js ====================
+# 依赖目录
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-# 受保护的重要文档
-!SYSTEM_REQUIREMENTS.md
-!OPTIMIZATION_REPORT.md
-!CHANGELOG.md
-!API_DOCUMENTATION.md
-!DEPLOYMENT.md
-!MAINTENANCE.md
-!TROUBLESHOOTING.md
-!PROTECTED_FILES.md
-!DOCUMENTATION_GUIDE.md
-!CLEANUP_CHECKLIST.md
-!CLEANUP_COMMANDS.md
-!CODE_OPTIMIZATION_GUIDE.md
-!FILE_ORGANIZATION_GUIDE.md
-!AUTO_DOCUMENT_UPDATE.md
-!SAFE_OPERATION_COMMANDS.md
-!protect_documents.sh
-!backup/
-!backup/**/*
+
+# 包管理器文件
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ==================== 构建输出 ====================
+# 构建文件
+dist/
+build/
+out/
+
+# ==================== 其他忽略 ====================
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# Excel和CSV临时文件
+~$*.xlsx
+~$*.xls
+*.csv.bak
+
+# ==================== 保留的重要文件（强制包含）====================
+# 使用 ! 来强制包含某些文件
+
+# 配置示例文件（不包含真实密钥）
+!config.example.js
+
+# 重要文档
+!README.md
+!MANDATORY_RULES.md
+!PROJECT-OVERVIEW.md
+!DESIGN-SYSTEM.json
+!CONTEXT-RULES.md
+
+# 备份策略文档（保留文档，但不保留备份数据）
+!backup/BACKUP_STRATEGY.md
+!backup/BACKUP_INDEX.md
+!backup/README.md

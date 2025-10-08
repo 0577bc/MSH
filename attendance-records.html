@@ -7,18 +7,20 @@
   <link rel="icon" href="./favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="./src/style.css">
   
-  <!-- 配置和工具 -->
+  <!-- 配置文件（最先加载） -->
   <script src="./config.js"></script>
+  
+  <!-- Firebase SDK（第二优先，其他脚本可能依赖） -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  
+  <!-- 工具脚本 -->
   <script src="./src/config-manager.js"></script>
   <script src="./src/csrf-protection.js"></script>
   <script src="./src/cache-manager.js"></script>
   <script src="./src/performance-monitor.js"></script>
   <script src="./src/security.js"></script>
-  
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   
   <!-- 核心功能 -->
   <script src="./src/utils.js"></script>

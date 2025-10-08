@@ -260,7 +260,7 @@ function displayTrackingRecords() {
     recordsHTML += `
       <div class="tracking-record-item">
         <div class="record-header">
-          <span class="record-date">${window.utils.formatDateForDisplay(record.date)}</span>
+          <span class="record-date">${window.utils.formatDateForDisplay(record.date || (record.time ? new Date(record.time).toISOString().split('T')[0] : ''))}</span>
           <span class="record-category">${record.category}</span>
         </div>
         <div class="record-content">

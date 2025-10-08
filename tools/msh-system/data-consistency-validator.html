@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据一致性验证工具</title>
+    
+    <!-- Firebase SDK v8 (兼容版本) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- 系统依赖文件 -->
+    <script src="../../config.js"></script>
+    <script src="../../src/utils.js"></script>
+    <script src="../../src/new-data-manager.js"></script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .tool-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .tool-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .tool-card p {
+            color: #6c757d;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .tool-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            transition: background 0.3s ease;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .tool-button:hover {
+            background: #0056b3;
+        }
+        .tool-button.success {
+            background: #28a745;
+        }
+        .tool-button.success:hover {
+            background: #1e7e34;
+        }
+        .tool-button.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .tool-button.warning:hover {
+            background: #e0a800;
+        }
+        .tool-button.danger {
+            background: #dc3545;
+        }
+        .tool-button.danger:hover {
+            background: #c82333;
+        }
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #007bff;
+        }
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            background: #5a6268;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #28a745; }
+        .status-warning { background: #ffc107; }
+        .status-danger { background: #dc3545; }
+        .status-info { background: #17a2b8; }
+        
+        /* 标签页样式 */
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #6c757d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        
+        .tab-button:hover {
+            color: #007bff;
+            background: #f8f9fa;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* 数据源对比样式 */
+        .data-sources {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .data-source-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .data-source-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .data-source-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .data-source-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .data-source-content {
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .comparison-table-container {
+            grid-column: 1 / -1;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .comparison-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .comparison-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .filter-controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            align-items: end;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 数据一致性验证工具</h1>
+            <p>基于现有系统功能的数据验证和一致性检查工具</p>
+        </div>
+        <div class="content">
+            <a href="index.html" class="back-link">← 返回MSH系统工具</a>
+            
+            <!-- 标签页导航 -->
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="switchTab('validation')">🔍 数据验证</button>
+                    <button class="tab-button" onclick="switchTab('comparison')">📊 数据源对比</button>
+                </div>
+                
+                <!-- 数据验证标签页 -->
+                <div id="validation-tab" class="tab-content active">
+                    <h2>📋 验证功能</h2>
+                    <p>基于系统中现有的数据一致性验证功能，提供以下验证服务：</p>
+                    
+                    <div class="tool-grid">
+                <div class="tool-card">
+                    <h3>🔄 数据同步验证</h3>
+                    <p>验证本地数据与Firebase远程数据的一致性，检测数据同步状态。</p>
+                    <button onclick="verifyDataSync()" class="tool-button">验证同步状态</button>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>⚔️ 数据冲突检测</h3>
+                    <p>检测本地数据与远程数据之间的冲突，识别数据不一致问题。</p>
+                    <button onclick="detectDataConflicts()" class="tool-button warning">检测冲突</button>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📊 签到记录验证</h3>
+                    <p>验证签到记录的完整性，检查缺失字段和格式问题。</p>
+                    <button onclick="validateAttendanceRecords()" class="tool-button">验证签到记录</button>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>👥 成员数据验证</h3>
+                    <p>验证成员数据的完整性和一致性，检查UUID和组别信息。</p>
+                    <button onclick="validateMemberData()" class="tool-button">验证成员数据</button>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📝 组别数据验证</h3>
+                    <p>验证组别数据的完整性和命名一致性。</p>
+                    <button onclick="validateGroupData()" class="tool-button">验证组别数据</button>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>🔧 系统状态检查</h3>
+                    <p>检查系统整体状态，验证Firebase连接和数据加载状态。</p>
+                    <button onclick="checkSystemStatus()" class="tool-button success">检查系统状态</button>
+                </div>
+                    </div>
+                    
+                    <div id="results" class="results" style="display: none;">
+                        <h3>📊 验证结果</h3>
+                        <div id="resultsContent"></div>
+                    </div>
+                    
+                    <div id="log" class="log" style="display: none;"></div>
+                </div>
+                
+                <!-- 数据源对比标签页 -->
+                <div id="comparison-tab" class="tab-content">
+                    <h2>📊 数据源对比</h2>
+                    <p>核对Firebase数据库、MSH系统缓存、外部表单三个数据源的信息一致性</p>
+                    <p style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
+                        <strong>注意：</strong>Firebase和MSH数据应该完全一致（MSH从Firebase拉取），主要核对与外部表单的一致性
+                    </p>
+                    
+                    <!-- 统计信息 -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalMembers">0</div>
+                            <div class="stat-label">总成员数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="matchedData">0</div>
+                            <div class="stat-label">数据一致</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="mismatchedData">0</div>
+                            <div class="stat-label">数据不一致</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="missingData">0</div>
+                            <div class="stat-label">数据缺失</div>
+                        </div>
+                    </div>
+
+                    <!-- 筛选控件 -->
+                    <div class="filter-controls">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label for="groupFilter">小组筛选</label>
+                                <select id="groupFilter">
+                                    <option value="">全部小组</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="nameSearch">姓名搜索</label>
+                                <input type="text" id="nameSearch" placeholder="输入姓名或花名">
+                            </div>
+                            <div class="filter-group">
+                                <label for="statusFilter">状态筛选</label>
+                                <select id="statusFilter">
+                                    <option value="">全部状态</option>
+                                    <option value="match">数据一致</option>
+                                    <option value="mismatch">数据不一致</option>
+                                    <option value="missing">数据缺失</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <button class="tool-button" onclick="refreshComparisonData()">🔄 刷新数据</button>
+                            </div>
+                            <div class="filter-group">
+                                <button class="tool-button success" onclick="exportComparisonReport()">📊 导出报告</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 数据源对比 -->
+                    <div class="data-sources">
+                        <!-- Firebase数据 -->
+                        <div class="data-source-card">
+                            <div class="data-source-header">
+                                <div class="data-source-title">🔥 Firebase数据库</div>
+                                <div class="data-source-subtitle">原始数据源</div>
+                            </div>
+                            <div class="data-source-content" id="firebaseData">
+                                <div class="loading">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- MSH系统数据 -->
+                        <div class="data-source-card">
+                            <div class="data-source-header">
+                                <div class="data-source-title">📱 MSH系统缓存</div>
+                                <div class="data-source-subtitle">本地存储的Firebase数据副本</div>
+                            </div>
+                            <div class="data-source-content" id="mshData">
+                                <div class="loading">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 外部表单数据 -->
+                        <div class="data-source-card">
+                            <div class="data-source-header">
+                                <div class="data-source-title">📝 外部表单</div>
+                                <div class="data-source-subtitle">接收到的信息</div>
+                            </div>
+                            <div class="data-source-content" id="externalFormData">
+                                <div class="loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 详细对比表格 -->
+                    <div class="data-source-card comparison-table-container">
+                        <div class="data-source-header">
+                            <div class="data-source-title">📊 详细对比表格</div>
+                            <div class="data-source-subtitle">三个数据源的详细对比</div>
+                        </div>
+                        <div class="data-source-content">
+                            <table class="comparison-table" id="comparisonTable">
+                                <thead>
+                                    <tr>
+                                        <th>成员姓名</th>
+                                        <th>小组名称</th>
+                                        <th>UUID</th>
+                                        <th>花名</th>
+                                        <th>Firebase</th>
+                                        <th>MSH系统</th>
+                                        <th>外部表单</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="comparisonTableBody">
+                                    <tr>
+                                        <td colspan="8" class="loading">加载中...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let logContent = '';
+        let comparisonData = {
+            firebase: {},
+            msh: {},
+            externalForm: {}
+        };
+        
+        // 标签页切换功能
+        function switchTab(tabName) {
+            // 隐藏所有标签页内容
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 移除所有按钮的激活状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 显示选中的标签页
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // 激活对应的按钮
+            event.target.classList.add('active');
+            
+            // 如果切换到数据源对比标签页，加载数据
+            if (tabName === 'comparison') {
+                loadComparisonData();
+            }
+        }
+        
+        // 加载数据源对比数据
+        async function loadComparisonData() {
+            try {
+                log('开始加载数据源对比数据...');
+                
+                // 加载Firebase数据
+                const db = firebase.database();
+                const firebaseGroups = await db.ref('groups').once('value').then(snapshot => snapshot.val() || {});
+                const firebaseGroupNames = await db.ref('groupNames').once('value').then(snapshot => snapshot.val() || {});
+                const firebaseAttendanceRecords = await db.ref('attendanceRecords').once('value').then(snapshot => {
+                    const data = snapshot.val();
+                    return Array.isArray(data) ? data : (data ? Object.values(data) : []);
+                });
+                
+                comparisonData.firebase = {
+                    groups: firebaseGroups,
+                    groupNames: firebaseGroupNames,
+                    attendanceRecords: firebaseAttendanceRecords
+                };
+                
+                // 加载MSH系统数据
+                comparisonData.msh = {
+                    groups: JSON.parse(localStorage.getItem('msh_groups') || '{}'),
+                    groupNames: JSON.parse(localStorage.getItem('msh_groupNames') || '{}'),
+                    attendanceRecords: JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]')
+                };
+                
+                // 加载外部表单数据（模拟数据，实际应该从API获取）
+                comparisonData.externalForm = {
+                    groups: {},
+                    groupNames: {},
+                    attendanceRecords: []
+                };
+                
+                // 更新UI
+                updateComparisonUI();
+                log('数据源对比数据加载完成', 'success');
+                
+            } catch (error) {
+                log(`加载数据源对比数据失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 更新数据源对比UI
+        function updateComparisonUI() {
+            // 更新统计信息
+            const totalMembers = Object.values(comparisonData.firebase.groups).reduce((total, group) => {
+                return total + (Array.isArray(group) ? group.length : 0);
+            }, 0);
+            
+            document.getElementById('totalMembers').textContent = totalMembers;
+            
+            // 更新数据源显示
+            updateDataSourceDisplay('firebaseData', comparisonData.firebase);
+            updateDataSourceDisplay('mshData', comparisonData.msh);
+            updateDataSourceDisplay('externalFormData', comparisonData.externalForm);
+            
+            // 更新对比表格
+            updateComparisonTable();
+        }
+        
+        // 更新数据源显示
+        function updateDataSourceDisplay(elementId, data) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            const groupsCount = Object.keys(data.groups).length;
+            const membersCount = Object.values(data.groups).reduce((total, group) => {
+                return total + (Array.isArray(group) ? group.length : 0);
+            }, 0);
+            const recordsCount = data.attendanceRecords.length;
+            
+            element.innerHTML = `
+                <div style="font-size: 14px;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>小组数量:</strong> ${groupsCount}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>成员数量:</strong> ${membersCount}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>签到记录:</strong> ${recordsCount}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>最后更新:</strong> ${new Date().toLocaleString()}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 更新对比表格
+        function updateComparisonTable() {
+            const tbody = document.getElementById('comparisonTableBody');
+            if (!tbody) return;
+            
+            // 收集所有成员信息
+            const allMembers = new Map();
+            
+            // 从Firebase数据收集成员
+            Object.entries(comparisonData.firebase.groups).forEach(([groupKey, group]) => {
+                if (Array.isArray(group)) {
+                    group.forEach(member => {
+                        const key = member.name || member.花名;
+                        if (key) {
+                            if (!allMembers.has(key)) {
+                                allMembers.set(key, {
+                                    name: key,
+                                    group: groupKey,
+                                    uuid: member.uuid,
+                                    nickname: member.花名 || member.nickname,
+                                    firebase: true,
+                                    msh: false,
+                                    externalForm: false
+                                });
+                            } else {
+                                allMembers.get(key).firebase = true;
+                            }
+                        }
+                    });
+                }
+            });
+            
+            // 从MSH数据收集成员
+            Object.entries(comparisonData.msh.groups).forEach(([groupKey, group]) => {
+                if (Array.isArray(group)) {
+                    group.forEach(member => {
+                        const key = member.name || member.花名;
+                        if (key) {
+                            if (!allMembers.has(key)) {
+                                allMembers.set(key, {
+                                    name: key,
+                                    group: groupKey,
+                                    uuid: member.uuid,
+                                    nickname: member.花名 || member.nickname,
+                                    firebase: false,
+                                    msh: true,
+                                    externalForm: false
+                                });
+                            } else {
+                                allMembers.get(key).msh = true;
+                            }
+                        }
+                    });
+                }
+            });
+            
+            // 生成表格行
+            let html = '';
+            allMembers.forEach(member => {
+                const status = getMemberStatus(member);
+                const statusClass = getStatusClass(status);
+                
+                html += `
+                    <tr>
+                        <td>${member.name}</td>
+                        <td>${member.group}</td>
+                        <td>${member.uuid || 'N/A'}</td>
+                        <td>${member.nickname || 'N/A'}</td>
+                        <td>${member.firebase ? '✅' : '❌'}</td>
+                        <td>${member.msh ? '✅' : '❌'}</td>
+                        <td>${member.externalForm ? '✅' : '❌'}</td>
+                        <td><span class="${statusClass}">${status}</span></td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html || '<tr><td colspan="8">暂无数据</td></tr>';
+        }
+        
+        // 获取成员状态
+        function getMemberStatus(member) {
+            if (member.firebase && member.msh && member.externalForm) {
+                return '数据一致';
+            } else if (member.firebase && member.msh) {
+                return 'MSH一致';
+            } else if (member.firebase) {
+                return '仅Firebase';
+            } else if (member.msh) {
+                return '仅MSH';
+            } else {
+                return '数据缺失';
+            }
+        }
+        
+        // 获取状态样式类
+        function getStatusClass(status) {
+            switch (status) {
+                case '数据一致': return 'status-success';
+                case 'MSH一致': return 'status-info';
+                case '仅Firebase': return 'status-warning';
+                case '仅MSH': return 'status-warning';
+                case '数据缺失': return 'status-danger';
+                default: return '';
+            }
+        }
+        
+        // 刷新数据源对比数据
+        function refreshComparisonData() {
+            loadComparisonData();
+        }
+        
+        // 导出数据源对比报告
+        function exportComparisonReport() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                data: comparisonData,
+                summary: {
+                    totalMembers: document.getElementById('totalMembers').textContent,
+                    matchedData: document.getElementById('matchedData').textContent,
+                    mismatchedData: document.getElementById('mismatchedData').textContent,
+                    missingData: document.getElementById('missingData').textContent
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `data-comparison-report-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // 日志记录函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
+            const logMessage = `[${timestamp}] ${prefix} ${message}\n`;
+            logContent += logMessage;
+            
+            const logElement = document.getElementById('log');
+            logElement.textContent = logContent;
+            logElement.style.display = 'block';
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(message);
+        }
+        
+        // 显示结果
+        function showResults(title, content) {
+            const resultsElement = document.getElementById('results');
+            const resultsContent = document.getElementById('resultsContent');
+            
+            resultsContent.innerHTML = `<h4>${title}</h4>${content}`;
+            resultsElement.style.display = 'block';
+        }
+        
+        // 验证数据同步状态
+        async function verifyDataSync() {
+            log('开始验证数据同步状态...');
+            
+            try {
+                if (!window.newDataManager) {
+                    log('NewDataManager未初始化，正在初始化...', 'warning');
+                    await initializeNewDataManager();
+                }
+                
+                const localData = {
+                    groups: JSON.parse(localStorage.getItem('msh_groups') || '{}'),
+                    attendanceRecords: JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]'),
+                    groupNames: JSON.parse(localStorage.getItem('msh_groupNames') || '[]')
+                };
+                
+                log('正在获取远程数据...');
+                const db = firebase.database();
+                const remoteData = {};
+                
+                // 获取远程数据
+                for (const [key, value] of Object.entries(localData)) {
+                    const snapshot = await db.ref(key).once('value');
+                    remoteData[key] = snapshot.val();
+                }
+                
+                // 使用NewDataManager的验证功能
+                const syncResults = {};
+                for (const dataType of Object.keys(localData)) {
+                    const isValid = window.newDataManager.verifyDataSync(
+                        localData[dataType], 
+                        remoteData[dataType], 
+                        dataType
+                    );
+                    syncResults[dataType] = isValid;
+                    log(`${dataType}数据同步验证: ${isValid ? '通过' : '失败'}`, isValid ? 'success' : 'error');
+                }
+                
+                // 显示结果
+                let resultHtml = '<div class="tool-grid">';
+                for (const [dataType, isValid] of Object.entries(syncResults)) {
+                    const statusClass = isValid ? 'status-success' : 'status-danger';
+                    const statusText = isValid ? '同步正常' : '同步异常';
+                    resultHtml += `
+                        <div class="tool-card">
+                            <h4>${dataType}</h4>
+                            <p><span class="status-indicator ${statusClass}"></span>${statusText}</p>
+                        </div>
+                    `;
+                }
+                resultHtml += '</div>';
+                
+                showResults('数据同步验证结果', resultHtml);
+                log('数据同步验证完成', 'success');
+                
+            } catch (error) {
+                log(`数据同步验证失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 检测数据冲突
+        async function detectDataConflicts() {
+            log('开始检测数据冲突...');
+            
+            try {
+                const localData = {
+                    attendanceRecords: JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]')
+                };
+                
+                const db = firebase.database();
+                const remoteSnapshot = await db.ref('attendanceRecords').once('value');
+                const remoteData = remoteSnapshot.val();
+                
+                // 使用utils.js中的冲突检测功能
+                const conflicts = DataConflictResolver.detectConflicts(
+                    localData.attendanceRecords, 
+                    remoteData, 
+                    'attendanceRecords'
+                );
+                
+                if (conflicts.length === 0) {
+                    log('未发现数据冲突', 'success');
+                    showResults('数据冲突检测结果', '<p>✅ 未发现数据冲突，数据一致性良好。</p>');
+                } else {
+                    log(`发现 ${conflicts.length} 个数据冲突`, 'warning');
+                    let conflictHtml = `<p>⚠️ 发现 ${conflicts.length} 个数据冲突：</p><ul>`;
+                    conflicts.forEach((conflict, index) => {
+                        conflictHtml += `<li>冲突 ${index + 1}: ${conflict.description}</li>`;
+                    });
+                    conflictHtml += '</ul>';
+                    showResults('数据冲突检测结果', conflictHtml);
+                }
+                
+            } catch (error) {
+                log(`数据冲突检测失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 验证签到记录
+        async function validateAttendanceRecords() {
+            log('开始验证签到记录...');
+            
+            try {
+                const attendanceRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                const issues = [];
+                
+                attendanceRecords.forEach((record, index) => {
+                    if (!record.name) issues.push(`记录 ${index + 1}: 缺少姓名`);
+                    if (!record.group) issues.push(`记录 ${index + 1}: 缺少组别`);
+                    if (!record.time) issues.push(`记录 ${index + 1}: 缺少时间`);
+                    if (!record.uuid && !record.id) issues.push(`记录 ${index + 1}: 缺少UUID或ID`);
+                });
+                
+                if (issues.length === 0) {
+                    log('签到记录验证通过', 'success');
+                    showResults('签到记录验证结果', `<p>✅ 所有签到记录验证通过，共 ${attendanceRecords.length} 条记录。</p>`);
+                } else {
+                    log(`发现 ${issues.length} 个签到记录问题`, 'warning');
+                    let issuesHtml = `<p>⚠️ 发现 ${issues.length} 个问题：</p><ul>`;
+                    issues.forEach(issue => {
+                        issuesHtml += `<li>${issue}</li>`;
+                    });
+                    issuesHtml += '</ul>';
+                    showResults('签到记录验证结果', issuesHtml);
+                }
+                
+            } catch (error) {
+                log(`签到记录验证失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 验证成员数据
+        async function validateMemberData() {
+            log('开始验证成员数据...');
+            
+            try {
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const issues = [];
+                let totalMembers = 0;
+                
+                for (const [groupName, groupData] of Object.entries(groups)) {
+                    if (groupData.members && Array.isArray(groupData.members)) {
+                        totalMembers += groupData.members.length;
+                        groupData.members.forEach((member, index) => {
+                            if (!member.name) issues.push(`${groupName}组 成员 ${index + 1}: 缺少姓名`);
+                            if (!member.uuid && !member.id) issues.push(`${groupName}组 成员 ${index + 1}: 缺少UUID或ID`);
+                        });
+                    }
+                }
+                
+                if (issues.length === 0) {
+                    log('成员数据验证通过', 'success');
+                    showResults('成员数据验证结果', `<p>✅ 所有成员数据验证通过，共 ${totalMembers} 个成员。</p>`);
+                } else {
+                    log(`发现 ${issues.length} 个成员数据问题`, 'warning');
+                    let issuesHtml = `<p>⚠️ 发现 ${issues.length} 个问题：</p><ul>`;
+                    issues.forEach(issue => {
+                        issuesHtml += `<li>${issue}</li>`;
+                    });
+                    issuesHtml += '</ul>';
+                    showResults('成员数据验证结果', issuesHtml);
+                }
+                
+            } catch (error) {
+                log(`成员数据验证失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 验证组别数据
+        async function validateGroupData() {
+            log('开始验证组别数据...');
+            
+            try {
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const groupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '[]');
+                const issues = [];
+                
+                // 检查组别名称一致性
+                const groupKeys = Object.keys(groups);
+                groupNames.forEach(name => {
+                    if (!groupKeys.includes(name)) {
+                        issues.push(`组别名称 "${name}" 在groups中不存在`);
+                    }
+                });
+                
+                groupKeys.forEach(key => {
+                    if (!groupNames.includes(key)) {
+                        issues.push(`组别 "${key}" 在groupNames中不存在`);
+                    }
+                });
+                
+                if (issues.length === 0) {
+                    log('组别数据验证通过', 'success');
+                    showResults('组别数据验证结果', `<p>✅ 所有组别数据验证通过，共 ${groupKeys.length} 个组别。</p>`);
+                } else {
+                    log(`发现 ${issues.length} 个组别数据问题`, 'warning');
+                    let issuesHtml = `<p>⚠️ 发现 ${issues.length} 个问题：</p><ul>`;
+                    issues.forEach(issue => {
+                        issuesHtml += `<li>${issue}</li>`;
+                    });
+                    issuesHtml += '</ul>';
+                    showResults('组别数据验证结果', issuesHtml);
+                }
+                
+            } catch (error) {
+                log(`组别数据验证失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 检查系统状态
+        async function checkSystemStatus() {
+            log('开始检查系统状态...');
+            
+            try {
+                const status = {
+                    firebase: !!window.db,
+                    newDataManager: !!window.newDataManager,
+                    localData: {
+                        groups: !!localStorage.getItem('msh_groups'),
+                        attendanceRecords: !!localStorage.getItem('msh_attendanceRecords'),
+                        groupNames: !!localStorage.getItem('msh_groupNames')
+                    }
+                };
+                
+                let statusHtml = '<div class="tool-grid">';
+                
+                // Firebase状态
+                const firebaseStatus = status.firebase ? 'success' : 'danger';
+                const firebaseText = status.firebase ? '已连接' : '未连接';
+                statusHtml += `
+                    <div class="tool-card">
+                        <h4>Firebase连接</h4>
+                        <p><span class="status-indicator status-${firebaseStatus}"></span>${firebaseText}</p>
+                    </div>
+                `;
+                
+                // NewDataManager状态
+                const managerStatus = status.newDataManager ? 'success' : 'warning';
+                const managerText = status.newDataManager ? '已初始化' : '未初始化';
+                statusHtml += `
+                    <div class="tool-card">
+                        <h4>NewDataManager</h4>
+                        <p><span class="status-indicator status-${managerStatus}"></span>${managerText}</p>
+                    </div>
+                `;
+                
+                // 本地数据状态
+                for (const [dataType, exists] of Object.entries(status.localData)) {
+                    const dataStatus = exists ? 'success' : 'warning';
+                    const dataText = exists ? '已缓存' : '未缓存';
+                    statusHtml += `
+                        <div class="tool-card">
+                            <h4>${dataType}</h4>
+                            <p><span class="status-indicator status-${dataStatus}"></span>${dataText}</p>
+                        </div>
+                    `;
+                }
+                
+                statusHtml += '</div>';
+                
+                showResults('系统状态检查结果', statusHtml);
+                log('系统状态检查完成', 'success');
+                
+            } catch (error) {
+                log(`系统状态检查失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 初始化NewDataManager
+        async function initializeNewDataManager() {
+            if (typeof NewDataManager !== 'undefined') {
+                window.newDataManager = new NewDataManager();
+                await window.newDataManager.initialize();
+                log('NewDataManager初始化完成', 'success');
+            } else {
+                log('NewDataManager类未找到', 'error');
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', async () => {
+            log('数据一致性验证工具已加载');
+            
+            // 等待Firebase SDK加载
+            await new Promise(resolve => {
+                const checkFirebase = () => {
+                    if (typeof firebase !== 'undefined') {
+                        log('Firebase SDK已加载', 'success');
+                        resolve(true);
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                checkFirebase();
+            });
+            
+            // 初始化Firebase
+            if (window.firebaseConfig) {
+                firebase.initializeApp(window.firebaseConfig);
+                window.db = firebase.database();
+                log('Firebase已初始化', 'success');
+            } else {
+                log('Firebase配置未找到', 'error');
+            }
+        });
+    </script>
+</body>
+</html>
+
+

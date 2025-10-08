@@ -94,64 +94,193 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 初始化事件监听器
   initializeEventListeners();
   
-  // 使用新数据管理器加载数据
-  if (window.newDataManager) {
-    try {
-      // 先初始化Firebase（如果还没有初始化）
-      if (!firebase.apps.length && window.firebaseConfig) {
-        firebase.initializeApp(window.firebaseConfig);
-        console.log('✅ Firebase应用创建成功');
-      }
-      
-      // 等待NewDataManager完成初始化
-      let attempts = 0;
-      const maxAttempts = 10;
-      while (attempts < maxAttempts && (!window.newDataManager || !window.newDataManager.isDataLoaded)) {
-        console.log(`⏳ 等待NewDataManager初始化... (${attempts + 1}/${maxAttempts})`);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      // 检查NewDataManager是否已经加载了数据
-      if (window.newDataManager && window.newDataManager.isDataLoaded) {
-        console.log("✅ 数据已通过NewDataManager自动加载，直接使用");
-      } else {
-        // 检查是否有本地数据可以直接使用
-        const hasLocalData = window.groups && Object.keys(window.groups).length > 0;
-        console.log("🔍 调试 - 检查本地数据状态:", {
-          hasNewDataManager: !!window.newDataManager,
-          isDataLoaded: window.newDataManager?.isDataLoaded,
-          hasWindowGroups: !!window.groups,
-          groupsKeys: window.groups ? Object.keys(window.groups).length : 0,
-          hasLocalData: hasLocalData
-        });
-        
-        if (hasLocalData) {
-          console.log("📋 检测到本地数据，直接使用，跳过Firebase拉取");
-        } else {
-          console.log("🔄 等待NewDataManager完成数据加载...");
-          // 等待NewDataManager完成数据加载
-          await window.newDataManager.loadAllDataFromFirebase();
-        }
-      }
-      
-      // 从全局变量获取数据
+  // 【优化V2.0】只加载基础数据，不加载签到记录
+  await loadBasicDataOnly();
+  
+  console.log("✅ 汇总页面初始化完成（精简加载模式）");
+});
+
+// ==================== 基础数据加载（优化V2.0）====================
+/**
+ * 只加载基础数据：groups、groupNames、excludedMembers
+ * 不加载attendanceRecords，减少90%数据传输量
+ */
+async function loadBasicDataOnly() {
+  try {
+    // 先初始化Firebase（如果还没有初始化）
+    if (!firebase.apps.length && window.firebaseConfig) {
+      firebase.initializeApp(window.firebaseConfig);
+      console.log('✅ Firebase应用创建成功');
+    }
+    
+    // 检查是否已有数据加载
+    if (window.newDataManager?.isDataLoaded) {
+      console.log("📋 从已加载的数据获取基础信息");
       groups = window.groups || {};
       groupNames = window.groupNames || {};
-      attendanceRecords = window.attendanceRecords || [];
-      
-      console.log("✅ 汇总页面数据加载成功");
-    } catch (error) {
-      console.error("❌ 汇总页面数据加载失败:", error);
+      // ⚠️ 强制从Firebase加载最新的excludedMembers数据
+      await loadExcludedMembersFromFirebase();
+      console.log("✅ 基础数据获取成功（不含签到记录）");
+      return;
     }
-  } else {
-    console.error("❌ 新数据管理器未找到，无法加载数据");
-    // 显示错误信息给用户
-    alert('数据管理器初始化失败，请刷新页面重试');
+    
+    // 检查本地数据
+    const hasLocalData = window.groups && Object.keys(window.groups).length > 0;
+    if (hasLocalData) {
+      console.log("📋 使用本地基础数据");
+      groups = window.groups;
+      groupNames = window.groupNames || {};
+      // ⚠️ 强制从Firebase加载最新的excludedMembers数据
+      await loadExcludedMembersFromFirebase();
+      console.log("✅ 本地基础数据获取成功（不含签到记录）");
+      return;
+    }
+    
+    // 从Firebase只加载基础数据
+    console.log("🔄 从Firebase加载基础数据（不含签到记录）...");
+    const db = firebase.database();
+    
+    const [groupsSnap, groupNamesSnap] = await Promise.all([
+      db.ref('groups').once('value'),
+      db.ref('groupNames').once('value')
+    ]);
+    
+    groups = groupsSnap.val() || {};
+    groupNames = groupNamesSnap.val() || {};
+    
+    // 保存到全局变量
+    window.groups = groups;
+    window.groupNames = groupNames;
+    
+    // 保存到本地存储
+    localStorage.setItem('msh_groups', JSON.stringify(groups));
+    localStorage.setItem('msh_group_names', JSON.stringify(groupNames));
+    
+    // 统计排除人员（从groups中的excluded标记）
+    let excludedCount = 0;
+    Object.keys(groups).forEach(groupId => {
+      const members = groups[groupId] || [];
+      excludedCount += members.filter(m => m.excluded === true || m.excluded === 'true').length;
+    });
+    
+    console.log("✅ 基础数据加载完成", {
+      groups: Object.keys(groups).length,
+      groupNames: Object.keys(groupNames).length,
+      excludedMembers: excludedCount + '（从成员标记统计）',
+      attendanceRecords: "未加载（按需加载）"
+    });
+    
+  } catch (error) {
+    console.error("❌ 基础数据加载失败:", error);
+    alert('数据加载失败，请刷新页面重试');
+  }
+}
+
+/**
+ * 从Firebase强制加载最新的excludedMembers数据（已废弃）
+ * @deprecated 现在排除信息在成员对象的 excluded 属性中，随 groups 一起加载
+ */
+async function loadExcludedMembersFromFirebase() {
+  console.log("✅ 排除人员数据已集成到成员对象中，无需单独加载");
+  // 不再需要单独加载 excludedMembers
+}
+
+// ==================== 按需加载签到数据（优化V2.0）====================
+/**
+ * 按日期加载签到数据
+ * @param {string} date - 日期字符串 YYYY-MM-DD
+ * @returns {Array} 签到记录数组
+ */
+async function loadAttendanceDataForDate(date) {
+  console.log(`🔄 加载 ${date} 的签到数据...`);
+  
+  // 检查sessionStorage缓存
+  const cacheKey = `attendance_${date}`;
+  let cached = sessionStorage.getItem(cacheKey);
+  
+  // 验证缓存数据，如果缓存为空数组则重新加载
+  if (cached) {
+    const cachedData = JSON.parse(cached);
+    if (cachedData && cachedData.length > 0) {
+      console.log(`✅ 从缓存获取 ${date} 数据: ${cachedData.length} 条`);
+      return cachedData;
+    } else {
+      console.log(`⚠️ 缓存数据为空，重新从Firebase加载`);
+      sessionStorage.removeItem(cacheKey); // 清除空缓存
+    }
   }
   
-  console.log("汇总页面初始化完成");
-});
+  // 从Firebase按日期查询
+  try {
+    const db = firebase.database();
+    // 构建ISO字符串范围（符合系统历史决策：time字段使用ISO标准格式）
+    const dateStart = `${date}T00:00:00.000Z`;
+    const dateEnd = `${date}T23:59:59.999Z`;
+    
+    console.log(`🔍 Firebase查询范围 (ISO): ${dateStart} - ${dateEnd}`);
+    
+    const snapshot = await db.ref('attendanceRecords')
+      .orderByChild('time')
+      .startAt(dateStart)
+      .endAt(dateEnd)
+      .once('value');
+    
+    const records = snapshot.val() ? Object.values(snapshot.val()) : [];
+    
+    // 缓存到sessionStorage
+    sessionStorage.setItem(cacheKey, JSON.stringify(records));
+    
+    console.log(`✅ 加载了 ${records.length} 条 ${date} 的签到记录`);
+    return records;
+    
+  } catch (error) {
+    console.error(`❌ 加载 ${date} 签到数据失败:`, error);
+    return [];
+  }
+}
+
+/**
+ * 按日期范围加载签到数据（用于季度/年度报表）
+ * @param {Date} startDate - 开始日期
+ * @param {Date} endDate - 结束日期  
+ * @returns {Array} 签到记录数组
+ */
+async function loadAttendanceDataForDateRange(startDate, endDate) {
+  console.log(`🔄 加载日期范围 ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()} 的签到数据...`);
+  
+  // 检查缓存
+  const cacheKey = `attendance_range_${startDate.toISOString().split('T')[0]}_${endDate.toISOString().split('T')[0]}`;
+  let cached = sessionStorage.getItem(cacheKey);
+  
+  if (cached) {
+    console.log(`✅ 从缓存获取范围数据`);
+    return JSON.parse(cached);
+  }
+  
+  try {
+    const db = firebase.database();
+    const dateStart = startDate.setHours(0, 0, 0, 0);
+    const dateEnd = endDate.setHours(23, 59, 59, 999);
+    
+    const snapshot = await db.ref('attendanceRecords')
+      .orderByChild('time')
+      .startAt(new Date(dateStart).toISOString())
+      .endAt(new Date(dateEnd).toISOString())
+      .once('value');
+    
+    const records = snapshot.val() ? Object.values(snapshot.val()) : [];
+    
+    // 缓存到sessionStorage
+    sessionStorage.setItem(cacheKey, JSON.stringify(records));
+    
+    console.log(`✅ 加载了 ${records.length} 条范围内的签到记录`);
+    return records;
+    
+  } catch (error) {
+    console.error(`❌ 加载范围签到数据失败:`, error);
+    return [];
+  }
+}
 
 // ==================== 数据加载和管理 ====================
 // 旧的loadData函数已移除，现在使用NewDataManager
@@ -288,22 +417,26 @@ function initializeEventListeners() {
 
 
   if (dailyDateSelect) {
-    dailyDateSelect.addEventListener('change', () => {
+    dailyDateSelect.addEventListener('change', async () => {
       const selectedDate = dailyDateSelect.value;
       if (selectedDate) {
-        loadDailyReport(selectedDate);
+        // 【优化V2.0】按需加载该日期的签到数据
+        const dateRecords = await loadAttendanceDataForDate(selectedDate);
+        loadDailyReport(selectedDate, dateRecords);
       }
     });
   }
 
   if (viewDailyReport) {
     console.log('viewDailyReport按钮已找到，绑定事件监听器');
-    viewDailyReport.addEventListener('click', () => {
+    viewDailyReport.addEventListener('click', async () => {
       console.log('viewDailyReport按钮被点击');
       const selectedDate = dailyDateSelect ? dailyDateSelect.value : '';
       console.log('选择的日期:', selectedDate);
       if (selectedDate) {
-        loadDailyReport(selectedDate);
+        // 【优化V2.0】按需加载该日期的签到数据
+        const dateRecords = await loadAttendanceDataForDate(selectedDate);
+        loadDailyReport(selectedDate, dateRecords);
       } else {
         alert('请选择日期！');
       }
@@ -314,19 +447,21 @@ function initializeEventListeners() {
 
 
   if (quarterSelect) {
-    quarterSelect.addEventListener('change', () => {
+    quarterSelect.addEventListener('change', async () => {
       const selectedQuarter = quarterSelect.value;
       if (selectedQuarter) {
-        loadQuarterlyReport(selectedQuarter);
+        // 【优化V2.0】加载季度数据
+        await loadQuarterlyReportData(selectedQuarter);
       }
     });
   }
 
   if (viewQuarterlyReport) {
-    viewQuarterlyReport.addEventListener('click', () => {
+    viewQuarterlyReport.addEventListener('click', async () => {
       const quarter = quarterSelect ? quarterSelect.value : '';
       if (quarter) {
-        loadQuarterlyReport(quarter);
+        // 【优化V2.0】加载季度数据
+        await loadQuarterlyReportData(quarter);
       } else {
         alert('请选择季度！');
       }
@@ -334,19 +469,21 @@ function initializeEventListeners() {
   }
 
   if (yearSelect) {
-    yearSelect.addEventListener('change', () => {
+    yearSelect.addEventListener('change', async () => {
       const selectedYear = yearSelect.value;
       if (selectedYear) {
-        loadYearlyReport(selectedYear);
+        // 【优化V2.0】加载年度数据
+        await loadYearlyReportData(selectedYear);
       }
     });
   }
 
   if (viewYearlyReport) {
-    viewYearlyReport.addEventListener('click', () => {
+    viewYearlyReport.addEventListener('click', async () => {
       const year = yearSelect ? yearSelect.value : '';
       if (year) {
-        loadYearlyReport(year);
+        // 【优化V2.0】加载年度数据
+        await loadYearlyReportData(year);
       } else {
         alert('请选择年份！');
       }
@@ -604,39 +741,38 @@ function initializeEventListeners() {
     }
   }
 
-  // 直接同步到Firebase，覆盖远程数据（用于删除操作）
+  // 🚨 已废弃：直接同步到Firebase（危险操作，已禁用）
   async function directSyncToFirebase() {
+    console.error('⚠️ 警告：directSyncToFirebase已废弃，不再执行覆盖操作');
+    console.error('💡 Summary页面不应全量同步attendanceRecords');
+    alert('⚠️ 该功能已禁用\n\nSummary页面只加载基础数据，不应同步签到记录。\n请使用attendance-records.html进行记录编辑。');
+    return false;
+    
+    // 原代码已禁用，防止数据覆盖
+    /*
     try {
-      // 先保存到本地存储
       localStorage.setItem('msh_attendance_records', JSON.stringify(attendanceRecords));
-      
       if (db) {
-        const attendanceRef = db.ref('attendanceRecords');
-        await attendanceRef.set(attendanceRecords);
-        console.log('签到记录已直接同步到Firebase（覆盖模式）');
+        await db.ref('attendanceRecords').set(attendanceRecords); // 危险！
       }
-      
-      // 更新全局变量
       window.attendanceRecords = attendanceRecords;
-      
     } catch (error) {
       console.error('直接同步到Firebase失败:', error);
       throw error;
     }
+    */
   }
 
-  function loadDailyReport(date) {
+  function loadDailyReport(date, dateRecords) {
     if (!dailyReportList) return;
     
     console.log('日报表 - 开始加载，日期:', date);
     console.log('日报表 - groups数据:', groups);
-    console.log('日报表 - 未分组是否存在:', groups['未分组']);
-    console.log('日报表 - 未分组成员数量:', groups['未分组'] ? groups['未分组'].length : '不存在');
+    console.log('日报表 - group0是否存在:', groups['group0']);
+    console.log('日报表 - group0成员数量:', groups['group0'] ? groups['group0'].length : '不存在');
     
-    const targetDate = new Date(date).toLocaleDateString('zh-CN');
-    const dayRecords = attendanceRecords.filter(record => 
-      new Date(record.time).toLocaleDateString('zh-CN') === targetDate
-    );
+    // 【优化V2.0】使用传入的dateRecords，而不是全局attendanceRecords
+    const dayRecords = dateRecords;
 
     // 统计各时段人数
     let earlyCountNum = 0, onTimeCountNum = 0, lateCountNum = 0;
@@ -653,24 +789,19 @@ function initializeEventListeners() {
     });
 
     // 统计未签到人数（排除未签到的不统计人员）
-    const excludedMembersData = window.utils.loadExcludedMembers();
-    // 确保excludedMembers是数组形式
-    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
-    
     const allMembers = Object.keys(groups).flatMap(group => 
-      groups[group].map(member => ({ 
-        group, 
-        name: member.name,
-        uuid: member.uuid || member.name  // 添加UUID标识用于匹配
-      }))
+      groups[group]
+        .filter(member => member.excluded !== true && member.excluded !== 'true') // 过滤排除人员
+        .map(member => ({ 
+          group, 
+          name: member.name,
+          uuid: member.uuid || member.name
+        }))
     );
     
-    // 计算未签到人员：所有人员 - 已签到人员 - 未签到的不统计人员
+    // 计算未签到人员：所有人员 - 已签到人员（排除人员已在上面过滤）
     const unsignedMembers = allMembers.filter(member => 
-      !signedUUIDs.has(member.uuid) && // 没有签到（使用UUID匹配）
-      !excludedMembers.some(excluded => // 且不是未签到的不统计人员
-        excluded.name === member.name && excluded.group === member.group
-      )
+      !signedUUIDs.has(member.uuid) // 没有签到（使用UUID匹配）
     );
     const unsignedCountNum = unsignedMembers.length;
 
@@ -700,8 +831,8 @@ function initializeEventListeners() {
     if (unsignedCount) unsignedCount.textContent = unsignedCountNum;
     if (newcomerCount) newcomerCount.textContent = newcomerCountNum;
     
-    // 计算总体签到率（排除美团组和未分组）
-    const excludedGroups = ['美团组', '未分组'];
+        // 计算总体签到率（排除美团组和group0）
+        const excludedGroups = ['美团组', 'group0'];
     const validMembers = allMembers.filter(member => !excludedGroups.includes(member.group));
     const totalMembers = validMembers.length;
     const validSignedUUIDs = new Set();
@@ -720,7 +851,7 @@ function initializeEventListeners() {
     // 生成详细的日报表内容
     dailyReportList.innerHTML = '';
     
-    // 按组别显示签到情况（按字母顺序排序），"未分组"永远排在最后
+        // 按组别显示签到情况（按字母顺序排序），"group0"永远排在第一
     const sortedGroups = window.utils.sortGroups(groups, groupNames);
     console.log('日报表 - 所有组别:', sortedGroups);
     console.log('日报表 - groups数据:', groups);
@@ -766,8 +897,8 @@ function initializeEventListeners() {
       // 计算应到人数（包含所有人员，包括未签到不统计人员）
       const totalGroupMembers = groupMembers.length;
       
-      // 计算签到率（美团组和未分组不计算签到率）
-      const excludedGroups = ['美团组', '未分组'];
+      // 计算签到率（美团组和group999不计算签到率）
+      const excludedGroups = ['美团组', 'group999'];
       const attendanceRate = excludedGroups.includes(group) ? 0 : 
         (totalGroupMembers > 0 ? Math.round((morningSignedCount / totalGroupMembers) * 100) : 0);
       
@@ -805,9 +936,16 @@ function initializeEventListeners() {
       // 过滤掉未签到的不统计人员（已签到的不统计人员仍然统计）
       const unsignedMembers = groupMembers.filter(member => 
         !signedUUIDs.includes(member.uuid || member.name) && // 没有签到（使用UUID匹配）
-        !excludedMembers.some(excluded => // 且不是未签到的不统计人员
-          excluded.name === member.name && excluded.group === group
-        )
+        !excludedMembers.some(excluded => { // 且不是未签到的不统计人员
+          // 优先UUID匹配（最准确）
+          if (excluded.uuid && member.uuid) {
+            return excluded.uuid === member.uuid;
+          }
+          // 没有UUID时，使用姓名+组别匹配（向后兼容）
+          // 注意：excluded.group可能是组名，member.group是组ID，group是当前组ID
+          return excluded.name === member.name && 
+                 (excluded.group === group || excluded.groupName === group);
+        })
       );
       
       const groupEarly = groupSigned.filter(record => {
@@ -823,8 +961,8 @@ function initializeEventListeners() {
         return timeSlot === 'late';
       }).length;
       const groupUnsigned = groupMembers.length - groupSigned.length;
-      // 美团组和未分组不计算签到率
-      const excludedGroups = ['美团组', '未分组'];
+      // 美团组和group999不计算签到率
+      const excludedGroups = ['美团组', 'group999'];
       const groupRate = excludedGroups.includes(group) ? 0 : 
         (groupMembers.length > 0 ? Math.round((groupSigned.length / groupMembers.length) * 100) : 0);
       
@@ -842,7 +980,8 @@ function initializeEventListeners() {
     // 如果需要显示汇总统计，应该使用单独的表格或区域
   }
 
-  function loadQuarterlyReport(quarter) {
+  // 【优化V2.0】加载季度报表数据
+  async function loadQuarterlyReportData(quarter) {
     if (!quarterlyReportList) return;
     
     const [year, q] = quarter.split('-Q');
@@ -850,21 +989,37 @@ function initializeEventListeners() {
     const startDate = new Date(parseInt(year), startMonth, 1);
     const endDate = new Date(parseInt(year), startMonth + 3, 0);
     
-    const quarterRecords = attendanceRecords.filter(record => {
+    // 加载季度范围内的数据（简化版：加载整个季度）
+    const quarterRecords = await loadAttendanceDataForDateRange(startDate, endDate);
+    
+    // 只保留周日的记录
+    const sundayRecords = quarterRecords.filter(record => {
       const date = new Date(record.time);
-      return date >= startDate && date <= endDate && date.getDay() === 0; // 只统计周日
+      return date.getDay() === 0;
     });
+    
+    loadQuarterlyReport(quarter, sundayRecords);
+  }
 
-    // 获取不统计人员列表
-    const excludedMembersData = window.utils.loadExcludedMembers();
-    // 确保excludedMembers是数组形式
-    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
+  // 辅助函数：根据签到记录找到对应成员
+  function findMemberByRecord(record) {
+    if (!record || !record.group) return null;
+    const groupMembers = groups[record.group] || [];
+    return groupMembers.find(m => 
+      (m.uuid && record.memberUUID && m.uuid === record.memberUUID) ||
+      (m.name === record.name)
+    );
+  }
+
+  function loadQuarterlyReport(quarter, quarterRecords) {
+    if (!quarterlyReportList) return;
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
     quarterRecords.forEach(record => {
-      // 检查是否在不统计列表中（使用UUID匹配）
-      const isExcluded = window.utils.isMemberExcluded(record, excludedMembers);
+      // 检查签到记录对应的成员是否被排除
+      const member = findMemberByRecord(record);
+      const isExcluded = member ? (member.excluded === true || member.excluded === 'true') : false;
       
       if (!isExcluded) {
         const key = `${record.group}-${record.name}`;
@@ -905,27 +1060,34 @@ function initializeEventListeners() {
     });
   }
 
-  function loadYearlyReport(year) {
+  // 【优化V2.0】加载年度报表数据  
+  async function loadYearlyReportData(year) {
     if (!yearlyReportList) return;
     
     const startDate = new Date(parseInt(year), 0, 1);
     const endDate = new Date(parseInt(year), 11, 31);
     
-    const yearRecords = attendanceRecords.filter(record => {
+    // 加载年度范围内的数据
+    const yearRecords = await loadAttendanceDataForDateRange(startDate, endDate);
+    
+    // 只保留周日的记录
+    const sundayRecords = yearRecords.filter(record => {
       const date = new Date(record.time);
-      return date >= startDate && date <= endDate && date.getDay() === 0; // 只统计周日
+      return date.getDay() === 0;
     });
+    
+    loadYearlyReport(year, sundayRecords);
+  }
 
-    // 获取不统计人员列表
-    const excludedMembersData = window.utils.loadExcludedMembers();
-    // 确保excludedMembers是数组形式
-    const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
+  function loadYearlyReport(year, yearRecords) {
+    if (!yearlyReportList) return;
     
     // 统计每个成员的签到情况（排除不统计的人员）
     const memberStats = {};
     yearRecords.forEach(record => {
-      // 检查是否在不统计列表中（使用UUID匹配）
-      const isExcluded = window.utils.isMemberExcluded(record, excludedMembers);
+      // 检查签到记录对应的成员是否被排除
+      const member = findMemberByRecord(record);
+      const isExcluded = member ? (member.excluded === true || member.excluded === 'true') : false;
       
       if (!isExcluded) {
         const key = `${record.group}-${record.name}`;

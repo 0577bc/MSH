@@ -32,10 +32,32 @@
 
 ### **工具文件（永久保护）**
 1. **`tools/`** 文件夹及其所有内容
-   - `batch_signin_fix.html` - 批量签到修复工具
-   - `uuid_editor.html` - UUID编辑器
-   - `export_missing_uuids.html` - 导出工具
-   - 用于系统维护和数据修复
+   - **MSH系统工具** (`tools/msh-system/`):
+     - `data-consistency-validator.html` - 数据一致性验证工具
+     - `uuid_editor.html` - UUID编辑器
+     - `diagnose-sunday-tracking.html` - 主日跟踪诊断
+     - `emergency-data-check.html` - 紧急数据检查
+     - `emergency-data-recovery.html` - 紧急数据恢复
+     - `event-generation-test.html` - 事件生成测试
+     - `trigger-event-generation.html` - 触发事件生成
+     - `data-conflict-manager.html` - 数据冲突管理
+     - `group-key-standardizer.html` - 组别键标准化
+     - `member-distribution-checker.html` - 成员分布检查
+     - `member-extractor.html` - 成员提取器
+     - `msh-data-sync-helper.js` - MSH数据同步助手
+   - **云表单工具** (`tools/cloud-forms/`):
+     - `external-form-admin.html` - 外部表单管理
+     - `external-form-public.html` - 公开表单填报
+     - `功能检查报告.md` - 功能检查报告
+   - **跨系统工具** (`tools/cross-system/`):
+     - 目录预留，未来扩展
+   - **工具索引和指南**:
+     - `index.html` - 工具总览页面
+     - `TOOLS_GUIDE.md` - 工具使用指南
+     - `IMPORT-GUIDE.md` - 导入指南
+     - `protect_documents.sh` - 文档保护脚本
+     - `verify-tools-protection.sh` - 工具保护验证脚本
+   - 用于系统维护、数据修复和跨系统管理
 
 ### **运维文档（永久保护）**
 1. **`DEPLOYMENT.md`** - 部署指南

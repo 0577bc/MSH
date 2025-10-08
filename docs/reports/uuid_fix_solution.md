@@ -254,3 +254,75 @@ function findMemberByName(name, group) {
 ---
 
 **建议采用方案一（重新签到修复法），虽然工作量较大，但能确保数据的完整性和一致性，为系统的长期稳定运行奠定基础。**
+
+---
+
+## [2025-10-04] - 排除人员UUID持久化修复
+
+### 🐛 问题描述
+排除人员UUID修复后再次消失，重启系统后UUID丢失，导致排除人员匹配失败。
+
+### 🔍 根本原因分析
+1. **NewDataManager合并逻辑缺陷**: `mergeExcludedMembers`函数使用`member.uuid || member.name`作为唯一标识，当UUID缺失时导致合并逻辑错误
+2. **UUID编辑器同步不完整**: 修复后只保存到localStorage，未同步到Firebase，重启后数据丢失
+3. **数据持久化机制缺失**: 修复后的数据没有正确同步到所有存储位置
+
+### 🔧 解决方案实施
+
+#### 1. NewDataManager合并逻辑修复
+```javascript
+// 修复前：使用UUID或姓名作为唯一标识
+const uuid = member.uuid || member.name;
+
+// 修复后：使用姓名+组别作为唯一标识，优先保留有UUID的版本
+const memberKey = `${member.name}_${member.group}`;
+if (!existing.uuid && member.uuid) {
+  merged[existingIndex] = { ...existing, ...member }; // 保留原有数据，添加UUID
+}
+```
+
+#### 2. UUID编辑器同步机制完善
+```javascript
+// 保存升级后的数据
+localStorage.setItem('msh_excludedMembers', JSON.stringify(upgradedMembers));
+
+// 同步到Firebase
+if (window.db) {
+  await window.db.ref('excludedMembers').set(upgradedMembers);
+}
+
+// 更新全局变量
+const excludedMembersObj = {};
+upgradedMembers.forEach((member, index) => {
+  excludedMembersObj[member.uuid || `member_${index}`] = member;
+});
+window.excludedMembers = excludedMembersObj;
+```
+
+#### 3. 调试信息增强
+```javascript
+// 在调试输出中显示UUID状态
+log(`${index + 1}. 排除人员: "${excluded.name}" (${excluded.group}) [UUID: ${excluded.uuid ? excluded.uuid.substring(0, 8) + '...' : '无'}]`);
+```
+
+### 📊 修复效果
+- ✅ **UUID持久化**: 排除人员UUID修复后不再丢失
+- ✅ **数据同步**: 修复后正确同步到localStorage、Firebase和全局变量
+- ✅ **调试增强**: 调试输出显示每个排除人员的UUID状态
+- ✅ **系统稳定**: 重启后UUID保持完整
+
+### 🎯 技术要点
+- **数据持久化原则**: 修复后数据必须同步到Firebase，避免重启后丢失
+- **合并逻辑优化**: 数据合并时优先保留有UUID的版本，确保关键字段不丢失
+- **多存储同步策略**: 修复后必须同步到localStorage、Firebase和全局变量三个位置
+- **UUID管理最佳实践**: 使用姓名+组别作为唯一标识，避免UUID缺失时的合并问题
+
+### 📝 相关文件更新
+- `src/new-data-manager.js`: 修复排除人员数据合并逻辑
+- `tools/msh-system/uuid_editor.html`: 增强UUID修复和同步功能
+- `simple-memory-system/progress.md`: 更新学习记录和代码改进记录
+- `docs/reports/CHANGELOG.md`: 添加bug修复记录
+
+---
+
+**UUID持久化问题已完全解决，排除人员UUID修复后能正确持久保存，不再出现丢失问题。**

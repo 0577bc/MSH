@@ -29,6 +29,7 @@ PROTECTED_FILES=(
     "config.js"
     "manifest.json"
     "protect_documents.sh"
+    "tools/"
 )
 
 # 定义受保护的目录
@@ -36,6 +37,7 @@ PROTECTED_DIRS=(
     "backup"
     "docs"
     "config"
+    "tools"
 )
 
 # 检查文件是否存在

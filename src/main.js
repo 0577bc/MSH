@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 初始化事件监听器
   initializeEventListeners();
+  
+  // 生产环境移除调试工具
 });
 
 // ==================== Firebase初始化 ====================
@@ -106,57 +108,37 @@ function initializeDOMElements() {
 async function loadData() {
   try {
     // 使用新数据管理器加载数据
-    console.log("正在连接Firebase数据库...");
     if (window.newDataManager) {
       const success = await window.newDataManager.loadAllDataFromFirebase();
       if (success) {
         // 创建同步按钮
         window.newDataManager.createSyncButton();
-        console.log("✅ 新数据管理器初始化完成");
         
         // 从新数据管理器获取数据
         groups = window.groups || {};
         groupNames = window.groupNames || {};
         attendanceRecords = window.attendanceRecords || [];
-        
-        // 调试：检查从NewDataManager获取的数据
-        console.log('🔍 调试 - 从NewDataManager获取的数据:', {
-          'window.groups': window.groups ? Object.keys(window.groups) : 'undefined',
-          'window.groupNames': window.groupNames ? Object.keys(window.groupNames) : 'undefined',
-          'window.attendanceRecords': window.attendanceRecords ? window.attendanceRecords.length : 'undefined'
-        });
-        
-        console.log('📊 数据加载完成:', {
-          groups: Object.keys(groups).length,
-          groupNames: Object.keys(groupNames).length,
-          attendanceRecords: attendanceRecords.length
-        });
-        
-        // 调试：检查全局变量是否正确设置
-        console.log('🔍 调试 - 全局变量状态:', {
-          'window.groups': window.groups ? Object.keys(window.groups) : 'undefined',
-          'window.groupNames': window.groupNames ? Object.keys(window.groupNames) : 'undefined',
-          'window.attendanceRecords': window.attendanceRecords ? window.attendanceRecords.length : 'undefined'
-        });
       } else {
-        console.log("❌ 新数据管理器初始化失败，使用备用方案");
         await loadDataFromFirebase();
         return;
       }
     } else {
-      console.log("❌ 新数据管理器未加载，使用备用方案");
       await loadDataFromFirebase();
       return;
     }
 
-    // 确保未分组组别存在
-    if (!groups['未分组']) {
-      groups['未分组'] = [];
+    // 确保group0组别存在（未分组）
+    if (!groups['group0']) {
+      groups['group0'] = [];
     }
 
     // 加载小组和成员
     loadGroupsAndMembers();
-    loadMembers(groupSelect ? groupSelect.value : '');
+    
+    // 延迟加载成员，确保数据完全加载
+    setTimeout(() => {
+      loadMembers(groupSelect ? groupSelect.value : '');
+    }, 100);
     
     // 加载签到记录
     loadAttendanceRecords();
@@ -197,23 +179,23 @@ async function initializeSampleData() {
         console.log("示例数据初始化完成！");
         needsUpdate = true;
       } else {
-        // 检查是否需要添加缺失的组别（如未分组）
+        // 检查是否需要添加缺失的组别（如group999）
         const existingGroups = groupsSnapshot.val() || {};
         const existingGroupNames = groupNamesSnapshot.val() || {};
         
-        if (!existingGroups['未分组'] || !existingGroupNames['未分组']) {
+        if (!existingGroups['group0'] || !existingGroupNames['group0']) {
           console.log("添加缺失的组别...");
           
-          // 添加未分组组别
-          if (!existingGroups['未分组']) {
-            await firebase.database().ref('groups').update({ '未分组': [] });
-            console.log("已添加未分组组别");
+          // 添加group0组别
+          if (!existingGroups['group0']) {
+            await firebase.database().ref('groups').update({ 'group0': [] });
+            console.log("已添加group0组别");
           }
           
-          // 添加未分组名称映射
-          if (!existingGroupNames['未分组']) {
-            await firebase.database().ref('groupNames').update({ '未分组': '未分组' });
-            console.log("已添加未分组名称映射");
+          // 添加group0名称映射
+          if (!existingGroupNames['group0']) {
+            await firebase.database().ref('groupNames').update({ 'group0': '未分组' });
+            console.log("已添加group0名称映射");
           }
           
           needsUpdate = true;
@@ -267,13 +249,21 @@ async function initializeSampleData() {
           attendanceRecords = updatedRecords;
           console.log('为现有签到记录添加了人员UUID关联');
           
-          // 立即保存到本地存储和Firebase
-          localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
-          try {
-            await db.ref('attendanceRecords').set(attendanceRecords);
-            console.log('签到记录UUID已同步到Firebase');
-          } catch (error) {
-            console.error('同步签到记录UUID到Firebase失败:', error);
+          // 🚨 紧急修复：添加数据量检查
+          if (attendanceRecords.length < 50) {
+            console.warn(`⚠️ 警告：签到记录数量较少(${attendanceRecords.length}条)，UUID迁移同步已禁用以防止数据覆盖`);
+            console.warn('💡 请确保已从Firebase加载完整数据后再执行UUID迁移');
+            // 只保存到本地
+            localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+          } else {
+            // 数据量正常，可以同步
+            localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
+            try {
+              await db.ref('attendanceRecords').set(attendanceRecords);
+              console.log('签到记录UUID已同步到Firebase');
+            } catch (error) {
+              console.error('同步签到记录UUID到Firebase失败:', error);
+            }
           }
         }
       } else {
@@ -284,33 +274,37 @@ async function initializeSampleData() {
       window.groups = groups;
       window.groupNames = groupNames;
       window.attendanceRecords = attendanceRecords;
+      
+      // 排除人员逻辑已统一到成员数据中的excluded标记
+      // 不再需要独立的excludedMembers表
+      console.log('✅ 排除人员逻辑已统一到成员数据中的excluded标记');
 
-      // 确保未分组组别存在
-      let needsSync = false;
-      if (!groups.hasOwnProperty('未分组')) {
-        groups['未分组'] = [];
-        needsSync = true;
-      } else {
-        console.log(`未分组已存在，成员数量: ${groups['未分组'].length}`);
-      }
-      
-      if (!groupNames['未分组']) {
-        groupNames['未分组'] = '未分组';
-        needsSync = true;
-      }
-      
-      // 如果需要同步，立即同步到Firebase
-      if (needsSync) {
-        try {
-          // 使用update方式，避免覆盖其他数据
-          const db = firebase.database();
-          await db.ref('groups').update({ '未分组': [] });
-          await db.ref('groupNames').update({ '未分组': '未分组' });
-          console.log("未分组组别已直接同步到Firebase");
-        } catch (error) {
-          console.error("同步未分组组别到Firebase失败:", error);
+        // 确保group0组别存在（未分组）
+        let needsSync = false;
+        if (!groups.hasOwnProperty('group0')) {
+          groups['group0'] = [];
+          needsSync = true;
+        } else {
+          console.log(`group0已存在，成员数量: ${groups['group0'].length}`);
         }
-      }
+        
+        if (!groupNames['group0']) {
+          groupNames['group0'] = '未分组';
+          needsSync = true;
+        }
+        
+        // 如果需要同步，立即同步到Firebase
+        if (needsSync) {
+          try {
+            // 使用update方式，避免覆盖其他数据
+            const db = firebase.database();
+            await db.ref('groups').update({ 'group0': [] });
+            await db.ref('groupNames').update({ 'group0': '未分组' });
+            console.log("group0组别已直接同步到Firebase");
+          } catch (error) {
+            console.error("同步group0组别到Firebase失败:", error);
+          }
+        }
 
       // 确保所有成员都有nickname字段
       Object.keys(groups).forEach(group => {
@@ -345,33 +339,6 @@ async function initializeSampleData() {
     }
   }
 
-  // 数据同步初始化（已禁用，使用NewDataManager）
-  function initializeDataSync() {
-    console.log("主页面正在连接Firebase数据库...");
-    
-    // 已禁用旧的数据同步监听器，使用NewDataManager
-    if (false && window.utils && window.utils.dataSyncManager) {
-      window.utils.dataSyncManager.startListening((dataType, data) => {
-        console.log(`主页面收到${dataType}数据更新:`, data);
-        
-        // 使用页面同步管理器处理数据
-        if (pageSyncManager) {
-          const localData = getLocalData(dataType);
-          const mergedData = pageSyncManager.syncData(localData, data, dataType);
-          
-          // 更新本地数据
-          updateLocalData(dataType, mergedData);
-        } else {
-          // 降级到基础同步
-          updateLocalData(dataType, data);
-        }
-      });
-      
-      console.log('主页面数据同步监听已启动');
-    } else {
-      console.log('数据同步管理器已禁用，使用NewDataManager');
-    }
-  }
 
   // 获取本地数据
   function getLocalData(dataType) {
@@ -493,6 +460,12 @@ async function initializeSampleData() {
 
 
   function loadGroupsAndMembers() {
+    console.log('🔍 loadGroupsAndMembers 开始执行');
+    console.log('🔍 检查DOM元素:', { 
+      'groupSelect存在': !!groupSelect, 
+      'newGroupSelect存在': !!newGroupSelect 
+    });
+    
     if (groupSelect) {
       groupSelect.innerHTML = '<option value="">--请选择小组--</option>';
       
@@ -500,6 +473,11 @@ async function initializeSampleData() {
       console.log('🔍 调试 - loadGroupsAndMembers中的groups:', groups);
       console.log('🔍 调试 - loadGroupsAndMembers中的groupNames:', groupNames);
       console.log('🔍 调试 - window.groups:', window.groups);
+      
+      if (!groups || !groupNames) {
+        console.error('❌ groups或groupNames数据未加载');
+        return;
+      }
       
       // 确保所有在groupNames中的小组都在groups中存在（但不要覆盖现有数据）
       Object.keys(groupNames).forEach(groupName => {
@@ -511,8 +489,9 @@ async function initializeSampleData() {
         }
       });
       
-      // 按字母顺序排序小组，"未分组"永远排在最后
+      // 按字母顺序排序小组，"group0"永远排在第一
       const sortedGroups = window.utils.sortGroups(groups, groupNames);
+      console.log('🔍 排序后的小组列表:', sortedGroups);
       
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
@@ -521,10 +500,15 @@ async function initializeSampleData() {
         option.textContent = groupNames[group] || group;
         groupSelect.appendChild(option);
       });
+      
+      console.log('✅ 小组选择框已加载，共', sortedGroups.length, '个小组');
+    } else {
+      console.error('❌ groupSelect 元素未找到');
     }
+    
     if (newGroupSelect) {
       newGroupSelect.innerHTML = '<option value="">--请选择小组--</option>';
-      // 按字母顺序排序小组，"未分组"永远排在最后
+      // 按字母顺序排序小组，"group0"永远排在第一
       const sortedGroups = window.utils.sortGroups(groups, groupNames);
       sortedGroups.forEach(group => {
         const option = document.createElement('option');
@@ -533,22 +517,53 @@ async function initializeSampleData() {
         option.textContent = groupNames[group] || group;
         newGroupSelect.appendChild(option);
       });
+      console.log('✅ 新朋友小组选择框已加载');
+    } else {
+      console.error('❌ newGroupSelect 元素未找到');
     }
   }
 
   function loadMembers(group) {
-    if (memberSelect) {
-      memberSelect.innerHTML = '<option value="">--请选择成员--</option>';
-      if (groups[group]) {
-        // 按姓名字母顺序排序
-        const sortedMembers = window.utils.sortMembersByName(groups[group]);
-        sortedMembers.forEach(member => {
-          const option = document.createElement('option');
-          option.value = member.name;
-          option.textContent = member.name;
-          memberSelect.appendChild(option);
-        });
-      }
+    console.log('🔍 loadMembers 调用:', { group, memberSelect: !!memberSelect });
+    
+    if (!memberSelect) {
+      console.error('❌ memberSelect 元素未找到');
+      return;
+    }
+    
+    memberSelect.innerHTML = '<option value="">--请选择成员--</option>';
+    
+    if (!group) {
+      console.log('🔍 未选择小组，清空成员列表');
+      return;
+    }
+    
+    console.log('🔍 检查groups数据:', { 
+      'groups存在': !!groups, 
+      'groups键': groups ? Object.keys(groups) : 'null',
+      '目标小组': group,
+      '目标小组存在': groups ? groups.hasOwnProperty(group) : false
+    });
+    
+    if (groups && groups[group]) {
+      console.log('🔍 加载小组成员:', {
+        '小组名': group,
+        '成员数量': groups[group].length,
+        '成员列表': groups[group].map(m => m.name)
+      });
+      
+      // 按姓名字母顺序排序
+      const sortedMembers = window.utils.sortMembersByName(groups[group]);
+      sortedMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member.name;
+        option.textContent = member.name;
+        memberSelect.appendChild(option);
+      });
+      
+      console.log('✅ 成员列表已加载，共', sortedMembers.length, '个成员');
+    } else {
+      console.warn('⚠️ 小组不存在或为空:', group);
     }
   }
 
@@ -801,6 +816,8 @@ async function initializeSampleData() {
       console.error('姓名检索控件初始化失败:', { memberSearch, suggestions });
     }
   }
+
+  // 调试函数已移除
   
   // 姓名检索处理函数
   function handleNameSearch() {
@@ -1051,8 +1068,21 @@ function handleDailyReport() {
 }
 
 function handleAdminPage() {
-  // 跳转到管理页面
-  window.location.href = 'admin.html';
+  // 简单密码验证
+  const password = prompt('请输入管理密码：');
+  
+  if (password === null) {
+    // 用户点击取消
+    return;
+  }
+  
+  if (password === '1234') {
+    // 密码正确，跳转到管理页面
+    window.location.href = 'admin.html';
+  } else {
+    // 密码错误
+    alert('密码错误！');
+  }
 }
 
 // ==================== 事件处理函数 ====================
@@ -1158,20 +1188,16 @@ function createAttendanceRecord(group, member, now, timeSlot) {
     group,
     name: member,
     memberUUID: memberInfo?.uuid || '', // 添加人员UUID
-    time: now.toLocaleString('zh-CN'),
+    time: now.toISOString(), // ✅ 使用ISO标准格式（符合历史决策）
+    date: now.toISOString().split('T')[0], // 添加标准date字段 (YYYY-MM-DD格式)
     timeSlot,
     
-    // 完整的人员信息快照（防止后续修改影响历史记录）
+    // 精简的人员信息快照（只保留签到记录必需的信息）
     memberSnapshot: {
       uuid: memberInfo?.uuid || '', // 添加UUID到快照
       id: memberInfo?.id || '',
       name: memberInfo?.name || member,
-      nickname: memberInfo?.nickname || '',
-      gender: memberInfo?.gender || '',
-      phone: memberInfo?.phone || '',
-      baptized: memberInfo?.baptized || '',
-      age: memberInfo?.age || '',
-      joinDate: memberInfo?.joinDate || ''
+      nickname: memberInfo?.nickname || ''
     },
     
     // 小组信息快照
@@ -1236,7 +1262,7 @@ function getGroupPrefix(group) {
     '七里港': 'AG',
     '琼娜组': 'AH',
     '陈薛尚': 'AI',
-    '未分组': 'AJ',
+        'group0': 'AJ',
     '培茹组': 'AK'
   };
   return prefixMap[group] || 'AX';

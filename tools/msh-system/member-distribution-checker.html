@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成员分布检查工具 - MSH签到系统</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 2.2em;
+        }
+        
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(17, 153, 142, 0.4);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(240, 147, 251, 0.4);
+        }
+        
+        .import-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .import-preview {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .import-preview h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        
+        .import-data {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .results-section {
+            margin-top: 30px;
+        }
+        
+        .section-title {
+            color: #2c3e50;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .group-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        
+        .group-title {
+            color: #34495e;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .member-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .member-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .member-card.unassigned {
+            border-left-color: #e74c3c;
+        }
+        
+        .member-card.duplicate {
+            border-left-color: #f39c12;
+        }
+        
+        .member-name {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .member-info {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .member-stats {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #95a5a6;
+        }
+        
+        .log-panel {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        
+        .log-info { color: #3498db; }
+        .log-success { color: #2ecc71; }
+        .log-warning { color: #f39c12; }
+        .log-error { color: #e74c3c; }
+        
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-table th {
+            background: #34495e;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .summary-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .summary-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .export-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .sync-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #e8f4fd;
+            border-radius: 8px;
+            border: 1px solid #b3d9ff;
+        }
+        
+        .sync-status {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .sync-status h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        .sync-status-data {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 成员分布检查工具</h1>
+            <p>检查MSH系统中所有人员信息，分析成员分布情况</p>
+        </div>
+        
+        <div class="stats-panel">
+            <div class="stat-card">
+                <h3>签到记录总数</h3>
+                <p class="number" id="totalSignins">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>唯一成员数</h3>
+                <p class="number" id="uniqueMembers">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>小组数量</h3>
+                <p class="number" id="groupCount">-</p>
+            </div>
+            <div class="stat-card">
+                <h3>未分组人员</h3>
+                <p class="number" id="unassignedCount">-</p>
+            </div>
+        </div>
+        
+        <div class="control-panel">
+            <button class="btn btn-primary" onclick="loadAllData()">📊 加载所有数据</button>
+            <button class="btn btn-success" onclick="analyzeMemberDistribution()">🔍 分析成员分布</button>
+            <button class="btn btn-warning" onclick="exportResults()">📤 导出结果</button>
+            <button class="btn btn-primary" onclick="clearResults()">🗑️ 清空结果</button>
+        </div>
+        
+        <div class="import-section">
+            <h3 class="section-title">📥 批量导入功能</h3>
+            <div class="control-panel">
+                <input type="file" id="importFile" accept=".js,.json" style="display: none;" onchange="handleFileImport(event)">
+                <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📁 选择导入文件</button>
+                <button class="btn btn-warning" onclick="importToGroup0()">📥 导入到未分组</button>
+                <button class="btn btn-primary" onclick="previewImport()">👁️ 预览导入数据</button>
+            </div>
+            <div id="importPreview" class="import-preview" style="display: none;">
+                <h4>导入预览</h4>
+                <div id="importData"></div>
+            </div>
+        </div>
+        
+        <div class="sync-section">
+            <h3 class="section-title">🔄 数据同步控制</h3>
+            <div class="control-panel">
+                <button class="btn btn-info" onclick="syncToFirebase()">☁️ 同步到Firebase</button>
+                <button class="btn btn-warning" onclick="syncFromFirebase()">⬇️ 从Firebase同步</button>
+                <button class="btn btn-success" onclick="forceSyncAll()">🔄 强制全量同步</button>
+                <button class="btn btn-primary" onclick="checkSyncStatus()">📊 检查同步状态</button>
+            </div>
+            <div id="syncStatus" class="sync-status" style="display: none;">
+                <h4>同步状态</h4>
+                <div id="syncStatusData"></div>
+            </div>
+        </div>
+        
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <h2 class="section-title">📋 分析结果</h2>
+            
+            <div id="unassignedMembersSection" class="group-section">
+                <h3 class="group-title">❌ 未分组人员</h3>
+                <div id="unassignedMembersList" class="member-list"></div>
+            </div>
+            
+            <div id="duplicateMembersSection" class="group-section">
+                <h3 class="group-title">⚠️ 多组重复人员</h3>
+                <div id="duplicateMembersList" class="member-list"></div>
+            </div>
+            
+            <div id="groupSummarySection" class="group-section">
+                <h3 class="group-title">📊 小组成员统计</h3>
+                <table class="summary-table" id="groupSummaryTable">
+                    <thead>
+                        <tr>
+                            <th>小组名称</th>
+                            <th>签到成员数</th>
+                            <th>签到次数</th>
+                            <th>平均签到</th>
+                            <th>最后签到</th>
+                        </tr>
+                    </thead>
+                    <tbody id="groupSummaryBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="export-section" id="exportSection" style="display: none;">
+            <h3 class="section-title">📤 导出选项</h3>
+            <div class="control-panel">
+                <button class="btn btn-success" onclick="exportUnassignedMembers()">导出未分组人员</button>
+                <button class="btn btn-warning" onclick="exportDuplicateMembers()">导出重复人员</button>
+                <button class="btn btn-primary" onclick="exportFullReport()">导出完整报告</button>
+            </div>
+        </div>
+        
+        <div class="log-panel" id="logPanel">
+            <div class="log-entry log-info">[INFO] 成员分布检查工具已启动</div>
+            <div class="log-entry log-info">[INFO] 请点击"加载所有数据"开始分析</div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- 配置和工具函数 -->
+    <script src="../../config.js"></script>
+    
+    <script>
+        // 全局变量
+        let allAttendanceRecords = [];
+        let allGroups = {};
+        let allMembers = {};
+        let analysisResults = {};
+        
+        // 日志函数
+        function addLog(type, message) {
+            const logPanel = document.getElementById('logPanel');
+            const timestamp = new Date().toLocaleString('zh-CN');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logPanel.appendChild(logEntry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // 加载所有数据
+        async function loadAllData() {
+            addLog('info', '开始加载所有数据...');
+            
+            try {
+                // 加载签到记录
+                await loadAttendanceRecords();
+                
+                // 加载小组数据
+                await loadGroupsData();
+                
+                // 更新统计面板
+                updateStatsPanel();
+                
+                addLog('success', '所有数据加载完成！');
+                addLog('info', `签到记录: ${allAttendanceRecords.length} 条`);
+                addLog('info', `小组数据: ${Object.keys(allGroups).length} 个小组`);
+                
+            } catch (error) {
+                addLog('error', `数据加载失败: ${error.message}`);
+                console.error('数据加载失败:', error);
+            }
+        }
+        
+        // 加载签到记录
+        async function loadAttendanceRecords() {
+            addLog('info', '加载签到记录...');
+            
+            try {
+                // 初始化Firebase
+                if (firebase.apps.length === 0) {
+                    // 检查Firebase配置是否已加载
+                    if (typeof window.firebaseConfig !== 'undefined' && window.firebaseConfig) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    } else {
+                        throw new Error('Firebase配置未找到，请检查config.js文件');
+                    }
+                }
+                
+                // 从Firebase加载
+                const ref = firebase.database().ref('attendanceRecords');
+                const snapshot = await ref.once('value');
+                const firebaseData = snapshot.val() || {};
+                
+                // 转换为数组
+                allAttendanceRecords = Object.values(firebaseData);
+                
+                addLog('success', `从Firebase加载了 ${allAttendanceRecords.length} 条签到记录`);
+                
+            } catch (error) {
+                addLog('error', `从Firebase加载失败: ${error.message}`);
+                
+                // 尝试从本地存储加载
+                try {
+                    const localData = localStorage.getItem('msh_attendanceRecords');
+                    if (localData) {
+                        allAttendanceRecords = JSON.parse(localData);
+                        addLog('success', `从本地存储加载了 ${allAttendanceRecords.length} 条签到记录`);
+                    } else {
+                        throw new Error('本地存储中也没有签到记录');
+                    }
+                } catch (localError) {
+                    throw new Error(`数据加载失败: Firebase错误 - ${error.message}, 本地存储错误 - ${localError.message}`);
+                }
+            }
+        }
+        
+        // 加载小组数据
+        async function loadGroupsData() {
+            addLog('info', '加载小组数据...');
+            
+            try {
+                // 初始化Firebase
+                if (firebase.apps.length === 0) {
+                    // 检查Firebase配置是否已加载
+                    if (typeof window.firebaseConfig !== 'undefined' && window.firebaseConfig) {
+                        firebase.initializeApp(window.firebaseConfig);
+                    } else {
+                        throw new Error('Firebase配置未找到，请检查config.js文件');
+                    }
+                }
+                
+                // 加载groups数据
+                const groupsRef = firebase.database().ref('groups');
+                const groupsSnapshot = await groupsRef.once('value');
+                allGroups = groupsSnapshot.val() || {};
+                
+                // 收集所有成员信息
+                allMembers = {};
+                Object.keys(allGroups).forEach(groupName => {
+                    const members = allGroups[groupName] || [];
+                    members.forEach(member => {
+                        if (member.uuid) {
+                            allMembers[member.uuid] = {
+                                ...member,
+                                assignedGroup: groupName
+                            };
+                        }
+                    });
+                });
+                
+                addLog('success', `加载了 ${Object.keys(allGroups).length} 个小组的数据`);
+                addLog('info', `总共 ${Object.keys(allMembers).length} 名已分配成员`);
+                
+            } catch (error) {
+                addLog('error', `小组数据加载失败: ${error.message}`);
+                
+                // 尝试从本地存储加载
+                try {
+                    const localGroupsData = localStorage.getItem('msh_groups');
+                    if (localGroupsData) {
+                        allGroups = JSON.parse(localGroupsData);
+                        
+                        // 收集所有成员信息
+                        allMembers = {};
+                        Object.keys(allGroups).forEach(groupName => {
+                            const members = allGroups[groupName] || [];
+                            members.forEach(member => {
+                                if (member.uuid) {
+                                    allMembers[member.uuid] = {
+                                        ...member,
+                                        assignedGroup: groupName
+                                    };
+                                }
+                            });
+                        });
+                        
+                        addLog('success', `从本地存储加载了 ${Object.keys(allGroups).length} 个小组的数据`);
+                        addLog('info', `总共 ${Object.keys(allMembers).length} 名已分配成员`);
+                    } else {
+                        throw new Error('本地存储中也没有小组数据');
+                    }
+                } catch (localError) {
+                    throw new Error(`小组数据加载失败: Firebase错误 - ${error.message}, 本地存储错误 - ${localError.message}`);
+                }
+            }
+        }
+        
+        // 更新统计面板
+        function updateStatsPanel() {
+            // 计算唯一成员数（基于UUID）
+            const uniqueMemberUUIDs = new Set();
+            allAttendanceRecords.forEach(record => {
+                if (record.memberUUID) {
+                    uniqueMemberUUIDs.add(record.memberUUID);
+                }
+            });
+            
+            document.getElementById('totalSignins').textContent = allAttendanceRecords.length;
+            document.getElementById('uniqueMembers').textContent = uniqueMemberUUIDs.size;
+            document.getElementById('groupCount').textContent = Object.keys(allGroups).length;
+            
+            // 计算未分组人员数（将在分析中更新）
+            document.getElementById('unassignedCount').textContent = '-';
+        }
+        
+        // 分析成员分布
+        function analyzeMemberDistribution() {
+            if (allAttendanceRecords.length === 0) {
+                addLog('error', '请先加载签到数据');
+                return;
+            }
+            
+            addLog('info', '开始分析成员分布...');
+            
+            // 调试信息
+            console.log('🔍 分析数据:', {
+                attendanceRecords: allAttendanceRecords.length,
+                groups: Object.keys(allGroups).length,
+                groupNames: Object.keys(JSON.parse(localStorage.getItem('msh_groupNames') || '{}')).length
+            });
+            
+            // 调试：显示所有小组信息
+            const currentGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+            console.log('🔍 当前小组信息:', Object.keys(allGroups).map(key => ({
+                key,
+                name: currentGroupNames[key],
+                memberCount: allGroups[key]?.length || 0
+            })));
+            
+            // 调试：显示小组名称映射
+            console.log('🔍 小组名称映射:', currentGroupNames);
+            
+            // 调试：显示签到记录中的小组名称
+            const signinGroupNames = new Set();
+            allAttendanceRecords.forEach(record => {
+                if (record.groupSnapshot && record.groupSnapshot.groupName) {
+                    signinGroupNames.add(record.groupSnapshot.groupName);
+                }
+            });
+            console.log('🔍 签到记录中的小组名称:', Array.from(signinGroupNames));
+            
+            // 收集所有签到成员信息
+            const signinMembers = {};
+            const groupSigninStats = {};
+            
+            allAttendanceRecords.forEach(record => {
+                if (record.memberUUID) {
+                    const uuid = record.memberUUID;
+                    const memberName = record.memberSnapshot?.name || record.name || '未知';
+                    const memberNickname = record.memberSnapshot?.nickname || '';
+                    // 获取正确的小组名称
+                    let groupName = '未知';
+                    if (record.groupSnapshot?.groupName) {
+                        groupName = record.groupSnapshot.groupName;
+                    } else if (record.group) {
+                        // 通过groupNames映射获取正确的小组名称
+                        const groupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                        groupName = groupNames[record.group] || record.group;
+                    }
+                    
+                    if (!signinMembers[uuid]) {
+                        signinMembers[uuid] = {
+                            uuid: uuid,
+                            name: memberName,
+                            nickname: memberNickname,
+                            groups: new Set(),
+                            signinCount: 0,
+                            lastSignin: null,
+                            records: []
+                        };
+                    }
+                    
+                    signinMembers[uuid].groups.add(groupName);
+                    signinMembers[uuid].signinCount++;
+                    signinMembers[uuid].records.push(record);
+                    
+                    if (!signinMembers[uuid].lastSignin || new Date(record.time) > new Date(signinMembers[uuid].lastSignin)) {
+                        signinMembers[uuid].lastSignin = record.time;
+                    }
+                    
+                    // 统计小组签到数据 - 只统计当前存在的小组
+                    const currentGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                    const currentGroupKeys = Object.keys(allGroups);
+                    
+                    // 检查这个小组名称是否对应当前存在的小组
+                    let isCurrentGroup = false;
+                    let currentGroupKey = null;
+                    
+                    // 通过groupNames映射找到对应的小组键
+                    for (const [key, name] of Object.entries(currentGroupNames)) {
+                        if (name === groupName && currentGroupKeys.includes(key)) {
+                            isCurrentGroup = true;
+                            currentGroupKey = key;
+                            break;
+                        }
+                    }
+                    
+                    // 只统计当前存在的小组
+                    if (isCurrentGroup && currentGroupKey) {
+                        if (!groupSigninStats[groupName]) {
+                            groupSigninStats[groupName] = {
+                                members: new Set(),
+                                signinCount: 0,
+                                lastSignin: null,
+                                groupKey: currentGroupKey
+                            };
+                        }
+                        
+                        groupSigninStats[groupName].members.add(uuid);
+                        groupSigninStats[groupName].signinCount++;
+                        
+                        if (!groupSigninStats[groupName].lastSignin || new Date(record.time) > new Date(groupSigninStats[groupName].lastSignin)) {
+                            groupSigninStats[groupName].lastSignin = record.time;
+                        }
+                    }
+                }
+            });
+            
+            // 分析结果
+            analysisResults = {
+                signinMembers: signinMembers,
+                groupSigninStats: groupSigninStats,
+                unassignedMembers: [],
+                duplicateMembers: []
+            };
+            
+            // 找出未分组人员（有签到记录但没有在小组管理中分配）
+            Object.values(signinMembers).forEach(member => {
+                // 检查成员是否在任何小组中
+                let isAssigned = false;
+                let assignedGroup = null;
+                
+                Object.keys(allGroups).forEach(groupKey => {
+                    if (allGroups[groupKey] && Array.isArray(allGroups[groupKey])) {
+                        const memberInGroup = allGroups[groupKey].find(m => m.uuid === member.uuid);
+                        if (memberInGroup) {
+                            isAssigned = true;
+                            assignedGroup = groupKey;
+                        }
+                    }
+                });
+                
+                if (!isAssigned) {
+                    // 进一步检查：通过签到记录中的小组名称映射来验证
+                    let isActuallyAssigned = false;
+                    const currentGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                    
+                    console.log(`🔍 检查成员 ${member.name} 的签到小组映射:`, {
+                        signinGroups: Array.from(member.groups),
+                        currentGroupNames: currentGroupNames
+                    });
+                    
+                    // 检查成员的签到小组是否对应当前存在的小组
+                    for (const signinGroup of member.groups) {
+                        for (const [groupKey, groupName] of Object.entries(currentGroupNames)) {
+                            if (groupName === signinGroup && allGroups[groupKey]) {
+                                console.log(`🔍 找到匹配: ${signinGroup} -> ${groupKey} (${groupName})`);
+                                console.log(`🔍 小组 ${groupKey} 中的成员:`, allGroups[groupKey].map(m => ({ name: m.name, uuid: m.uuid?.substring(0, 8) + '...' })));
+                                console.log(`🔍 查找成员: ${member.name} (${member.uuid?.substring(0, 8) + '...'})`);
+                                
+                                // 检查这个成员是否在这个小组中（先尝试UUID匹配，再尝试姓名匹配）
+                                let memberInGroup = allGroups[groupKey].find(m => m.uuid === member.uuid);
+                                if (!memberInGroup) {
+                                    // UUID匹配失败，尝试姓名匹配
+                                    memberInGroup = allGroups[groupKey].find(m => m.name === member.name);
+                                    if (memberInGroup) {
+                                        console.log(`✅ 成员 ${member.name} 在小组 ${groupKey} 中找到（通过姓名匹配）`);
+                                    }
+                                } else {
+                                    console.log(`✅ 成员 ${member.name} 在小组 ${groupKey} 中找到（通过UUID匹配）`);
+                                }
+                                
+                                if (memberInGroup) {
+                                    isActuallyAssigned = true;
+                                    assignedGroup = groupKey;
+                                    break;
+                                } else {
+                                    console.log(`❌ 成员 ${member.name} 不在小组 ${groupKey} 中（UUID和姓名都不匹配）`);
+                                }
+                            }
+                        }
+                        if (isActuallyAssigned) break;
+                    }
+                    
+                    if (!isActuallyAssigned) {
+                        console.log(`🔍 未分组成员: ${member.name} (${member.uuid}) - 签到小组: ${Array.from(member.groups).join(', ')}`);
+                        analysisResults.unassignedMembers.push(member);
+                    } else {
+                        console.log(`✅ 已分组成员: ${member.name} (${member.uuid}) - 分配小组: ${assignedGroup} (通过签到小组映射找到)`);
+                    }
+                } else {
+                    console.log(`✅ 已分组成员: ${member.name} (${member.uuid}) - 分配小组: ${assignedGroup}`);
+                }
+            });
+            
+            // 找出多组重复人员（在多个不同小组中都有成员记录）
+            Object.values(signinMembers).forEach(member => {
+                // 检查成员是否在多个不同的小组中
+                const assignedGroups = [];
+                Object.keys(allGroups).forEach(groupKey => {
+                    if (allGroups[groupKey] && Array.isArray(allGroups[groupKey])) {
+                        const memberInGroup = allGroups[groupKey].find(m => m.uuid === member.uuid);
+                        if (memberInGroup) {
+                            assignedGroups.push(groupKey);
+                        }
+                    }
+                });
+                
+                // 只有在多个不同小组中才算重复
+                if (assignedGroups.length > 1) {
+                    member.assignedGroups = assignedGroups;
+                    analysisResults.duplicateMembers.push(member);
+                }
+            });
+            
+            // 调试信息
+            console.log('🔍 分析结果:', {
+                unassignedMembers: analysisResults.unassignedMembers.length,
+                duplicateMembers: analysisResults.duplicateMembers.length,
+                totalSigninMembers: Object.keys(signinMembers).length
+            });
+            
+            // 更新统计面板
+            document.getElementById('unassignedCount').textContent = analysisResults.unassignedMembers.length;
+            
+            // 显示结果
+            displayAnalysisResults();
+            
+            addLog('success', `分析完成！发现 ${analysisResults.unassignedMembers.length} 名未分组人员，${analysisResults.duplicateMembers.length} 名多组重复人员`);
+        }
+        
+        // 显示分析结果
+        function displayAnalysisResults() {
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+            
+            // 显示未分组人员
+            displayUnassignedMembers();
+            
+            // 显示重复人员
+            displayDuplicateMembers();
+            
+            // 显示小组统计
+            displayGroupSummary();
+            
+            // 显示导出选项
+            document.getElementById('exportSection').style.display = 'block';
+        }
+        
+        // 显示未分组人员
+        function displayUnassignedMembers() {
+            const container = document.getElementById('unassignedMembersList');
+            container.innerHTML = '';
+            
+            if (analysisResults.unassignedMembers.length === 0) {
+                container.innerHTML = '<p style="color: #27ae60; text-align: center; padding: 20px;">✅ 所有签到人员都已分配到小组中</p>';
+                return;
+            }
+            
+            analysisResults.unassignedMembers.forEach(member => {
+                const memberCard = document.createElement('div');
+                memberCard.className = 'member-card unassigned';
+                
+                const groups = Array.from(member.groups).join(', ');
+                const lastSignin = member.lastSignin ? new Date(member.lastSignin).toLocaleDateString('zh-CN') : '未知';
+                
+                memberCard.innerHTML = `
+                    <div class="member-name">${member.name} ${member.nickname ? `(${member.nickname})` : ''}</div>
+                    <div class="member-info">UUID: ${member.uuid}</div>
+                    <div class="member-info">签到小组: ${groups}</div>
+                    <div class="member-stats">签到 ${member.signinCount} 次，最后签到: ${lastSignin}</div>
+                `;
+                
+                container.appendChild(memberCard);
+            });
+        }
+        
+        // 显示重复人员
+        function displayDuplicateMembers() {
+            const container = document.getElementById('duplicateMembersList');
+            container.innerHTML = '';
+            
+            if (analysisResults.duplicateMembers.length === 0) {
+                container.innerHTML = '<p style="color: #27ae60; text-align: center; padding: 20px;">✅ 没有发现多组重复人员</p>';
+                return;
+            }
+            
+            analysisResults.duplicateMembers.forEach(member => {
+                const memberCard = document.createElement('div');
+                memberCard.className = 'member-card duplicate';
+                
+                const groups = Array.from(member.groups).join(', ');
+                const lastSignin = member.lastSignin ? new Date(member.lastSignin).toLocaleDateString('zh-CN') : '未知';
+                
+                memberCard.innerHTML = `
+                    <div class="member-name">${member.name} ${member.nickname ? `(${member.nickname})` : ''}</div>
+                    <div class="member-info">UUID: ${member.uuid}</div>
+                    <div class="member-info">签到小组: ${groups}</div>
+                    <div class="member-stats">签到 ${member.signinCount} 次，最后签到: ${lastSignin}</div>
+                `;
+                
+                container.appendChild(memberCard);
+            });
+        }
+        
+        // 显示小组统计
+        function displayGroupSummary() {
+            const tbody = document.getElementById('groupSummaryBody');
+            tbody.innerHTML = '';
+            
+            Object.keys(analysisResults.groupSigninStats).forEach(groupName => {
+                const stats = analysisResults.groupSigninStats[groupName];
+                const memberCount = stats.members.size;
+                const avgSignins = memberCount > 0 ? (stats.signinCount / memberCount).toFixed(1) : '0';
+                const lastSignin = stats.lastSignin ? new Date(stats.lastSignin).toLocaleDateString('zh-CN') : '无';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${groupName}</strong></td>
+                    <td>${memberCount}</td>
+                    <td>${stats.signinCount}</td>
+                    <td>${avgSignins}</td>
+                    <td>${lastSignin}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // 导出功能
+        function exportUnassignedMembers() {
+            if (!analysisResults.unassignedMembers || analysisResults.unassignedMembers.length === 0) {
+                alert('没有未分组人员可导出');
+                return;
+            }
+            
+            const data = analysisResults.unassignedMembers.map(member => ({
+                name: member.name,
+                nickname: member.nickname,
+                uuid: member.uuid,
+                groups: Array.from(member.groups).join(', '),
+                signinCount: member.signinCount,
+                lastSignin: member.lastSignin ? new Date(member.lastSignin).toLocaleString('zh-CN') : '未知'
+            }));
+            
+            const jsonData = JSON.stringify(data, null, 2);
+            const csvData = convertToCSV(data);
+            
+            downloadFile('unassigned-members.json', jsonData, 'application/json');
+            downloadFile('unassigned-members.csv', csvData, 'text/csv');
+            
+            addLog('success', `已导出 ${data.length} 名未分组人员数据`);
+        }
+        
+        function exportDuplicateMembers() {
+            if (!analysisResults.duplicateMembers || analysisResults.duplicateMembers.length === 0) {
+                alert('没有重复人员可导出');
+                return;
+            }
+            
+            const data = analysisResults.duplicateMembers.map(member => ({
+                name: member.name,
+                nickname: member.nickname,
+                uuid: member.uuid,
+                groups: Array.from(member.groups).join(', '),
+                signinCount: member.signinCount,
+                lastSignin: member.lastSignin ? new Date(member.lastSignin).toLocaleString('zh-CN') : '未知'
+            }));
+            
+            const jsonData = JSON.stringify(data, null, 2);
+            const csvData = convertToCSV(data);
+            
+            downloadFile('duplicate-members.json', jsonData, 'application/json');
+            downloadFile('duplicate-members.csv', csvData, 'text/csv');
+            
+            addLog('success', `已导出 ${data.length} 名重复人员数据`);
+        }
+        
+        function exportFullReport() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                summary: {
+                    totalSignins: allAttendanceRecords.length,
+                    uniqueMembers: Object.keys(analysisResults.signinMembers || {}).length,
+                    groupCount: Object.keys(allGroups).length,
+                    unassignedMembers: analysisResults.unassignedMembers?.length || 0,
+                    duplicateMembers: analysisResults.duplicateMembers?.length || 0
+                },
+                unassignedMembers: analysisResults.unassignedMembers || [],
+                duplicateMembers: analysisResults.duplicateMembers || [],
+                groupStats: analysisResults.groupSigninStats || {}
+            };
+            
+            const jsonData = JSON.stringify(report, null, 2);
+            downloadFile('member-distribution-report.json', jsonData, 'application/json');
+            
+            addLog('success', '已导出完整成员分布报告');
+        }
+        
+        function exportResults() {
+            if (!analysisResults || Object.keys(analysisResults).length === 0) {
+                alert('请先进行分析');
+                return;
+            }
+            
+            exportFullReport();
+        }
+        
+        // 导入功能
+        let importedData = null;
+        
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    console.log('文件内容:', content);
+                    
+                    // 尝试解析JavaScript文件
+                    if (file.name.endsWith('.js')) {
+                        // 提取JavaScript对象
+                        const match = content.match(/const\s+\w+\s*=\s*(\[.*?\]);/s);
+                        if (match) {
+                            importedData = JSON.parse(match[1]);
+                        } else {
+                            // 尝试直接执行JavaScript代码
+                            eval(content);
+                            // 假设数据存储在某个变量中，需要根据实际情况调整
+                            if (typeof window.exportedMembers !== 'undefined') {
+                                importedData = window.exportedMembers;
+                            }
+                        }
+                    } else if (file.name.endsWith('.json')) {
+                        importedData = JSON.parse(content);
+                    }
+                    
+                    if (importedData && Array.isArray(importedData)) {
+                        addLog('success', `成功加载导入数据: ${importedData.length} 个成员`);
+                        document.getElementById('importPreview').style.display = 'block';
+                        previewImport();
+                    } else {
+                        addLog('error', '无法解析导入文件，请检查文件格式');
+                    }
+                } catch (error) {
+                    console.error('导入文件失败:', error);
+                    addLog('error', '导入文件失败: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function previewImport() {
+            if (!importedData) {
+                alert('请先选择导入文件');
+                return;
+            }
+            
+            // 获取当前数据用于识别
+            const localGroupsData = localStorage.getItem('msh_groups');
+            const localGroupNamesData = localStorage.getItem('msh_groupNames');
+            
+            let previewContent = '';
+            
+            if (localGroupsData && localGroupNamesData) {
+                const localGroups = JSON.parse(localGroupsData);
+                const unassignedMembers = identifyUnassignedMembers(importedData, localGroups);
+                
+                previewContent = `
+                    <div class="import-data">
+                        <h5>导入数据预览</h5>
+                        <p><strong>总成员数:</strong> ${importedData.length}</p>
+                        <p><strong>识别未分组成员:</strong> ${unassignedMembers.length}</p>
+                        <p><strong>已分组成员:</strong> ${importedData.length - unassignedMembers.length}</p>
+                        <hr>
+                        <h6>未分组成员示例 (前5个):</h6>
+                        <pre>${JSON.stringify(unassignedMembers.slice(0, 5), null, 2)}</pre>
+                        ${unassignedMembers.length > 5 ? '<p>... 还有 ' + (unassignedMembers.length - 5) + ' 个未分组成员</p>' : ''}
+                    </div>
+                `;
+            } else {
+                previewContent = `
+                    <div class="import-data">
+                        <h5>导入数据预览 (${importedData.length} 个成员)</h5>
+                        <p>⚠️ 无法获取当前小组数据，无法进行智能识别</p>
+                        <pre>${JSON.stringify(importedData.slice(0, 5), null, 2)}</pre>
+                        ${importedData.length > 5 ? '<p>... 还有 ' + (importedData.length - 5) + ' 个成员</p>' : ''}
+                    </div>
+                `;
+            }
+            
+            const previewDiv = document.getElementById('importData');
+            previewDiv.innerHTML = previewContent;
+        }
+        
+        async function importToGroup0() {
+            if (!importedData) {
+                alert('请先选择导入文件');
+                return;
+            }
+            
+            try {
+                addLog('info', '开始识别并导入未分组成员...');
+                
+                // 获取当前数据
+                const localGroupsData = localStorage.getItem('msh_groups');
+                const localGroupNamesData = localStorage.getItem('msh_groupNames');
+                
+                if (!localGroupsData || !localGroupNamesData) {
+                    throw new Error('本地数据未找到');
+                }
+                
+                const localGroups = JSON.parse(localGroupsData);
+                const localGroupNames = JSON.parse(localGroupNamesData);
+                
+                // 识别未分组成员
+                const unassignedMembers = identifyUnassignedMembers(importedData, localGroups);
+                
+                if (unassignedMembers.length === 0) {
+                    addLog('warning', '未找到未分组成员，所有成员都已分配到具体小组');
+                    return;
+                }
+                
+                addLog('info', `识别到 ${unassignedMembers.length} 个未分组成员`);
+                
+                // 确保group0存在
+                if (!localGroups.group0) {
+                    localGroups.group0 = [];
+                    localGroupNames.group0 = '未分组';
+                }
+                
+                // 添加未分组成员到group0
+                const existingMembers = localGroups.group0 || [];
+                const newMembers = unassignedMembers.map(member => ({
+                    ...member,
+                    group: 'group0',
+                    groupName: '未分组',
+                    importedAt: new Date().toISOString()
+                }));
+                
+                localGroups.group0 = [...existingMembers, ...newMembers];
+                
+                // 保存到本地存储
+                localStorage.setItem('msh_groups', JSON.stringify(localGroups));
+                localStorage.setItem('msh_groupNames', JSON.stringify(localGroupNames));
+                
+                // 同步到Firebase
+                if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                    const db = firebase.database();
+                    await db.ref('groups/group0').set(localGroups.group0);
+                    await db.ref('groupNames/group0').set('未分组');
+                    addLog('success', '已同步到Firebase');
+                }
+                
+                addLog('success', `成功导入 ${newMembers.length} 个未分组成员到未分组`);
+                
+                // 清空导入数据
+                importedData = null;
+                document.getElementById('importPreview').style.display = 'none';
+                
+            } catch (error) {
+                console.error('导入失败:', error);
+                addLog('error', '导入失败: ' + error.message);
+            }
+        }
+        
+        // 同步控制函数
+        async function syncToFirebase() {
+            try {
+                addLog('info', '开始同步本地数据到Firebase...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                
+                // 获取本地数据
+                const localGroups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const localGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                const localAttendanceRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                const localExcludedMembers = JSON.parse(localStorage.getItem('msh_excludedMembers') || '[]');
+                
+                // 同步到Firebase
+                await db.ref('groups').set(localGroups);
+                await db.ref('groupNames').set(localGroupNames);
+                await db.ref('attendanceRecords').set(localAttendanceRecords);
+                await db.ref('excludedMembers').set(localExcludedMembers);
+                
+                addLog('success', '✅ 本地数据已成功同步到Firebase');
+                addLog('info', `同步数据: ${Object.keys(localGroups).length}个小组, ${localAttendanceRecords.length}条签到记录, ${localExcludedMembers.length}个排除人员`);
+                
+            } catch (error) {
+                console.error('同步到Firebase失败:', error);
+                addLog('error', '同步到Firebase失败: ' + error.message);
+            }
+        }
+        
+        async function syncFromFirebase() {
+            try {
+                addLog('info', '开始从Firebase同步数据到本地...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                
+                // 从Firebase获取数据
+                const groupsSnapshot = await db.ref('groups').once('value');
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+                const excludedSnapshot = await db.ref('excludedMembers').once('value');
+                
+                const firebaseGroups = groupsSnapshot.val() || {};
+                const firebaseGroupNames = groupNamesSnapshot.val() || {};
+                const firebaseAttendanceRecords = attendanceSnapshot.val() || [];
+                const firebaseExcludedMembers = excludedSnapshot.val() || [];
+                
+                // 保存到本地存储
+                localStorage.setItem('msh_groups', JSON.stringify(firebaseGroups));
+                localStorage.setItem('msh_groupNames', JSON.stringify(firebaseGroupNames));
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(firebaseAttendanceRecords));
+                localStorage.setItem('msh_excludedMembers', JSON.stringify(firebaseExcludedMembers));
+                
+                addLog('success', '✅ Firebase数据已成功同步到本地');
+                addLog('info', `同步数据: ${Object.keys(firebaseGroups).length}个小组, ${firebaseAttendanceRecords.length}条签到记录, ${firebaseExcludedMembers.length}个排除人员`);
+                
+                // 重新加载数据
+                await loadAllData();
+                
+            } catch (error) {
+                console.error('从Firebase同步失败:', error);
+                addLog('error', '从Firebase同步失败: ' + error.message);
+            }
+        }
+        
+        async function forceSyncAll() {
+            try {
+                addLog('info', '开始强制全量同步...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                
+                // 获取本地数据
+                const localGroups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const localGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                const localAttendanceRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                const localExcludedMembers = JSON.parse(localStorage.getItem('msh_excludedMembers') || '[]');
+                
+                // 获取Firebase数据
+                const groupsSnapshot = await db.ref('groups').once('value');
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+                const excludedSnapshot = await db.ref('excludedMembers').once('value');
+                
+                const firebaseGroups = groupsSnapshot.val() || {};
+                const firebaseGroupNames = groupNamesSnapshot.val() || {};
+                const firebaseAttendanceRecords = attendanceSnapshot.val() || [];
+                const firebaseExcludedMembers = excludedSnapshot.val() || [];
+                
+                // 比较数据并选择最新版本
+                const mergedGroups = { ...firebaseGroups, ...localGroups };
+                const mergedGroupNames = { ...firebaseGroupNames, ...localGroupNames };
+                const mergedAttendanceRecords = [...firebaseAttendanceRecords, ...localAttendanceRecords];
+                const mergedExcludedMembers = [...firebaseExcludedMembers, ...localExcludedMembers];
+                
+                // 同步到Firebase
+                await db.ref('groups').set(mergedGroups);
+                await db.ref('groupNames').set(mergedGroupNames);
+                await db.ref('attendanceRecords').set(mergedAttendanceRecords);
+                await db.ref('excludedMembers').set(mergedExcludedMembers);
+                
+                // 更新本地存储
+                localStorage.setItem('msh_groups', JSON.stringify(mergedGroups));
+                localStorage.setItem('msh_groupNames', JSON.stringify(mergedGroupNames));
+                localStorage.setItem('msh_attendanceRecords', JSON.stringify(mergedAttendanceRecords));
+                localStorage.setItem('msh_excludedMembers', JSON.stringify(mergedExcludedMembers));
+                
+                addLog('success', '✅ 强制全量同步完成');
+                addLog('info', `合并数据: ${Object.keys(mergedGroups).length}个小组, ${mergedAttendanceRecords.length}条签到记录, ${mergedExcludedMembers.length}个排除人员`);
+                
+                // 重新加载数据
+                await loadAllData();
+                
+            } catch (error) {
+                console.error('强制全量同步失败:', error);
+                addLog('error', '强制全量同步失败: ' + error.message);
+            }
+        }
+        
+        async function checkSyncStatus() {
+            try {
+                addLog('info', '检查同步状态...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                
+                // 获取本地数据
+                const localGroups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const localGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                const localAttendanceRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                const localExcludedMembers = JSON.parse(localStorage.getItem('msh_excludedMembers') || '[]');
+                
+                // 获取Firebase数据
+                const groupsSnapshot = await db.ref('groups').once('value');
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+                const excludedSnapshot = await db.ref('excludedMembers').once('value');
+                
+                const firebaseGroups = groupsSnapshot.val() || {};
+                const firebaseGroupNames = groupNamesSnapshot.val() || {};
+                const firebaseAttendanceRecords = attendanceSnapshot.val() || [];
+                const firebaseExcludedMembers = excludedSnapshot.val() || [];
+                
+                // 比较数据
+                const groupsMatch = JSON.stringify(localGroups) === JSON.stringify(firebaseGroups);
+                const groupNamesMatch = JSON.stringify(localGroupNames) === JSON.stringify(firebaseGroupNames);
+                const attendanceMatch = JSON.stringify(localAttendanceRecords) === JSON.stringify(firebaseAttendanceRecords);
+                const excludedMatch = JSON.stringify(localExcludedMembers) === JSON.stringify(firebaseExcludedMembers);
+                
+                const statusData = {
+                    timestamp: new Date().toLocaleString('zh-CN'),
+                    local: {
+                        groups: Object.keys(localGroups).length,
+                        groupNames: Object.keys(localGroupNames).length,
+                        attendanceRecords: localAttendanceRecords.length,
+                        excludedMembers: localExcludedMembers.length
+                    },
+                    firebase: {
+                        groups: Object.keys(firebaseGroups).length,
+                        groupNames: Object.keys(firebaseGroupNames).length,
+                        attendanceRecords: firebaseAttendanceRecords.length,
+                        excludedMembers: firebaseExcludedMembers.length
+                    },
+                    syncStatus: {
+                        groups: groupsMatch ? '✅ 同步' : '❌ 不同步',
+                        groupNames: groupNamesMatch ? '✅ 同步' : '❌ 不同步',
+                        attendanceRecords: attendanceMatch ? '✅ 同步' : '❌ 不同步',
+                        excludedMembers: excludedMatch ? '✅ 同步' : '❌ 不同步'
+                    }
+                };
+                
+                // 显示同步状态
+                document.getElementById('syncStatus').style.display = 'block';
+                document.getElementById('syncStatusData').textContent = JSON.stringify(statusData, null, 2);
+                
+                addLog('success', '✅ 同步状态检查完成');
+                addLog('info', `本地: ${Object.keys(localGroups).length}个小组, ${localAttendanceRecords.length}条记录`);
+                addLog('info', `Firebase: ${Object.keys(firebaseGroups).length}个小组, ${firebaseAttendanceRecords.length}条记录`);
+                
+            } catch (error) {
+                console.error('检查同步状态失败:', error);
+                addLog('error', '检查同步状态失败: ' + error.message);
+            }
+        }
+        
+        function identifyUnassignedMembers(allMembers, currentGroups) {
+            // 获取所有已分组成员的UUID列表
+            const assignedMemberUUIDs = new Set();
+            Object.keys(currentGroups).forEach(groupKey => {
+                if (currentGroups[groupKey] && Array.isArray(currentGroups[groupKey])) {
+                    currentGroups[groupKey].forEach(member => {
+                        if (member.uuid) {
+                            assignedMemberUUIDs.add(member.uuid);
+                        }
+                    });
+                }
+            });
+            
+            console.log('🔍 已分组成员UUID数量:', assignedMemberUUIDs.size);
+            console.log('🔍 导入数据总成员数:', allMembers.length);
+            
+            // 识别未分组成员 - 优先通过UUID识别
+            const unassignedMembers = allMembers.filter(member => {
+                // 如果成员有UUID且已存在于任何小组中，跳过
+                if (member.uuid && assignedMemberUUIDs.has(member.uuid)) {
+                    console.log(`⏭️ 跳过已分组成员: ${member.name} (UUID: ${member.uuid})`);
+                    return false;
+                }
+                
+                // 如果成员有UUID但不在已分配列表中，认为是未分组
+                if (member.uuid && !assignedMemberUUIDs.has(member.uuid)) {
+                    console.log(`✅ 识别未分组成员: ${member.name} (UUID: ${member.uuid})`);
+                    return true;
+                }
+                
+                // 如果没有UUID，通过姓名匹配检查是否已存在
+                if (!member.uuid) {
+                    const isAssigned = Object.keys(currentGroups).some(groupKey => {
+                        if (currentGroups[groupKey] && Array.isArray(currentGroups[groupKey])) {
+                            return currentGroups[groupKey].some(existingMember => 
+                                existingMember.name === member.name
+                            );
+                        }
+                        return false;
+                    });
+                    
+                    if (isAssigned) {
+                        console.log(`⏭️ 跳过已分组成员: ${member.name} (通过姓名匹配)`);
+                        return false;
+                    } else {
+                        console.log(`✅ 识别未分组成员: ${member.name} (无UUID，未在现有小组中找到)`);
+                        return true;
+                    }
+                }
+                
+                return false;
+            });
+            
+            console.log(`🎯 最终识别未分组成员数量: ${unassignedMembers.length}`);
+            return unassignedMembers;
+        }
+        
+        // 工具函数
+        function convertToCSV(data) {
+            if (data.length === 0) return '';
+            
+            const headers = Object.keys(data[0]);
+            const csvRows = [headers.join(',')];
+            
+            data.forEach(row => {
+                const values = headers.map(header => {
+                    const value = row[header] || '';
+                    return `"${value.toString().replace(/"/g, '""')}"`;
+                });
+                csvRows.push(values.join(','));
+            });
+            
+            return csvRows.join('\n');
+        }
+        
+        function downloadFile(filename, content, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function clearResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('exportSection').style.display = 'none';
+            analysisResults = {};
+            
+            // 重置统计面板
+            document.getElementById('totalSignins').textContent = '-';
+            document.getElementById('uniqueMembers').textContent = '-';
+            document.getElementById('groupCount').textContent = '-';
+            document.getElementById('unassignedCount').textContent = '-';
+            
+            addLog('info', '结果已清空');
+        }
+        
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('info', '成员分布检查工具已启动');
+            addLog('info', '请点击"加载所有数据"开始分析');
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+

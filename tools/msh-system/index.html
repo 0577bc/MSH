@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH系统工具集</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .tool-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .tool-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .tool-card p {
+            color: #6c757d;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .tool-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            transition: background 0.3s ease;
+        }
+        .tool-link:hover {
+            background: #0056b3;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 MSH系统工具集</h1>
+            <p>MSH签到系统内部数据管理和维护工具</p>
+        </div>
+        <div class="content">
+            <a href="../index.html" class="back-link">← 返回工具总览</a>
+            
+            <h2>📋 工具列表</h2>
+            <p>以下是专门处理MSH签到系统内部数据的工具：</p>
+            
+            <div class="tool-grid">
+                <div class="tool-card">
+                    <h3>🔍 数据一致性验证工具</h3>
+                    <p>数据验证和一致性检查工具，包含数据源对比功能，提供全面的数据验证服务。</p>
+                    <a href="data-consistency-validator.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>🆔 UUID编辑器</h3>
+                    <p>编辑和管理成员UUID，修复缺失的UUID标识符。</p>
+                    <a href="uuid_editor.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📊 主日跟踪诊断</h3>
+                    <p>诊断主日跟踪系统状态，检查事件生成和跟踪逻辑。</p>
+                    <a href="diagnose-sunday-tracking.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>🚨 紧急数据检查</h3>
+                    <p>快速检查数据异常，识别潜在的数据问题。</p>
+                    <a href="emergency-data-check.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>🔄 紧急数据恢复</h3>
+                    <p>数据丢失时的紧急恢复工具，从备份中恢复数据。</p>
+                    <a href="emergency-data-recovery.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>⚡ 事件生成测试</h3>
+                    <p>测试主日跟踪事件生成逻辑，验证事件生成功能。</p>
+                    <a href="event-generation-test.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>🎯 触发事件生成</h3>
+                    <p>手动触发事件生成过程，用于测试和调试。</p>
+                    <a href="trigger-event-generation.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>⚔️ 数据冲突管理</h3>
+                    <p>解决数据同步冲突，处理并发访问问题，包含删除管理功能。</p>
+                    <a href="data-conflict-manager.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📝 组别键标准化</h3>
+                    <p>统一组别标识符格式，标准化小组命名。</p>
+                    <a href="group-key-standardizer.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>👥 成员分布检查</h3>
+                    <p>检查成员在各小组的分布情况，分析成员分布。</p>
+                    <a href="member-distribution-checker.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📤 成员提取器</h3>
+                    <p>从数据中提取成员信息，导出成员数据。</p>
+                    <a href="member-extractor.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>📊 未签到不统计人员管理</h3>
+                    <p>可视化查看和统计各小组的排除人员信息，支持按小组筛选查看。</p>
+                    <a href="excluded-members-viewer.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>💾 备份数据恢复</h3>
+                    <p>从备份文件恢复签到记录，支持可视化上传和进度显示。</p>
+                    <a href="restore-from-backup.html" class="tool-link">打开工具</a>
+                </div>
+                
+                <div class="tool-card">
+                    <h3>⏰ 时间格式修复</h3>
+                    <p>修复时间格式不兼容问题，转换为标准时间戳格式。</p>
+                    <a href="fix-time-format.html" class="tool-link">打开工具</a>
+                </div>
+            </div>
+            
+            <h3>📚 使用说明</h3>
+            <p>这些工具专门用于管理MSH签到系统的内部数据，包括：</p>
+            <ul>
+                <li>签到记录管理和验证</li>
+                <li>成员信息维护和UUID管理</li>
+                <li>主日跟踪系统诊断和测试</li>
+                <li>数据一致性检查和修复</li>
+                <li>紧急情况下的数据恢复</li>
+            </ul>
+            
+            <h3>⚠️ 注意事项</h3>
+            <ul>
+                <li>使用前请确保已备份重要数据</li>
+                <li>建议在非生产环境先测试工具功能</li>
+                <li>如有疑问，请参考工具使用指南</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

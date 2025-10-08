@@ -47,17 +47,24 @@
       <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
       <button id="summaryButton" type="button" aria-label="查看签到汇总">查看签到汇总</button>
       <button id="groupManagementButton" type="button" aria-label="成员管理" class="primary-button">成员管理</button>
+      <button id="excludedMembersViewerButton" type="button" aria-label="未签到不统计人员管理" class="excluded-members-btn">📊 未签到不统计人员</button>
+      <button id="toolsButton" type="button" aria-label="系统工具" class="tools-btn">🛠️ 系统工具</button>
       <button id="deleteManagementButton" type="button" aria-label="数据删除管理" class="delete-management-btn">🗑️ 数据删除管理</button>
+      <button id="externalFormAdminButton" type="button" aria-label="外部表单管理" class="external-form-btn">📋 外部表单管理</button>
+      <button id="dataForwardButton" type="button" aria-label="数据转发到外部表单" class="data-forward-btn">🔄 数据转发到外部表单</button>
       <div id="syncButtonContainer"></div>
       
-      
 
+      
       
     </section>
   </main>
   <script src="./src/utils.js"></script>
   <script src="./src/navigation-utils.js"></script>
   <script src="./src/new-data-manager.js"></script>
-  <script src="./src/admin.js"></script>
+  <!-- 使用简化版 admin.js - 所有成员管理功能已迁移到 group-management.js -->
+  <script src="./src/admin-simplified.js"></script>
+  <!-- 备份提醒系统 - 只在管理员页面启用 -->
+  <script src="./src/backup-reminder.js"></script>
 </body>
 </html>

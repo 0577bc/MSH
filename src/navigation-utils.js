@@ -39,16 +39,9 @@ async function navigateBackToIndex() {
       }
     }
     
-    // 2. 智能返回策略
-    if (window.history.length > 1) {
-      // 优先使用history.back()，保持页面状态和缓存
-      console.log('📱 使用浏览器历史返回，保持页面状态');
-      window.history.back();
-    } else {
-      // fallback到直接跳转
-      console.log('🔄 直接跳转到index页面');
-      window.location.href = 'index.html';
-    }
+    // 2. 直接跳转到index页面，不使用history.back()
+    console.log('🔄 直接跳转到index页面');
+    window.location.href = 'index.html';
     
   } catch (error) {
     console.error('❌ 返回导航失败:', error);

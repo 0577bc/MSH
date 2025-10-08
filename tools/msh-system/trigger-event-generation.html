@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>触发事件生成工具</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="../../config.js"></script>
+    <script src="../../src/utils.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1000px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }
+        .button-group { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            color: white;
+        }
+        button.primary { background-color: #3498db; }
+        button.primary:hover { background-color: #2980b9; transform: translateY(-2px); }
+        button.secondary { background-color: #2ecc71; }
+        button.secondary:hover { background-color: #27ae60; transform: translateY(-2px); }
+        button.warning { background-color: #f39c12; }
+        button.warning:hover { background-color: #e67e22; transform: translateY(-2px); }
+        button.danger { background-color: #e74c3c; }
+        button.danger:hover { background-color: #c0392b; transform: translateY(-2px); }
+        .log-container { background-color: #ecf0f1; border-radius: 5px; padding: 15px; max-height: 600px; overflow-y: auto; border: 1px solid #ddd; }
+        .log-item { margin-bottom: 8px; font-size: 14px; line-height: 1.4; }
+        .log-item.info { color: #34495e; }
+        .log-item.success { color: #27ae60; }
+        .log-item.warning { color: #f39c12; }
+        .log-item.error { color: #c0392b; font-weight: bold; }
+        .summary { margin-top: 20px; font-size: 16px; font-weight: bold; color: #2c3e50; }
+        .info-box { background-color: #e8f4fd; border: 1px solid #bee5eb; border-radius: 5px; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>触发事件生成工具</h1>
+        
+        <div class="info-box">
+            <h3>📋 事件生成机制说明</h3>
+            <p><strong>正确的事件生成流程：</strong></p>
+            <ol>
+                <li><strong>签到触发</strong>：在签到页面进行签到时，会触发<code>signinSuccess</code>事件</li>
+                <li><strong>实时更新</strong>：<code>realTimeUpdateManager</code>监听签到事件，更新事件状态</li>
+                <li><strong>数据变化</strong>：签到记录变化触发<code>dataChanged</code>事件</li>
+                <li><strong>事件生成</strong>：<code>SundayTrackingManager.generateTrackingList()</code>根据签到记录生成跟踪事件</li>
+            </ol>
+            <p><strong>注意：</strong>事件生成不是在主日跟踪页面，而是在签到后自动触发的！</p>
+        </div>
+        
+        <div class="button-group">
+            <button class="primary" id="loadDataButton">加载基础数据</button>
+            <button class="secondary" id="generateEventsButton">生成跟踪事件</button>
+            <button class="warning" id="simulateSigninButton">模拟签到触发</button>
+            <button class="danger" id="clearLogButton">清空日志</button>
+        </div>
+        
+        <div class="summary" id="summary"></div>
+        <div class="log-container">
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase初始化
+        if (!firebase.apps.length) {
+            firebase.initializeApp(window.firebaseConfig);
+        }
+        const db = firebase.database();
+        const logElement = document.getElementById('log');
+        const summaryElement = document.getElementById('summary');
+
+        function appendLog(message, type = 'info') {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(logItem);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        document.getElementById('clearLogButton').addEventListener('click', () => {
+            logElement.innerHTML = '';
+            summaryElement.innerHTML = '';
+            appendLog('日志已清空。', 'info');
+        });
+
+        document.getElementById('loadDataButton').addEventListener('click', async () => {
+            appendLog('开始加载基础数据...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 加载签到记录
+                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+                const attendanceRecords = attendanceSnapshot.val() || [];
+                const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : Object.values(attendanceRecords);
+                
+                // 加载小组数据
+                const groupsSnapshot = await db.ref('groups').once('value');
+                const groups = groupsSnapshot.val() || {};
+                
+                // 加载小组名称
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                const groupNames = groupNamesSnapshot.val() || {};
+                
+                // 设置全局变量
+                window.attendanceRecords = attendanceArray;
+                window.groups = groups;
+                window.groupNames = groupNames;
+                
+                appendLog(`✅ 签到记录加载完成: ${attendanceArray.length} 条`, 'success');
+                appendLog(`✅ 小组数据加载完成: ${Object.keys(groups).length} 个小组`, 'success');
+                appendLog(`✅ 小组名称加载完成: ${Object.keys(groupNames).length} 个名称`, 'success');
+                
+                summaryElement.innerHTML = `
+                    <p><strong>基础数据加载总结:</strong></p>
+                    <p>签到记录: ${attendanceArray.length} 条</p>
+                    <p>小组数据: ${Object.keys(groups).length} 个</p>
+                    <p>小组名称: ${Object.keys(groupNames).length} 个</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`加载基础数据失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+
+        document.getElementById('generateEventsButton').addEventListener('click', async () => {
+            appendLog('开始生成跟踪事件...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 检查基础数据
+                if (!window.attendanceRecords || !window.groups) {
+                    appendLog('❌ 基础数据未加载，请先点击"加载基础数据"', 'error');
+                    return;
+                }
+                
+                // 检查SundayTrackingManager是否可用
+                if (!window.utils || !window.utils.SundayTrackingManager) {
+                    appendLog('❌ SundayTrackingManager未加载', 'error');
+                    return;
+                }
+                
+                appendLog('🔄 调用SundayTrackingManager.generateTrackingList()...', 'info');
+                
+                // 生成跟踪列表
+                const trackingList = window.utils.SundayTrackingManager.generateTrackingList();
+                
+                appendLog(`✅ 跟踪事件生成完成: ${trackingList.length} 个事件`, 'success');
+                
+                // 保存到Firebase
+                if (trackingList.length > 0) {
+                    await db.ref('sundayTracking').set(trackingList);
+                    appendLog(`✅ 跟踪事件已保存到Firebase`, 'success');
+                }
+                
+                summaryElement.innerHTML = `
+                    <p><strong>事件生成总结:</strong></p>
+                    <p>生成事件数: ${trackingList.length}</p>
+                    <p>已保存到Firebase: ${trackingList.length > 0 ? '是' : '否'}</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`生成跟踪事件失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+
+        document.getElementById('simulateSigninButton').addEventListener('click', async () => {
+            appendLog('开始模拟签到触发...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                // 检查基础数据
+                if (!window.attendanceRecords || !window.groups) {
+                    appendLog('❌ 基础数据未加载，请先点击"加载基础数据"', 'error');
+                    return;
+                }
+                
+                // 检查实时更新管理器
+                if (!window.realTimeUpdateManager) {
+                    appendLog('❌ realTimeUpdateManager未加载', 'error');
+                    return;
+                }
+                
+                // 模拟签到成功事件
+                const testMemberUUID = Object.keys(window.groups)[0] && window.groups[Object.keys(window.groups)[0]][0]?.uuid;
+                if (!testMemberUUID) {
+                    appendLog('❌ 没有找到测试成员UUID', 'error');
+                    return;
+                }
+                
+                const testSigninData = {
+                    memberUUID: testMemberUUID,
+                    time: new Date().toLocaleString('zh-CN'),
+                    timeSlot: 'onTime'
+                };
+                
+                appendLog(`🔄 模拟签到事件: ${testMemberUUID}`, 'info');
+                
+                // 触发签到成功事件
+                window.dispatchEvent(new CustomEvent('signinSuccess', {
+                    detail: {
+                        memberUUID: testMemberUUID,
+                        signinData: testSigninData
+                    }
+                }));
+                
+                appendLog('✅ 签到事件已触发', 'success');
+                appendLog('📢 请检查主日跟踪页面是否更新', 'info');
+                
+                summaryElement.innerHTML = `
+                    <p><strong>模拟签到触发总结:</strong></p>
+                    <p>测试成员UUID: ${testMemberUUID}</p>
+                    <p>签到事件已触发</p>
+                    <p>请检查主日跟踪页面更新</p>
+                `;
+                
+            } catch (error) {
+                appendLog(`模拟签到触发失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>
+
+

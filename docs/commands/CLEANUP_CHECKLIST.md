@@ -56,10 +56,15 @@ cat PROTECTED_FILES.md
 - [ ] `src/service-worker.js` - 服务工作者
 
 ### **4. 工具和辅助文件确认**
-**可以移动但不可删除的文件**：
-- [ ] `tools/batch_signin_fix.html` - 批量签到修复工具
-- [ ] `tools/uuid_editor.html` - UUID编辑器
-- [ ] `tools/export_missing_uuids.html` - 导出工具
+**绝对不可删除的工具文件**：
+- [ ] `tools/` 目录及其所有内容（完整保护）
+- [ ] `tools/msh-system/` - MSH系统工具目录
+- [ ] `tools/cloud-forms/` - 云表单工具目录  
+- [ ] `tools/cross-system/` - 跨系统工具目录
+- [ ] `tools/index.html` - 工具总览页面
+- [ ] `tools/TOOLS_GUIDE.md` - 工具使用指南
+- [ ] `tools/IMPORT-GUIDE.md` - 导入指南
+- [ ] `tools/protect_documents.sh` - 文档保护脚本
 
 ## ✅ 可以安全删除的文件
 
@@ -97,6 +102,11 @@ cat PROTECTED_FILES.md
 ./tools/protect_documents.sh
 ```
 
+### **步骤1.5：验证工具保护**
+```bash
+./tools/verify-tools-protection.sh
+```
+
 ### **步骤2：确认保护状态**
 确保看到：
 ```
@@ -132,8 +142,10 @@ cp -r src/ backup/pre_cleanup_$(date +%Y%m%d_%H%M%S)/
 2. **backup/ 目录** - 所有备份文件
 3. **config.js** - 系统配置
 4. **manifest.json** - PWA配置
-5. **任何在 PROTECTED_FILES.md 中列出的文件**
-6. **核心功能文件** - HTML、JavaScript、CSS文件
+5. **tools/ 目录** - 所有工具文件（完整保护）
+6. **任何在 PROTECTED_FILES.md 中列出的文件**
+7. **核心功能文件** - HTML、JavaScript、CSS文件
+8. **工具分类目录** - msh-system/、cloud-forms/、cross-system/
 
 ### **删除前必须确认**
 1. **文件不被其他文件引用**

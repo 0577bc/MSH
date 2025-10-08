@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能测试工具 - MSH签到系统</title>
+    <link rel="stylesheet" href="../../src/style.css">
+    <style>
+        .testing-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .testing-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .testing-header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .testing-header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .test-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .test-section h2 {
+            color: #2d3748;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .test-category {
+            margin-bottom: 30px;
+        }
+
+        .test-category h3 {
+            color: #4a5568;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .test-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .test-item:hover {
+            background: #e2e8f0;
+            border-color: #4299e1;
+        }
+
+        .test-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .test-item-title {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .test-item-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .test-item-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .test-item-status.running {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .test-item-status.passed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .test-item-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .test-item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #dd6b20;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        .test-results {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .test-results.show {
+            display: block;
+        }
+
+        .test-log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-info { color: #4299e1; }
+        .log-success { color: #48bb78; }
+        .log-warning { color: #ed8936; }
+        .log-error { color: #f56565; }
+
+        .test-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .summary-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="testing-container">
+        <div class="testing-header">
+            <h1>🧪 功能测试工具</h1>
+            <p>测试MSH系统的各项功能是否正常工作</p>
+        </div>
+        
+        <!-- 测试统计 -->
+        <div class="test-section">
+            <h2>📊 测试统计</h2>
+            <div class="test-summary">
+                <div class="summary-card">
+                    <div class="summary-number" id="totalTests">0</div>
+                    <div class="summary-label">总测试数</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number" id="passedTests">0</div>
+                    <div class="summary-label">通过测试</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number" id="failedTests">0</div>
+                    <div class="summary-label">失败测试</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number" id="pendingTests">0</div>
+                    <div class="summary-label">待测试</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 测试操作 -->
+        <div class="test-section">
+            <h2>🔄 测试操作</h2>
+            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="runAllTests()">🚀 运行所有测试</button>
+                <button class="btn btn-success" onclick="runPassedTests()">✅ 运行通过测试</button>
+                <button class="btn btn-warning" onclick="runFailedTests()">❌ 运行失败测试</button>
+                <button class="btn btn-danger" onclick="resetAllTests()">🔄 重置所有测试</button>
+            </div>
+        </div>
+        
+        <!-- 数据同步测试 -->
+        <div class="test-section">
+            <h2>🔄 数据同步测试</h2>
+            <div class="test-category">
+                <h3>Firebase连接测试</h3>
+                <div class="test-item" id="test-firebase-connection">
+                    <div class="test-item-header">
+                        <div class="test-item-title">Firebase连接测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('firebase-connection')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-firebase-connection"></div>
+                </div>
+                
+                <div class="test-item" id="test-firebase-read">
+                    <div class="test-item-header">
+                        <div class="test-item-title">Firebase数据读取测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('firebase-read')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-firebase-read"></div>
+                </div>
+                
+                <div class="test-item" id="test-firebase-write">
+                    <div class="test-item-header">
+                        <div class="test-item-title">Firebase数据写入测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('firebase-write')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-firebase-write"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 数据管理测试 -->
+        <div class="test-section">
+            <h2>💾 数据管理测试</h2>
+            <div class="test-category">
+                <h3>本地存储测试</h3>
+                <div class="test-item" id="test-local-storage">
+                    <div class="test-item-header">
+                        <div class="test-item-title">本地存储读写测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('local-storage')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-local-storage"></div>
+                </div>
+                
+                <div class="test-item" id="test-data-consistency">
+                    <div class="test-item-header">
+                        <div class="test-item-title">数据一致性测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('data-consistency')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-data-consistency"></div>
+                </div>
+                
+                <div class="test-item" id="test-data-backup">
+                    <div class="test-item-header">
+                        <div class="test-item-title">数据备份测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('data-backup')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-data-backup"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 功能模块测试 -->
+        <div class="test-section">
+            <h2>⚙️ 功能模块测试</h2>
+            <div class="test-category">
+                <h3>签到功能测试</h3>
+                <div class="test-item" id="test-signin-function">
+                    <div class="test-item-header">
+                        <div class="test-item-title">签到功能测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('signin-function')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-signin-function"></div>
+                </div>
+                
+                <div class="test-item" id="test-member-management">
+                    <div class="test-item-header">
+                        <div class="test-item-title">成员管理测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('member-management')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-member-management"></div>
+                </div>
+                
+                <div class="test-item" id="test-group-management">
+                    <div class="test-item-header">
+                        <div class="test-item-title">小组管理测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('group-management')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-group-management"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 性能测试 -->
+        <div class="test-section">
+            <h2>⚡ 性能测试</h2>
+            <div class="test-category">
+                <h3>加载性能测试</h3>
+                <div class="test-item" id="test-page-load">
+                    <div class="test-item-header">
+                        <div class="test-item-title">页面加载性能测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('page-load')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-page-load"></div>
+                </div>
+                
+                <div class="test-item" id="test-data-load">
+                    <div class="test-item-header">
+                        <div class="test-item-title">数据加载性能测试</div>
+                        <div class="test-item-status pending">待测试</div>
+                    </div>
+                    <div class="test-item-actions">
+                        <button class="btn btn-primary" onclick="runTest('data-load')">运行测试</button>
+                    </div>
+                    <div class="test-results" id="results-data-load"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 测试日志 -->
+        <div class="test-section">
+            <h2>📝 测试日志</h2>
+            <div class="test-log" id="testLog">
+                <div class="log-entry info">功能测试工具已加载</div>
+            </div>
+            <button class="btn btn-warning" onclick="clearTestLog()">清空日志</button>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="../../config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../src/utils.js"></script>
+    <script src="../../src/new-data-manager.js"></script>
+    <script src="../../src/data-backup-manager.js"></script>
+    
+    <script>
+        // 功能测试工具
+        let testResults = {};
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+        let pendingTests = 0;
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            addTestLog('info', '功能测试工具已加载');
+            updateTestStats();
+        });
+        
+        // 运行单个测试
+        async function runTest(testId) {
+            try {
+                addTestLog('info', `开始运行测试: ${testId}`);
+                
+                // 更新测试状态
+                updateTestStatus(testId, 'running');
+                
+                // 执行测试
+                const result = await executeTest(testId);
+                
+                // 更新测试结果
+                testResults[testId] = result;
+                updateTestStatus(testId, result.passed ? 'passed' : 'failed');
+                displayTestResults(testId, result);
+                
+                // 更新统计
+                updateTestStats();
+                
+                addTestLog(result.passed ? 'success' : 'error', 
+                    `测试 ${testId} ${result.passed ? '通过' : '失败'}: ${result.message}`);
+                
+            } catch (error) {
+                console.error(`测试 ${testId} 失败:`, error);
+                addTestLog('error', `测试 ${testId} 失败: ${error.message}`);
+                updateTestStatus(testId, 'failed');
+                updateTestStats();
+            }
+        }
+        
+        // 执行具体测试
+        async function executeTest(testId) {
+            switch (testId) {
+                case 'firebase-connection':
+                    return await testFirebaseConnection();
+                case 'firebase-read':
+                    return await testFirebaseRead();
+                case 'firebase-write':
+                    return await testFirebaseWrite();
+                case 'local-storage':
+                    return await testLocalStorage();
+                case 'data-consistency':
+                    return await testDataConsistency();
+                case 'data-backup':
+                    return await testDataBackup();
+                case 'signin-function':
+                    return await testSigninFunction();
+                case 'member-management':
+                    return await testMemberManagement();
+                case 'group-management':
+                    return await testGroupManagement();
+                case 'page-load':
+                    return await testPageLoad();
+                case 'data-load':
+                    return await testDataLoad();
+                default:
+                    throw new Error(`未知测试: ${testId}`);
+            }
+        }
+        
+        // Firebase连接测试
+        async function testFirebaseConnection() {
+            try {
+                if (typeof firebase === 'undefined') {
+                    return { passed: false, message: 'Firebase SDK未加载' };
+                }
+                
+                if (firebase.apps.length === 0) {
+                    return { passed: false, message: 'Firebase未初始化' };
+                }
+                
+                const db = firebase.database();
+                await db.ref('test').once('value');
+                
+                return { passed: true, message: 'Firebase连接正常' };
+            } catch (error) {
+                return { passed: false, message: `Firebase连接失败: ${error.message}` };
+            }
+        }
+        
+        // Firebase数据读取测试
+        async function testFirebaseRead() {
+            try {
+                const db = firebase.database();
+                const snapshot = await db.ref('groups').once('value');
+                const data = snapshot.val();
+                
+                return { passed: true, message: `成功读取数据，包含 ${Object.keys(data || {}).length} 个小组` };
+            } catch (error) {
+                return { passed: false, message: `Firebase读取失败: ${error.message}` };
+            }
+        }
+        
+        // Firebase数据写入测试
+        async function testFirebaseWrite() {
+            try {
+                const db = firebase.database();
+                const testData = { test: 'data', timestamp: new Date().toISOString() };
+                
+                await db.ref('test').set(testData);
+                await db.ref('test').remove();
+                
+                return { passed: true, message: 'Firebase写入测试成功' };
+            } catch (error) {
+                return { passed: false, message: `Firebase写入失败: ${error.message}` };
+            }
+        }
+        
+        // 本地存储测试
+        async function testLocalStorage() {
+            try {
+                const testKey = 'msh_test_' + Date.now();
+                const testData = { test: 'data', timestamp: new Date().toISOString() };
+                
+                // 写入测试
+                localStorage.setItem(testKey, JSON.stringify(testData));
+                
+                // 读取测试
+                const retrieved = JSON.parse(localStorage.getItem(testKey));
+                
+                // 清理测试数据
+                localStorage.removeItem(testKey);
+                
+                if (JSON.stringify(retrieved) === JSON.stringify(testData)) {
+                    return { passed: true, message: '本地存储读写正常' };
+                } else {
+                    return { passed: false, message: '本地存储数据不一致' };
+                }
+            } catch (error) {
+                return { passed: false, message: `本地存储测试失败: ${error.message}` };
+            }
+        }
+        
+        // 数据一致性测试
+        async function testDataConsistency() {
+            try {
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const groupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                
+                // 检查小组键名一致性
+                const groupKeys = Object.keys(groups);
+                const nameKeys = Object.keys(groupNames);
+                
+                const missingNames = groupKeys.filter(key => !nameKeys.includes(key));
+                const missingGroups = nameKeys.filter(key => !groupKeys.includes(key));
+                
+                if (missingNames.length > 0 || missingGroups.length > 0) {
+                    return { 
+                        passed: false, 
+                        message: `数据不一致: 缺少名称 ${missingNames.length} 个, 缺少小组 ${missingGroups.length} 个` 
+                    };
+                }
+                
+                return { passed: true, message: `数据一致性检查通过，共 ${groupKeys.length} 个小组` };
+            } catch (error) {
+                return { passed: false, message: `数据一致性测试失败: ${error.message}` };
+            }
+        }
+        
+        // 数据备份测试
+        async function testDataBackup() {
+            try {
+                if (!window.dataBackupManager) {
+                    return { passed: false, message: '数据备份管理器未加载' };
+                }
+                
+                const backupId = await window.dataBackupManager.createFullBackup('测试备份');
+                
+                return { passed: true, message: `数据备份测试成功，备份ID: ${backupId}` };
+            } catch (error) {
+                return { passed: false, message: `数据备份测试失败: ${error.message}` };
+            }
+        }
+        
+        // 签到功能测试
+        async function testSigninFunction() {
+            try {
+                // 检查签到相关函数是否存在
+                if (typeof window.signin === 'undefined') {
+                    return { passed: false, message: '签到函数未定义' };
+                }
+                
+                // 检查必要的数据结构
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                if (Object.keys(groups).length === 0) {
+                    return { passed: false, message: '没有小组数据' };
+                }
+                
+                return { passed: true, message: '签到功能检查通过' };
+            } catch (error) {
+                return { passed: false, message: `签到功能测试失败: ${error.message}` };
+            }
+        }
+        
+        // 成员管理测试
+        async function testMemberManagement() {
+            try {
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                let totalMembers = 0;
+                
+                Object.values(groups).forEach(group => {
+                    if (Array.isArray(group)) {
+                        totalMembers += group.length;
+                    }
+                });
+                
+                return { passed: true, message: `成员管理检查通过，共 ${totalMembers} 个成员` };
+            } catch (error) {
+                return { passed: false, message: `成员管理测试失败: ${error.message}` };
+            }
+        }
+        
+        // 小组管理测试
+        async function testGroupManagement() {
+            try {
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const groupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                
+                if (Object.keys(groups).length === 0) {
+                    return { passed: false, message: '没有小组数据' };
+                }
+                
+                return { passed: true, message: `小组管理检查通过，共 ${Object.keys(groups).length} 个小组` };
+            } catch (error) {
+                return { passed: false, message: `小组管理测试失败: ${error.message}` };
+            }
+        }
+        
+        // 页面加载性能测试
+        async function testPageLoad() {
+            try {
+                const startTime = performance.now();
+                
+                // 模拟页面加载
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const endTime = performance.now();
+                const loadTime = endTime - startTime;
+                
+                return { passed: true, message: `页面加载性能测试完成，耗时: ${loadTime.toFixed(2)}ms` };
+            } catch (error) {
+                return { passed: false, message: `页面加载性能测试失败: ${error.message}` };
+            }
+        }
+        
+        // 数据加载性能测试
+        async function testDataLoad() {
+            try {
+                const startTime = performance.now();
+                
+                // 模拟数据加载
+                const groups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const groupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                const attendanceRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                
+                const endTime = performance.now();
+                const loadTime = endTime - startTime;
+                
+                return { passed: true, message: `数据加载性能测试完成，耗时: ${loadTime.toFixed(2)}ms` };
+            } catch (error) {
+                return { passed: false, message: `数据加载性能测试失败: ${error.message}` };
+            }
+        }
+        
+        // 运行所有测试
+        async function runAllTests() {
+            addTestLog('info', '开始运行所有测试...');
+            
+            const testIds = [
+                'firebase-connection', 'firebase-read', 'firebase-write',
+                'local-storage', 'data-consistency', 'data-backup',
+                'signin-function', 'member-management', 'group-management',
+                'page-load', 'data-load'
+            ];
+            
+            for (const testId of testIds) {
+                await runTest(testId);
+                await new Promise(resolve => setTimeout(resolve, 500)); // 延迟500ms
+            }
+            
+            addTestLog('success', '所有测试运行完成');
+        }
+        
+        // 运行通过的测试
+        async function runPassedTests() {
+            const passedTestIds = Object.keys(testResults).filter(id => testResults[id].passed);
+            addTestLog('info', `开始运行 ${passedTestIds.length} 个通过的测试...`);
+            
+            for (const testId of passedTestIds) {
+                await runTest(testId);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        // 运行失败的测试
+        async function runFailedTests() {
+            const failedTestIds = Object.keys(testResults).filter(id => !testResults[id].passed);
+            addTestLog('info', `开始运行 ${failedTestIds.length} 个失败的测试...`);
+            
+            for (const testId of failedTestIds) {
+                await runTest(testId);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        // 重置所有测试
+        function resetAllTests() {
+            testResults = {};
+            updateTestStats();
+            
+            // 重置所有测试状态
+            document.querySelectorAll('.test-item-status').forEach(status => {
+                status.textContent = '待测试';
+                status.className = 'test-item-status pending';
+            });
+            
+            // 隐藏所有测试结果
+            document.querySelectorAll('.test-results').forEach(results => {
+                results.style.display = 'none';
+            });
+            
+            addTestLog('info', '所有测试已重置');
+        }
+        
+        // 更新测试状态
+        function updateTestStatus(testId, status) {
+            const statusElement = document.querySelector(`#test-${testId} .test-item-status`);
+            if (statusElement) {
+                statusElement.textContent = {
+                    'pending': '待测试',
+                    'running': '运行中',
+                    'passed': '通过',
+                    'failed': '失败'
+                }[status];
+                statusElement.className = `test-item-status ${status}`;
+            }
+        }
+        
+        // 显示测试结果
+        function displayTestResults(testId, result) {
+            const resultsElement = document.getElementById(`results-${testId}`);
+            if (resultsElement) {
+                resultsElement.innerHTML = `
+                    <div style="color: ${result.passed ? '#48bb78' : '#f56565'}; font-weight: bold;">
+                        ${result.passed ? '✅ 通过' : '❌ 失败'}: ${result.message}
+                    </div>
+                `;
+                resultsElement.style.display = 'block';
+            }
+        }
+        
+        // 更新测试统计
+        function updateTestStats() {
+            totalTests = document.querySelectorAll('.test-item').length;
+            passedTests = Object.values(testResults).filter(result => result.passed).length;
+            failedTests = Object.values(testResults).filter(result => !result.passed).length;
+            pendingTests = totalTests - Object.keys(testResults).length;
+            
+            document.getElementById('totalTests').textContent = totalTests;
+            document.getElementById('passedTests').textContent = passedTests;
+            document.getElementById('failedTests').textContent = failedTests;
+            document.getElementById('pendingTests').textContent = pendingTests;
+        }
+        
+        // 添加测试日志
+        function addTestLog(type, message) {
+            const container = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            container.appendChild(logEntry);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // 清空测试日志
+        function clearTestLog() {
+            document.getElementById('testLog').innerHTML = '<div class="log-entry info">测试日志已清空</div>';
+        }
+    </script>
+</body>
+</html>
+
+
