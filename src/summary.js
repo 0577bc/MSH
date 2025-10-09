@@ -864,6 +864,10 @@ function initializeEventListeners() {
       
       // 统计该组的签到情况
       const groupRecords = dayRecords.filter(record => record.group === group);
+      console.log(`🔍 组别 ${group} 签到记录数: ${groupRecords.length}`);
+      if (groupRecords.length > 0) {
+        console.log(`🔍 组别 ${group} 签到记录示例:`, groupRecords[0]);
+      }
       // 使用UUID进行统计匹配，避免姓名变更导致的重复统计
       const signedUUIDs = groupRecords.map(record => record.memberUUID || record.name);
       
