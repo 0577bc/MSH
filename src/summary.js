@@ -928,24 +928,11 @@ function initializeEventListeners() {
       const groupMembers = groups[group];
       const groupSigned = dayRecords.filter(record => record.group === group);
       const signedUUIDs = groupSigned.map(record => record.memberUUID || record.name);
-      // 获取不统计人员列表
-      const excludedMembersData = window.utils.loadExcludedMembers();
-      // 确保excludedMembers是数组形式
-      const excludedMembers = Array.isArray(excludedMembersData) ? excludedMembersData : Object.values(excludedMembersData || {});
-      
+      // 🔧 使用member.excluded属性，不再调用废弃的loadExcludedMembers()
       // 过滤掉未签到的不统计人员（已签到的不统计人员仍然统计）
       const unsignedMembers = groupMembers.filter(member => 
         !signedUUIDs.includes(member.uuid || member.name) && // 没有签到（使用UUID匹配）
-        !excludedMembers.some(excluded => { // 且不是未签到的不统计人员
-          // 优先UUID匹配（最准确）
-          if (excluded.uuid && member.uuid) {
-            return excluded.uuid === member.uuid;
-          }
-          // 没有UUID时，使用姓名+组别匹配（向后兼容）
-          // 注意：excluded.group可能是组名，member.group是组ID，group是当前组ID
-          return excluded.name === member.name && 
-                 (excluded.group === group || excluded.groupName === group);
-        })
+        !member.excluded // 且不是不统计人员（使用member.excluded属性）
       );
       
       const groupEarly = groupSigned.filter(record => {

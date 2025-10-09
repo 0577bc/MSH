@@ -1923,7 +1923,7 @@ function optimizeDataSync(localData, remoteData) {
  * @returns {Array} 不统计人员列表
  */
 function loadExcludedMembers() {
-  console.warn('⚠️ loadExcludedMembers() 已废弃，请使用 member.excluded 属性');
+  // 已废弃：请使用 member.excluded 属性（警告已移除以减少控制台噪音）
   
   // 为了兼容，从groups中提取excluded=true的成员
   if (window.groups) {
