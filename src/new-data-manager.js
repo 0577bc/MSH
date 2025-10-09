@@ -2014,9 +2014,19 @@ class NewDataManager {
                     `请确保本地已加载完整数据后再同步！`);
               syncResults.attendanceRecords = false;
             } else {
-              // 修复：使用set()而不是update()来同步数组数据
-              await db.ref('attendanceRecords').set(attendanceRecords);
-              console.log(`✅ attendanceRecords同步成功`);
+              // 🚨 修复：只同步当天数据，使用增量更新保护历史数据
+              const today = new Date().toISOString().split('T')[0];
+              const todayRecords = attendanceRecords.filter(record => record.date === today);
+              
+              if (todayRecords.length > 0) {
+                // 使用push()添加当天新记录，不覆盖历史数据
+                for (const record of todayRecords) {
+                  await db.ref('attendanceRecords').push(record);
+                }
+                console.log(`✅ 当天签到记录同步成功: ${todayRecords.length}条`);
+              } else {
+                console.log(`✅ 当天无新签到记录需要同步`);
+              }
             }
           }
           // 优化验证逻辑：处理Firebase返回的数据格式

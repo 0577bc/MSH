@@ -775,9 +775,9 @@ const SundayTrackingManager = {
             console.warn(`⚠️ 警告：签到记录数量较少(${window.attendanceRecords.length}条)，UUID迁移同步已禁用`);
             console.warn('💡 请确保已加载完整数据后再执行UUID迁移');
           } else {
-            window.db.ref('attendanceRecords').set(window.attendanceRecords).catch(error => {
-              console.error('同步签到记录到Firebase失败:', error);
-            });
+            // 🚨 修复：UUID迁移不应覆盖全部数据
+            console.log('⚠️ UUID迁移已完成，但不应对签到记录进行全量覆盖操作');
+            console.log('💡 如需同步签到记录，请使用专门的签到记录管理工具');
           }
         }
       }

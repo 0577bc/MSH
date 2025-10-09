@@ -123,7 +123,18 @@ class DataBackupManager {
           await db.ref('groupNames').set(backupData.data.groupNames);
         }
         if (backupData.data.attendanceRecords) {
-          await db.ref('attendanceRecords').set(backupData.data.attendanceRecords);
+          // 🚨 备份恢复功能：需要用户确认，因为会覆盖全部数据
+          const confirmMessage = `⚠️ 即将恢复签到记录数据！\n\n` +
+                               `这将覆盖Firebase中的所有签到记录！\n` +
+                               `备份记录数量：${backupData.data.attendanceRecords.length}条\n\n` +
+                               `确定要继续吗？`;
+          
+          if (confirm(confirmMessage)) {
+            await db.ref('attendanceRecords').set(backupData.data.attendanceRecords);
+            console.log('✅ 签到记录已从备份恢复');
+          } else {
+            console.log('❌ 用户取消了签到记录恢复操作');
+          }
         }
         if (backupData.data.excludedMembers) {
           await db.ref('excludedMembers').set(backupData.data.excludedMembers);

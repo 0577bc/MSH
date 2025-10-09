@@ -256,14 +256,10 @@ async function initializeSampleData() {
             // 只保存到本地
             localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
           } else {
-            // 数据量正常，可以同步
+            // 🚨 修复：UUID迁移不应覆盖全部数据，只处理当天数据
             localStorage.setItem('msh_attendanceRecords', JSON.stringify(attendanceRecords));
-            try {
-              await db.ref('attendanceRecords').set(attendanceRecords);
-              console.log('签到记录UUID已同步到Firebase');
-            } catch (error) {
-              console.error('同步签到记录UUID到Firebase失败:', error);
-            }
+            console.log('⚠️ UUID迁移已完成，但不应对签到记录进行全量覆盖操作');
+            console.log('💡 如需同步签到记录，请使用专门的签到记录管理工具');
           }
         }
       } else {

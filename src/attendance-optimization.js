@@ -284,10 +284,20 @@ async function applyOptimization() {
         localStorage.setItem('attendanceRecords', JSON.stringify(optimizedRecords));
         addLog('success', '本地存储已更新');
         
-        // 同步到Firebase（如果Firebase已初始化）
+        // 🚨 修复：优化工具不应覆盖全部数据，只处理当天数据
         if (firebase.apps.length > 0) {
-            await firebase.database().ref('attendanceRecords').set(optimizedRecords);
-            addLog('success', 'Firebase数据已更新');
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecords = optimizedRecords.filter(record => record.date === today);
+            
+            if (todayRecords.length > 0) {
+                // 只同步当天的优化记录
+                for (const record of todayRecords) {
+                    await firebase.database().ref('attendanceRecords').push(record);
+                }
+                addLog('success', `当天优化记录已同步: ${todayRecords.length}条`);
+            } else {
+                addLog('info', '当天无优化记录需要同步');
+            }
         } else {
             addLog('warning', 'Firebase未初始化，仅更新了本地存储');
         }
