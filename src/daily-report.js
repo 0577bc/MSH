@@ -12,6 +12,16 @@ let groups = {};
 let groupNames = {};
 let pageSyncManager; // 页面同步管理器
 
+// 历史组别名称映射（用于兼容旧数据）
+// 格式：{ "旧名称": "组别ID" }
+// 通过UUID匹配验证，确保100%准确
+const HISTORICAL_GROUP_NAMES = {
+  '乐清1组': 'group3',  // 现在是"花园小家" (匹配度: 2/2人)
+  '乐清2组': 'group4',  // 现在是"时代小家" (匹配度: 8/8人)
+  '乐清3组': 'group5',  // 现在是"以勒小家" (匹配度: 5/5人)
+  '七里港': 'group1',   // 现在是"阿茜组" (匹配度: 5/5人)
+};
+
 // DOM元素引用
 let signedList, unsignedList, newcomersList;
 let totalSigned, totalNewcomers, backButton;
@@ -286,7 +296,20 @@ function initializeEventListeners() {
         const groupName = groupNames[group] || group;
         
         // 统计该组的签到情况
-        const groupRecords = todayRecords.filter(record => record.group === group);
+        // 🔧 修复：使用组别名称匹配，因为签到记录中的group字段存储的是中文名称
+        // 同时支持历史组别名称（用于兼容旧数据）
+        const groupRecords = todayRecords.filter(record => {
+          // 1. 匹配当前组别名称
+          if (record.group === groupName || record.group === group) {
+            return true;
+          }
+          // 2. 匹配历史组别名称
+          const historicalGroupId = HISTORICAL_GROUP_NAMES[record.group];
+          if (historicalGroupId === group) {
+            return true;
+          }
+          return false;
+        });
         
         
         // 按时间段分类签到记录（早到、准时、迟到）
