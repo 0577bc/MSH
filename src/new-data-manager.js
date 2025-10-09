@@ -2364,14 +2364,17 @@ class NewDataManager {
         return true;
         
       } else if (dataType === 'attendanceRecords') {
-        // 数组类型验证：只验证记录数量
-        const localLength = Array.isArray(localData) ? localData.length : 0;
+        // 🚨 修复：attendanceRecords验证逻辑
+        // 只验证当天数据，因为本地包含历史数据，Firebase只查询当天数据
+        const today = new Date().toISOString().split('T')[0];
+        const localTodayRecords = Array.isArray(localData) ? 
+          localData.filter(record => record.date === today) : [];
         const remoteLength = Array.isArray(remoteData) ? remoteData.length : 0;
         
-        console.log(`🔍 验证${dataType}数据: 本地长度=${localLength}, 远程长度=${remoteLength}`);
+        console.log(`🔍 验证${dataType}数据: 本地当天=${localTodayRecords.length}, 远程当天=${remoteLength}`);
         
         // 允许±1的差异（网络延迟可能导致）
-        const isValid = Math.abs(localLength - remoteLength) <= 1;
+        const isValid = Math.abs(localTodayRecords.length - remoteLength) <= 1;
         console.log(`🔍 ${dataType}数据验证${isValid ? '通过' : '失败'}`);
         
         return isValid;
