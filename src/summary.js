@@ -12,6 +12,15 @@ let groupNames = {};
 let attendanceRecords = [];
 let pageSyncManager; // 页面同步管理器
 
+// 历史组别名称映射（用于兼容旧数据）
+// 格式：{ "旧名称": "组别ID" }
+const HISTORICAL_GROUP_NAMES = {
+  '乐清1组': 'group1',  // 现在是"阿茜组"
+  '乐清2组': 'group4',  // 现在是"时代小家"
+  '乐清3组': 'group5',  // 现在是"以勒小家"
+  '七里港': 'group3',   // 现在是"花园小家"
+};
+
 // DOM元素引用
 let backButton, backToSigninButton, exportButton;
 let showDailyReport, showSundayTracking, showQuarterlyReport, showYearlyReport;
@@ -877,9 +886,19 @@ function initializeEventListeners() {
       
       // 统计该组的签到情况
       // 🔧 修复：使用组别名称匹配，因为签到记录中的group字段存储的是中文名称
-      const groupRecords = dayRecords.filter(record => 
-        record.group === groupName || record.group === group
-      );
+      // 同时支持历史组别名称（用于兼容旧数据）
+      const groupRecords = dayRecords.filter(record => {
+        // 1. 匹配当前组别名称
+        if (record.group === groupName || record.group === group) {
+          return true;
+        }
+        // 2. 匹配历史组别名称
+        const historicalGroupId = HISTORICAL_GROUP_NAMES[record.group];
+        if (historicalGroupId === group) {
+          return true;
+        }
+        return false;
+      });
       console.log(`🔍 组别 ${group} (${groupName}) 签到记录数: ${groupRecords.length}`);
       if (groupRecords.length > 0) {
         console.log(`🔍 组别 ${group} 签到记录示例:`, groupRecords[0]);
