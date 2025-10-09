@@ -890,6 +890,12 @@ function initializeEventListeners() {
         return timeSlot === 'late';
       });
       
+      // 🔍 调试：检查签到记录的数据结构
+      if (groupRecords.length > 0) {
+        console.log(`🔍 组别 ${group} 签到记录示例:`, groupRecords[0]);
+        console.log(`🔍 组别 ${group} - 早到记录数: ${earlyRecords.length}, 准时记录数: ${onTimeRecords.length}, 迟到记录数: ${lateRecords.length}`);
+      }
+      
       const row = document.createElement('tr');
       const unsignedNames = unsignedMembers.map(member => window.utils.getDisplayName(member)).join(', ');
       
