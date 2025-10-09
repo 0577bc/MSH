@@ -767,6 +767,8 @@ function initializeEventListeners() {
     if (!dailyReportList) return;
     
     console.log('日报表 - 开始加载，日期:', date);
+    console.log('日报表 - 接收到的签到记录数:', dateRecords ? dateRecords.length : 0);
+    console.log('日报表 - 签到记录示例:', dateRecords && dateRecords.length > 0 ? dateRecords[0] : '无数据');
     console.log('日报表 - groups数据:', groups);
     console.log('日报表 - group0是否存在:', groups['group0']);
     console.log('日报表 - group0成员数量:', groups['group0'] ? groups['group0'].length : '不存在');
