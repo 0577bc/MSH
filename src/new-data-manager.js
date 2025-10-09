@@ -329,16 +329,18 @@ class NewDataManager {
         }
         
         const db = firebase.database();
-        const [groupsSnapshot, groupNamesSnapshot, attendanceSnapshot, excludedMembersSnapshot] = await Promise.all([
+        const [groupsSnapshot, groupNamesSnapshot, excludedMembersSnapshot] = await Promise.all([
           db.ref('groups').once('value'),
           db.ref('groupNames').once('value'),
-          db.ref('attendanceRecords').once('value'),
           db.ref('excludedMembers').once('value')
         ]);
         
+        // 🚨 修复：数据恢复时只加载当天签到记录，不拉取全部历史数据
+        const attendanceRecords = await this.loadTodayAttendanceRecordsFromFirebase();
+        
         const firebaseGroups = groupsSnapshot.val() || {};
         const firebaseGroupNames = groupNamesSnapshot.val() || {};
-        const firebaseAttendance = attendanceSnapshot.val() || {};
+        const firebaseAttendance = attendanceRecords; // 使用当天数据
         const firebaseExcludedMembers = excludedMembersSnapshot.val() || {};
         
         console.log('🔍 Firebase数据恢复检查:');
@@ -437,6 +439,13 @@ class NewDataManager {
             console.log('🔍 没有有效的excludedMembers数据，设置为空对象');
             window.excludedMembers = {};
           }
+          
+          // 🔧 修复：更新originalData为恢复后的数据，避免误报变更
+          this.originalData.groups = JSON.parse(JSON.stringify(window.groups));
+          this.originalData.groupNames = JSON.parse(JSON.stringify(window.groupNames));
+          this.originalData.attendanceRecords = JSON.parse(JSON.stringify(window.attendanceRecords));
+          this.originalData.excludedMembers = JSON.parse(JSON.stringify(window.excludedMembers));
+          console.log('✅ 已更新originalData基准数据');
           
           console.log('✅ 数据恢复完成，跳过重新拉取');
           return;
@@ -1783,21 +1792,25 @@ class NewDataManager {
       if (attendanceRecords.length < 10) {
         console.error('⚠️ 警告：本地签到记录数量异常少，进行安全检查...');
         
-        // 从Firebase读取当前数据量进行对比
-        const currentSnapshot = await db.ref('attendanceRecords').once('value');
-        const currentData = currentSnapshot.val();
-        const currentCount = currentData ? (Array.isArray(currentData) ? currentData.length : Object.keys(currentData).length) : 0;
+        // 🚨 修复：安全检查时只检查当天数据量，不拉取全部历史数据
+        const today = new Date().toISOString().split('T')[0];
+        const todaySnapshot = await db.ref('attendanceRecords')
+          .orderByChild('date')
+          .equalTo(today)
+          .once('value');
+        const todayData = todaySnapshot.val();
+        const todayCount = todayData ? Object.keys(todayData).length : 0;
         
-        console.error(`🔍 Firebase当前记录数：${currentCount}`);
+        console.error(`🔍 Firebase当天记录数：${todayCount}`);
         
-        if (currentCount > attendanceRecords.length) {
+        if (todayCount > attendanceRecords.length) {
           console.error('🚨 严重警告：Firebase数据量大于本地，同步将导致数据丢失！');
-          console.error(`即将丢失 ${currentCount - attendanceRecords.length} 条历史记录！`);
+          console.error(`即将丢失 ${todayCount - attendanceRecords.length} 条当天记录！`);
           
           alert(`⚠️ 同步已中止！数据保护机制触发\n\n` +
                 `本地记录：${attendanceRecords.length} 条\n` +
-                `Firebase记录：${currentCount} 条\n\n` +
-                `同步会导致 ${currentCount - attendanceRecords.length} 条历史记录丢失！\n\n` +
+                `Firebase当天记录：${todayCount} 条\n\n` +
+                `同步会导致 ${todayCount - attendanceRecords.length} 条当天记录丢失！\n\n` +
                 `请使用工具页面的"从Firebase加载"加载完整数据后再同步。`);
           
           this.isSyncing = false;
@@ -1999,18 +2012,22 @@ class NewDataManager {
             console.warn('⚠️ 警告：attendanceRecords数据为空，跳过同步以防止数据丢失');
             syncResults.attendanceRecords = true; // 跳过同步
           } else {
-            // 🚨 紧急修复：添加数据量检查，防止覆盖历史数据
-            const currentSnapshot = await db.ref('attendanceRecords').once('value');
-            const currentData = currentSnapshot.val();
-            const currentCount = currentData ? (Array.isArray(currentData) ? currentData.length : Object.keys(currentData).length) : 0;
+            // 🚨 修复：同步检查时只检查当天数据量，不拉取全部历史数据
+            const today = new Date().toISOString().split('T')[0];
+            const todaySnapshot = await db.ref('attendanceRecords')
+              .orderByChild('date')
+              .equalTo(today)
+              .once('value');
+            const todayData = todaySnapshot.val();
+            const todayCount = todayData ? Object.keys(todayData).length : 0;
             
-            console.log(`🔍 数据量对比 - 本地：${attendanceRecords.length}，Firebase：${currentCount}`);
+            console.log(`🔍 数据量对比 - 本地：${attendanceRecords.length}，Firebase当天：${todayCount}`);
             
-            if (currentCount > attendanceRecords.length && attendanceRecords.length < 50) {
+            if (todayCount > attendanceRecords.length && attendanceRecords.length < 50) {
               console.error('🚨 拒绝同步：本地数据量远小于Firebase，会导致数据丢失！');
               alert(`⚠️ attendanceRecords同步已中止！\n\n` +
                     `本地：${attendanceRecords.length} 条\n` +
-                    `Firebase：${currentCount} 条\n\n` +
+                    `Firebase当天：${todayCount} 条\n\n` +
                     `请确保本地已加载完整数据后再同步！`);
               syncResults.attendanceRecords = false;
             } else {
@@ -2019,18 +2036,48 @@ class NewDataManager {
               const todayRecords = attendanceRecords.filter(record => record.date === today);
               
               if (todayRecords.length > 0) {
-                // 使用push()添加当天新记录，不覆盖历史数据
-                for (const record of todayRecords) {
-                  await db.ref('attendanceRecords').push(record);
+                // 🔧 修复：查询Firebase当天已有记录，避免重复添加
+                const todaySnapshot = await db.ref('attendanceRecords')
+                  .orderByChild('date')
+                  .equalTo(today)
+                  .once('value');
+                const firebaseTodayData = todaySnapshot.val() || {};
+                const firebaseTodayRecords = Object.values(firebaseTodayData);
+                
+                console.log(`🔍 Firebase当天已有${firebaseTodayRecords.length}条记录`);
+                
+                // 找出本地有但Firebase没有的记录（根据time和name判断）
+                const newRecords = todayRecords.filter(localRecord => {
+                  return !firebaseTodayRecords.some(firebaseRecord => 
+                    firebaseRecord.time === localRecord.time && 
+                    firebaseRecord.name === localRecord.name &&
+                    firebaseRecord.group === localRecord.group
+                  );
+                });
+                
+                if (newRecords.length > 0) {
+                  // 使用push()添加新记录，不覆盖历史数据
+                  for (const record of newRecords) {
+                    await db.ref('attendanceRecords').push(record);
+                  }
+                  console.log(`✅ 同步了${newRecords.length}条新签到记录（跳过${todayRecords.length - newRecords.length}条已存在）`);
+                  syncResults.attendanceRecords = true;
+                } else {
+                  console.log(`✅ 当天所有记录已同步，无需重复添加`);
+                  syncResults.attendanceRecords = true;
                 }
-                console.log(`✅ 当天签到记录同步成功: ${todayRecords.length}条`);
               } else {
                 console.log(`✅ 当天无新签到记录需要同步`);
+                syncResults.attendanceRecords = true;
               }
             }
           }
-          // 优化验证逻辑：处理Firebase返回的数据格式
-          const verifySnapshot = await db.ref('attendanceRecords').once('value');
+          // 🚨 修复：验证时只检查当天数据，不拉取全部历史数据
+          const today = new Date().toISOString().split('T')[0];
+          const verifySnapshot = await db.ref('attendanceRecords')
+            .orderByChild('date')
+            .equalTo(today)
+            .once('value');
           const remoteData = verifySnapshot.val();
           let remoteRecords;
           
@@ -2432,9 +2479,8 @@ class NewDataManager {
       const groupsSnapshot = await db.ref('groups').once('value');
       const groups = groupsSnapshot.val() || {};
       
-      // 拉取attendanceRecords数据
-      const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
-      const attendanceRecords = Object.values(attendanceSnapshot.val() || {});
+      // 🚨 修复：紧急恢复时只加载当天数据，不拉取全部历史数据
+      const attendanceRecords = await this.loadTodayAttendanceRecordsFromFirebase();
       
       // 拉取groupNames数据
       const groupNamesSnapshot = await db.ref('groupNames').once('value');
@@ -3002,4 +3048,20 @@ NewDataManager.prototype.updateLastSyncTime = function() {
   metadata.lastSyncTime = Date.now();
   localStorage.setItem('msh_metadata', JSON.stringify(metadata));
 };
+
+// 为main.js兼容性添加的方法
+NewDataManager.prototype.loadGroups = function() {
+  return this.loadFromLocalStorage('groups') || {};
+};
+
+NewDataManager.prototype.loadGroupNames = function() {
+  return this.loadFromLocalStorage('groupNames') || {};
+};
+
+NewDataManager.prototype.loadAttendanceRecords = function() {
+  return this.loadFromLocalStorage('attendanceRecords') || [];
+};
+
+// 创建全局数据管理器实例
+window.dataManager = new NewDataManager();
 

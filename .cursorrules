@@ -61,6 +61,35 @@
 
 **详细规则：** [MANDATORY_RULES.md](./MANDATORY_RULES.md)
 
+### 🔴 P0级规则 - 共享函数修改保护（新增 2025-10-09）
+**修改共享函数或数据结构时，必须先分析影响范围并获得用户确认**
+
+**共享函数包括**：
+- `new-data-manager.js` - 数据管理器
+- `utils.js` - 工具函数
+- 全局数据结构（groups, groupNames, attendanceRecords）
+- 数据格式（memberSnapshot, groupSnapshot等）
+- Firebase数据读写逻辑
+
+**强制流程**：
+1. 🔍 识别是否为共享函数
+2. 📊 分析影响范围（列出所有使用该函数的页面）
+3. ⚠️ 评估潜在风险
+4. ✅ 获得用户确认
+5. 🔧 执行修改
+6. 📝 记录修改
+
+**触发场景**：
+- 修改 new-data-manager.js 中的任何函数
+- 修改 utils.js 中的任何函数
+- 修改数据结构（memberSnapshot, groupSnapshot）
+- 修改Firebase读写逻辑
+- 修改localStorage存储格式
+
+**为什么重要**：2025-10-07数据覆盖事故的根本原因就是修改了共享的数据加载逻辑，但未考虑对其他功能的影响，导致几百条历史记录丢失。
+
+**详细规则：** [MANDATORY_RULES.md](./MANDATORY_RULES.md)
+
 ### 🟡 P1级规则 - 代码修改验证
 **任何涉及代码修改的操作，必须遵循"分析-确认-执行"三步流程**
 

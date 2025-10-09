@@ -352,10 +352,15 @@ async function loadDataFromFirebase() {
   }
 
   try {
-    // 加载签到记录
-    const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+    // 🚨 修复：Sunday跟踪只加载当天签到记录，不拉取全部历史数据
+    const today = new Date().toISOString().split('T')[0];
+    const attendanceSnapshot = await db.ref('attendanceRecords')
+      .orderByChild('date')
+      .equalTo(today)
+      .once('value');
     if (attendanceSnapshot.exists()) {
-      attendanceRecords = attendanceSnapshot.val() || [];
+      const todayData = attendanceSnapshot.val();
+      attendanceRecords = todayData ? Object.values(todayData) : [];
       window.attendanceRecords = attendanceRecords; // 设置到全局变量
       console.log(`签到记录已加载: ${attendanceRecords.length} 条`);
     }

@@ -1189,9 +1189,10 @@ function createAttendanceRecord(group, member, now, timeSlot) {
     timeSlot,
     
     // 精简的人员信息快照（只保留签到记录必需的信息）
+    // ⚡ 优化：只保留显示必需的字段 (uuid, name, nickname)
+    // 其他信息可通过uuid从groups数据中查询
     memberSnapshot: {
-      uuid: memberInfo?.uuid || '', // 添加UUID到快照
-      id: memberInfo?.id || '',
+      uuid: memberInfo?.uuid || '',
       name: memberInfo?.name || member,
       nickname: memberInfo?.nickname || ''
     },

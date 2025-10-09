@@ -1,6 +1,7 @@
 # Firebase索引配置说明
 
 **创建日期：** 2025-10-07  
+**更新日期：** 2025-10-09  
 **适用优化：** 数据加载优化V2.0
 
 ---
@@ -10,6 +11,13 @@
 数据加载优化V2.0使用了Firebase的按日期范围查询功能：
 
 ```javascript
+// 按date字段查询（当天数据）
+const snapshot = await db.ref('attendanceRecords')
+  .orderByChild('date')
+  .equalTo(today)
+  .once('value');
+
+// 按time字段查询（日期范围）
 const snapshot = await db.ref('attendanceRecords')
   .orderByChild('time')
   .startAt(startDate)
@@ -17,7 +25,7 @@ const snapshot = await db.ref('attendanceRecords')
   .once('value');
 ```
 
-Firebase要求对查询字段（`time`）建立索引，否则查询会失败或性能很差。
+Firebase要求对查询字段（`date` 和 `time`）建立索引，否则查询会失败或性能很差。
 
 ---
 
@@ -41,7 +49,7 @@ Firebase要求对查询字段（`time`）建立索引，否则查询会失败或
    {
      "rules": {
        "attendanceRecords": {
-         ".indexOn": ["time"],
+         ".indexOn": ["date", "time"],
          ".read": "auth != null",
          ".write": "auth != null"
        },
@@ -56,6 +64,10 @@ Firebase要求对查询字段（`time`）建立索引，否则查询会失败或
      }
    }
    ```
+   
+   **重要**：必须同时添加 `date` 和 `time` 两个索引！
+   - `date` 索引：用于查询当天数据（YYYY-MM-DD格式）
+   - `time` 索引：用于查询日期范围（ISO格式）
 
 4. **发布规则**
    - 点击 **Publish**（发布）按钮
@@ -191,7 +203,7 @@ Firebase会在首次查询时提示需要创建索引，并提供一个URL链接
 {
   "rules": {
     "attendanceRecords": {
-      ".indexOn": ["time"],
+      ".indexOn": ["date", "time"],
       ".read": "auth != null",
       ".write": "auth != null"
     },
@@ -221,7 +233,7 @@ Firebase会在首次查询时提示需要创建索引，并提供一个URL链接
 {
   "rules": {
     "attendanceRecords": {
-      ".indexOn": ["time"],
+      ".indexOn": ["date", "time"],
       ".read": true,
       ".write": true
     },
@@ -253,10 +265,10 @@ Firebase会在首次查询时提示需要创建索引，并提供一个URL链接
 
 配置完成后，请检查：
 
-- [ ] Firebase Console已添加 `.indexOn: ["time"]`
+- [ ] Firebase Console已添加 `.indexOn: ["date", "time"]`
 - [ ] 规则已发布生效
 - [ ] 测试查询速度 < 1秒
-- [ ] Console无索引相关错误
+- [ ] Console无索引相关警告
 - [ ] 权限配置正确（需要认证）
 - [ ] 所有页面查询正常工作
 

@@ -86,15 +86,39 @@ window.externalFormConfig = {
 
 ### 问题2: config.js不存在
 
-**症状**: 控制台显示 "config.js not found"
+**症状**: 控制台显示 "config.js:1 Failed to load resource: the server responded with a status of 404"
 
 **解决**:
 ```bash
+# 方法1: 从模板复制
 cp config.example.js config.js
 # 然后编辑 config.js 填写真实配置
+
+# 方法2: 如果有SECRETS_VALUES.txt备份
+# 使用备份文件中的真实配置创建 config.js
 ```
 
-### 问题3: 权限被拒绝
+**重要说明**:
+- ✅ `config.js` 会被 `.gitignore` 自动忽略
+- ✅ 不会被上传到GitHub，隐私受保护
+- ✅ `config.example.js` 和 `config.js` 两个文件都必须存在
+
+### 问题3: 语法错误
+
+**症状**: 控制台显示 "Uncaught SyntaxError: Unexpected token"
+
+**原因**: 配置文件中存在语法错误（如多余的等号、逗号等）
+
+**解决**:
+1. 打开 `config.js` 检查错误行号
+2. 常见错误：
+   - `name:="value"` → 应该是 `name: "value"`
+   - 对象最后一项多了逗号
+   - 引号不匹配
+3. 使用代码编辑器的语法检查功能
+4. 参考 `config.example.js` 的正确格式
+
+### 问题4: 权限被拒绝
 
 **症状**: 数据库操作失败
 
@@ -112,4 +136,4 @@ cp config.example.js config.js
 ---
 
 **创建日期**: 2025-10-08  
-**最后更新**: 2025-10-08
+**最后更新**: 2025-10-09

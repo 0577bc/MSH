@@ -51,9 +51,14 @@ async function loadFirebaseData() {
             return;
         }
         
-        // 从Firebase加载签到记录
-        const snapshot = await firebase.database().ref('attendanceRecords').once('value');
-        firebaseData = snapshot.val() || [];
+        // 🚨 修复：数据一致性检查只检查当天数据，不拉取全部历史数据
+        const today = new Date().toISOString().split('T')[0];
+        const snapshot = await firebase.database().ref('attendanceRecords')
+          .orderByChild('date')
+          .equalTo(today)
+          .once('value');
+        const todayData = snapshot.val();
+        firebaseData = todayData ? Object.values(todayData) : [];
         
         // 更新统计信息
         document.getElementById('firebaseRecords').textContent = firebaseData.length;
@@ -558,9 +563,14 @@ async function validateDataFormat() {
             return;
         }
         
-        const snapshot = await firebase.database().ref('attendanceRecords').once('value');
-        const records = snapshot.val() || [];
-        const recordsArray = Array.isArray(records) ? records : Object.values(records);
+        // 🚨 修复：数据验证只检查当天数据，不拉取全部历史数据
+        const today = new Date().toISOString().split('T')[0];
+        const snapshot = await firebase.database().ref('attendanceRecords')
+          .orderByChild('date')
+          .equalTo(today)
+          .once('value');
+        const todayData = snapshot.val();
+        const recordsArray = todayData ? Object.values(todayData) : [];
 
         let validRecords = 0;
         let invalidRecords = 0;

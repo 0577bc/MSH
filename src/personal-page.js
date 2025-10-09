@@ -116,9 +116,14 @@ async function loadDataFromFirebase() {
     const groupNamesSnapshot = await db.ref('groupNames').once('value');
     groupNames = groupNamesSnapshot.val() || {};
     
-    // 加载签到记录
-    const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
-    attendanceRecords = attendanceSnapshot.val() || [];
+    // 🚨 修复：个人页面只加载当天签到记录，不拉取全部历史数据
+    const today = new Date().toISOString().split('T')[0];
+    const attendanceSnapshot = await db.ref('attendanceRecords')
+      .orderByChild('date')
+      .equalTo(today)
+      .once('value');
+    const todayData = attendanceSnapshot.val();
+    attendanceRecords = todayData ? Object.values(todayData) : [];
 
     console.log('个人页面数据加载成功');
   } catch (error) {

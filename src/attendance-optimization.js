@@ -58,10 +58,15 @@ async function loadAttendanceData() {
                 return;
             }
             
-            // 从Firebase加载
-            const snapshot = await firebase.database().ref('attendanceRecords').once('value');
-            attendanceRecords = snapshot.val() || [];
-            addLog('success', `从Firebase加载了 ${attendanceRecords.length} 条签到记录`);
+            // 🚨 修复：优化工具只加载当天数据，不拉取全部历史数据
+            const today = new Date().toISOString().split('T')[0];
+            const snapshot = await firebase.database().ref('attendanceRecords')
+              .orderByChild('date')
+              .equalTo(today)
+              .once('value');
+            const todayData = snapshot.val();
+            attendanceRecords = todayData ? Object.values(todayData) : [];
+            addLog('success', `从Firebase加载了当天 ${attendanceRecords.length} 条签到记录`);
         }
 
         // 计算原始数据大小
