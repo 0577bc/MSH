@@ -871,11 +871,10 @@ function initializeEventListeners() {
       // 使用UUID进行统计匹配，避免姓名变更导致的重复统计
       const signedUUIDs = groupRecords.map(record => record.memberUUID || record.name);
       
-      // 过滤掉不统计的人员
-      const unsignedMembers = window.utils.filterExcludedMembers(
-        groupMembers.filter(member => !signedUUIDs.includes(member.uuid || member.name)),
-        group,
-        excludedMembers
+      // 🔧 过滤掉不统计的人员（使用member.excluded属性）
+      const unsignedMembers = groupMembers.filter(member => 
+        !signedUUIDs.includes(member.uuid || member.name) && // 没有签到
+        !member.excluded // 且不是不统计人员
       );
       
       // 按时间段分类签到记录（显示所有签到记录，包括未签到不统计人员）
