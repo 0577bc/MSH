@@ -1536,6 +1536,123 @@ async function handleSaveEditGroup() {
   }
 }
 
+// 防止表单提交刷新页面
+function preventFormSubmission() {
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      console.log('📝 表单提交已阻止，避免页面刷新');
+    });
+  });
+}
+
+// 从排除列表中移除成员
+function removeFromExcludeList(memberId) {
+  try {
+    console.log('🔧 从排除列表中移除成员:', memberId);
+    
+    // 更新本地存储中的排除人员数据
+    if (window.excludedMembers && window.excludedMembers[memberId]) {
+      delete window.excludedMembers[memberId];
+      
+      // 保存到本地存储
+      localStorage.setItem('msh_excludedMembers', JSON.stringify(window.excludedMembers));
+      
+      // 同步到Firebase
+      if (window.db) {
+        window.db.ref('excludedMembers').set(window.excludedMembers)
+          .then(() => {
+            console.log('✅ 排除人员数据已同步到Firebase');
+          })
+          .catch(error => {
+            console.error('❌ 同步排除人员数据失败:', error);
+          });
+      }
+      
+      console.log('✅ 成员已从排除列表中移除');
+      return true;
+    } else {
+      console.warn('⚠️ 成员不在排除列表中:', memberId);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ 从排除列表中移除成员失败:', error);
+    return false;
+  }
+}
+
+// 移除选中的成员
+function removeSelectedMember() {
+  try {
+    const selectedMembers = document.querySelectorAll('.member-item.selected');
+    if (selectedMembers.length === 0) {
+      alert('请先选择要移除的成员！');
+      return;
+    }
+    
+    const confirmMessage = `确定要移除选中的 ${selectedMembers.length} 个成员吗？`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    selectedMembers.forEach(memberElement => {
+      const memberId = memberElement.dataset.memberId;
+      if (memberId) {
+        // 从当前小组中移除
+        const currentGroup = getCurrentGroup();
+        if (currentGroup && currentGroup[memberId]) {
+          delete currentGroup[memberId];
+          
+          // 更新本地存储
+          window.groups[currentGroup] = currentGroup;
+          localStorage.setItem('msh_groups', JSON.stringify(window.groups));
+          
+          console.log('✅ 成员已从小组中移除:', memberId);
+        }
+      }
+    });
+    
+    // 刷新页面显示
+    loadMembers();
+    clearSelectedMembers();
+    
+    alert(`已移除 ${selectedMembers.length} 个成员！`);
+    
+  } catch (error) {
+    console.error('❌ 移除选中成员失败:', error);
+    alert('移除成员失败，请重试！');
+  }
+}
+
+// 清除选中的成员
+function clearSelectedMembers() {
+  const selectedMembers = document.querySelectorAll('.member-item.selected');
+  selectedMembers.forEach(member => {
+    member.classList.remove('selected');
+  });
+  
+  // 更新选择状态显示
+  updateSelectionStatus();
+  
+  console.log('✅ 已清除所有选中状态');
+}
+
+// 更新选择状态显示
+function updateSelectionStatus() {
+  const selectedCount = document.querySelectorAll('.member-item.selected').length;
+  const statusElement = document.getElementById('selection-status');
+  
+  if (statusElement) {
+    if (selectedCount > 0) {
+      statusElement.textContent = `已选择 ${selectedCount} 个成员`;
+      statusElement.style.display = 'block';
+    } else {
+      statusElement.style.display = 'none';
+    }
+  }
+}
+
 // 全局函数（供HTML调用）
 window.editMember = editMember;
 window.deleteMember = deleteMember;
