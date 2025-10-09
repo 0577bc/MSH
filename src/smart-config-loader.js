@@ -6,20 +6,33 @@
 (function() {
   'use strict';
   
-  // 创建配置加载函数
-  function loadSmartConfig() {
+  // 检查是否在Vercel环境（通过域名判断）
+  const isVercel = window.location.hostname.includes('vercel.app') || 
+                   window.location.hostname.includes('vercel.com');
+  
+  // 同步加载配置文件
+  function loadConfigSync() {
+    if (isVercel) {
+      console.log('🌐 检测到Vercel环境，同步加载config.vercel.js');
+      // 直接写入script标签，确保同步加载
+      document.write('<script src="./config.vercel.js"><\/script>');
+    } else {
+      console.log('🏠 检测到本地环境，同步加载config.js');
+      // 直接写入script标签，确保同步加载
+      document.write('<script src="./config.js"><\/script>');
+    }
+  }
+  
+  // 异步加载配置文件的备用方案
+  function loadConfigAsync() {
     const script = document.createElement('script');
-    
-    // 检查是否在Vercel环境（通过域名判断）
-    const isVercel = window.location.hostname.includes('vercel.app') || 
-                     window.location.hostname.includes('vercel.com');
     
     if (isVercel) {
       script.src = './config.vercel.js';
-      console.log('🌐 检测到Vercel环境，加载config.vercel.js');
+      console.log('🌐 检测到Vercel环境，异步加载config.vercel.js');
     } else {
       script.src = './config.js';
-      console.log('🏠 检测到本地环境，加载config.js');
+      console.log('🏠 检测到本地环境，异步加载config.js');
     }
     
     // 错误处理：如果主要配置文件加载失败，尝试降级
@@ -55,9 +68,14 @@
     document.head.appendChild(script);
   }
   
-  // 立即执行配置加载
-  loadSmartConfig();
+  // 尝试同步加载，如果失败则使用异步加载
+  try {
+    loadConfigSync();
+  } catch (error) {
+    console.warn('⚠️ 同步加载失败，使用异步加载:', error);
+    loadConfigAsync();
+  }
   
   // 导出函数供其他脚本使用
-  window.loadSmartConfig = loadSmartConfig;
+  window.loadSmartConfig = loadConfigAsync;
 })();
