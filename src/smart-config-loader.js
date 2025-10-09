@@ -12,14 +12,29 @@
   
   // 同步加载配置文件
   function loadConfigSync() {
+    // 动态计算配置文件路径
+    const currentPath = window.location.pathname;
+    let configPath;
+    
+    if (currentPath.includes('/tools/msh-system/')) {
+      // 工具页面在子目录中，需要返回上级目录
+      configPath = '../../';
+    } else if (currentPath.includes('/tools/')) {
+      // 其他工具页面
+      configPath = '../';
+    } else {
+      // 主页面
+      configPath = './';
+    }
+    
     if (isVercel) {
       console.log('🌐 检测到Vercel环境，同步加载config.vercel.js');
       // 直接写入script标签，确保同步加载
-      document.write('<script src="./config.vercel.js"><\/script>');
+      document.write('<script src="' + configPath + 'config.vercel.js"><\/script>');
     } else {
       console.log('🏠 检测到本地环境，同步加载config.js');
       // 直接写入script标签，确保同步加载
-      document.write('<script src="./config.js"><\/script>');
+      document.write('<script src="' + configPath + 'config.js"><\/script>');
     }
   }
   
@@ -27,11 +42,26 @@
   function loadConfigAsync() {
     const script = document.createElement('script');
     
+    // 动态计算配置文件路径
+    const currentPath = window.location.pathname;
+    let configPath;
+    
+    if (currentPath.includes('/tools/msh-system/')) {
+      // 工具页面在子目录中，需要返回上级目录
+      configPath = '../../';
+    } else if (currentPath.includes('/tools/')) {
+      // 其他工具页面
+      configPath = '../';
+    } else {
+      // 主页面
+      configPath = './';
+    }
+    
     if (isVercel) {
-      script.src = './config.vercel.js';
+      script.src = configPath + 'config.vercel.js';
       console.log('🌐 检测到Vercel环境，异步加载config.vercel.js');
     } else {
-      script.src = './config.js';
+      script.src = configPath + 'config.js';
       console.log('🏠 检测到本地环境，异步加载config.js');
     }
     
@@ -42,10 +72,10 @@
       // 降级到另一个配置文件
       const fallbackScript = document.createElement('script');
       if (isVercel) {
-        fallbackScript.src = './config.js';
+        fallbackScript.src = configPath + 'config.js';
         console.log('🔄 降级到config.js');
       } else {
-        fallbackScript.src = './config.vercel.js';
+        fallbackScript.src = configPath + 'config.vercel.js';
         console.log('🔄 降级到config.vercel.js');
       }
       
