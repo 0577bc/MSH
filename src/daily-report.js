@@ -199,11 +199,14 @@ async function loadAttendanceRecordsForDate(date) {
   // 从Firebase按日期查询
   try {
     const db = firebase.database();
-    // 构建ISO字符串范围（符合系统历史决策：time字段使用ISO标准格式）
-    const dateStart = `${date}T00:00:00.000Z`;
-    const dateEnd = `${date}T23:59:59.999Z`;
+    // 🔧 修复：构建本地时区的ISO字符串范围
+    // date参数是本地日期（YYYY-MM-DD），需要转换为本地时间的ISO范围
+    const localDateStart = new Date(`${date}T00:00:00`); // 本地时间00:00:00
+    const localDateEnd = new Date(`${date}T23:59:59.999`); // 本地时间23:59:59.999
+    const dateStart = localDateStart.toISOString();
+    const dateEnd = localDateEnd.toISOString();
     
-    console.log(`🔍 Firebase查询范围 (ISO): ${dateStart} - ${dateEnd}`);
+    console.log(`🔍 Firebase查询范围 (本地时间 ${date}): ${dateStart} - ${dateEnd}`);
     
     const snapshot = await db.ref('attendanceRecords')
       .orderByChild('time')

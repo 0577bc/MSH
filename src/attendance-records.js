@@ -81,7 +81,7 @@ async function loadBasicDataAndToday() {
     await loadBasicData();
     
     // 2. 设置默认日期为今天
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.utils.getLocalDateString();
     if (dateSelect) dateSelect.value = today;
     
     // 3. 只加载今天的签到记录
@@ -244,11 +244,14 @@ async function loadAttendanceDataByDate(date) {
     console.log(`🔄 从Firebase加载 ${date} 数据...`);
     
     const db = firebase.database();
-    // 构建ISO字符串范围（符合系统历史决策：time字段使用ISO标准格式）
-    const dateStart = `${date}T00:00:00.000Z`;
-    const dateEnd = `${date}T23:59:59.999Z`;
+    // 🔧 修复：构建本地时区的ISO字符串范围
+    // date参数是本地日期（YYYY-MM-DD），需要转换为本地时间的ISO范围
+    const localDateStart = new Date(`${date}T00:00:00`); // 本地时间00:00:00
+    const localDateEnd = new Date(`${date}T23:59:59.999`); // 本地时间23:59:59.999
+    const dateStart = localDateStart.toISOString();
+    const dateEnd = localDateEnd.toISOString();
     
-    console.log(`🔍 Firebase查询范围 (ISO): ${dateStart} - ${dateEnd}`);
+    console.log(`🔍 Firebase查询范围 (本地时间 ${date}): ${dateStart} - ${dateEnd}`);
     
     const snapshot = await db.ref('attendanceRecords')
       .orderByChild('time')
@@ -463,8 +466,8 @@ async function saveEditedRecord() {
     }
     
     // 清除该日期的缓存
-    const oldDate = new Date(record.time).toISOString().split('T')[0];
-    const newDate = new Date(updatedRecord.time).toISOString().split('T')[0];
+    const oldDate = window.utils.getLocalDateFromISO(record.time);
+    const newDate = window.utils.getLocalDateFromISO(updatedRecord.time);
     sessionStorage.removeItem(`attendance_${oldDate}`);
     if (oldDate !== newDate) {
       sessionStorage.removeItem(`attendance_${newDate}`);
