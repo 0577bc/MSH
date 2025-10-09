@@ -12,13 +12,15 @@
   <script>
     // 检测环境并加载相应配置
     if (window.location.hostname.includes('vercel.app')) {
-      // Vercel环境
+      // Vercel环境 - 直接加载
       document.write('<script src="./config.vercel.js"><\/script>');
     } else {
-      // 本地环境
+      // 本地环境 - 直接加载
       document.write('<script src="./config.js"><\/script>');
     }
   </script>
+  <!-- 确保配置文件先加载 -->
+  <script src="./config.vercel.js"></script>
   <!-- 引入配置管理器 -->
   <script src="./src/config-manager.js"></script>
   <!-- 引入CSRF保护 -->
