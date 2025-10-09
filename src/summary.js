@@ -436,6 +436,11 @@ function initializeEventListeners() {
       if (selectedDate) {
         // 【优化V2.0】按需加载该日期的签到数据
         const dateRecords = await loadAttendanceDataForDate(selectedDate);
+        console.log('🔍 准备加载日报表，记录数:', dateRecords ? dateRecords.length : 0);
+        if (dateRecords && dateRecords.length > 0) {
+          console.log('🔍 第一条记录:', dateRecords[0]);
+          console.log('🔍 所有唯一的group:', [...new Set(dateRecords.map(r => r.group))]);
+        }
         loadDailyReport(selectedDate, dateRecords);
       } else {
         alert('请选择日期！');
