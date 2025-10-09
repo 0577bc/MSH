@@ -95,7 +95,7 @@ async function loadBasicDataAndToday() {
     await loadBasicData();
     
     // 2. 只加载今天的签到记录
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.utils.getLocalDateString();
     const todayRecords = await loadAttendanceRecordsForDate(today);
     
     console.log("🔍 日报表页面数据加载:", {

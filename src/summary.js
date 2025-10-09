@@ -642,7 +642,7 @@ function initializeEventListeners() {
 
   function initializePage() {
     // 设置默认日期为今天
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.utils.getLocalDateString();
     if (dailyDateSelect) dailyDateSelect.value = today;
     
     // 初始化季度和年份选项

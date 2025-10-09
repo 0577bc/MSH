@@ -5,6 +5,29 @@
  * 版本：2.0
  */
 
+// ==================== 日期时间工具函数 ====================
+
+/**
+ * 获取本地日期字符串（YYYY-MM-DD格式）
+ * 🔧 修复：避免UTC时区导致的日期错误
+ * @param {Date} date 日期对象，默认为当前时间
+ * @returns {string} 本地日期字符串（YYYY-MM-DD格式）
+ */
+function getLocalDateString(date = new Date()) {
+  // 方法1：使用时区偏移量转换
+  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+  return localDate.toISOString().split('T')[0];
+}
+
+/**
+ * 从ISO时间字符串获取本地日期字符串
+ * @param {string} isoString ISO格式的时间字符串
+ * @returns {string} 本地日期字符串（YYYY-MM-DD格式）
+ */
+function getLocalDateFromISO(isoString) {
+  return getLocalDateString(new Date(isoString));
+}
+
 // ==================== 通用Firebase初始化 ====================
 
 /**
@@ -4523,6 +4546,9 @@ const DataReferenceManager = {
 // 导出函数到全局作用域
 if (typeof window !== 'undefined') {
   window.utils = {
+    // 日期时间工具
+    getLocalDateString,
+    getLocalDateFromISO,
     // Firebase初始化
     initializeFirebase,
     // 防重复提交机制

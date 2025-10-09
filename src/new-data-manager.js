@@ -1793,7 +1793,7 @@ class NewDataManager {
         console.error('⚠️ 警告：本地签到记录数量异常少，进行安全检查...');
         
         // 🚨 修复：安全检查时只检查当天数据量，不拉取全部历史数据
-        const today = new Date().toISOString().split('T')[0];
+        const today = window.utils.getLocalDateString();
         const todaySnapshot = await db.ref('attendanceRecords')
           .orderByChild('date')
           .equalTo(today)
@@ -2013,7 +2013,7 @@ class NewDataManager {
             syncResults.attendanceRecords = true; // 跳过同步
           } else {
             // 🚨 修复：同步检查时只检查当天数据量，不拉取全部历史数据
-            const today = new Date().toISOString().split('T')[0];
+            const today = window.utils.getLocalDateString();
             const todaySnapshot = await db.ref('attendanceRecords')
               .orderByChild('date')
               .equalTo(today)
@@ -2032,7 +2032,7 @@ class NewDataManager {
               syncResults.attendanceRecords = false;
             } else {
               // 🚨 修复：只同步当天数据，使用增量更新保护历史数据
-              const today = new Date().toISOString().split('T')[0];
+              const today = window.utils.getLocalDateString();
               const todayRecords = attendanceRecords.filter(record => record.date === today);
               
               if (todayRecords.length > 0) {
@@ -2073,7 +2073,7 @@ class NewDataManager {
             }
           }
           // 🚨 修复：验证时只检查当天数据，不拉取全部历史数据
-          const today = new Date().toISOString().split('T')[0];
+          const today = window.utils.getLocalDateString();
           const verifySnapshot = await db.ref('attendanceRecords')
             .orderByChild('date')
             .equalTo(today)
@@ -2366,7 +2366,7 @@ class NewDataManager {
       } else if (dataType === 'attendanceRecords') {
         // 🚨 修复：attendanceRecords验证逻辑
         // 只验证当天数据，因为本地包含历史数据，Firebase只查询当天数据
-        const today = new Date().toISOString().split('T')[0];
+        const today = window.utils.getLocalDateString();
         const localTodayRecords = Array.isArray(localData) ? 
           localData.filter(record => record.date === today) : [];
         const remoteLength = Array.isArray(remoteData) ? remoteData.length : 0;
@@ -2920,7 +2920,7 @@ NewDataManager.prototype.loadTodayAttendanceRecordsFromFirebase = async function
     }
 
     const db = firebase.database();
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = window.utils.getLocalDateString(); // YYYY-MM-DD
     
     // 查询当日签到记录
     const snapshot = await db.ref('attendanceRecords')

@@ -1185,7 +1185,7 @@ function createAttendanceRecord(group, member, now, timeSlot) {
     name: member,
     memberUUID: memberInfo?.uuid || '', // 添加人员UUID
     time: now.toISOString(), // ✅ 使用ISO标准格式（符合历史决策）
-    date: now.toISOString().split('T')[0], // 添加标准date字段 (YYYY-MM-DD格式)
+    date: window.utils.getLocalDateString(now), // 🔧 修复：使用本地时区日期 (YYYY-MM-DD格式)
     timeSlot,
     
     // 精简的人员信息快照（只保留签到记录必需的信息）
@@ -1339,7 +1339,7 @@ async function handleSaveNewMember() {
     window.newDataManager.markDataChange('groups', 'added', newMember.uuid);
     
     // 生成当日新增人员快照
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.utils.getLocalDateString();
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     window.newDataManager.addDailyNewcomer(today, newMember.name, now, expiresAt);
