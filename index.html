@@ -9,7 +9,16 @@
   <link rel="stylesheet" href="./src/style.css">
   <link rel="manifest" href="manifest.json">
   <!-- 引入配置文件 -->
-  <script src="./config.js"></script>
+  <script>
+    // 检测环境并加载相应配置
+    if (window.location.hostname.includes('vercel.app')) {
+      // Vercel环境
+      document.write('<script src="./config.vercel.js"><\/script>');
+    } else {
+      // 本地环境
+      document.write('<script src="./config.js"><\/script>');
+    }
+  </script>
   <!-- 引入配置管理器 -->
   <script src="./src/config-manager.js"></script>
   <!-- 引入CSRF保护 -->
