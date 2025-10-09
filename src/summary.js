@@ -876,8 +876,11 @@ function initializeEventListeners() {
       console.log(`日报表 - 处理组别: ${group}, 成员数量: ${groupMembers.length}`);
       
       // 统计该组的签到情况
-      const groupRecords = dayRecords.filter(record => record.group === group);
-      console.log(`🔍 组别 ${group} 签到记录数: ${groupRecords.length}`);
+      // 🔧 修复：使用组别名称匹配，因为签到记录中的group字段存储的是中文名称
+      const groupRecords = dayRecords.filter(record => 
+        record.group === groupName || record.group === group
+      );
+      console.log(`🔍 组别 ${group} (${groupName}) 签到记录数: ${groupRecords.length}`);
       if (groupRecords.length > 0) {
         console.log(`🔍 组别 ${group} 签到记录示例:`, groupRecords[0]);
       }
