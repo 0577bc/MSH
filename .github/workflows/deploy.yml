@@ -22,8 +22,42 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     
+    - name: Debug - List files
+      run: |
+        echo "=== 当前目录内容 ==="
+        ls -la
+        echo ""
+        echo "=== 检查关键文件 ==="
+        if [ -f "index.html" ]; then
+          echo "✅ index.html 存在"
+        else
+          echo "❌ index.html 不存在"
+        fi
+        
+        if [ -f "config.example.js" ]; then
+          echo "✅ config.example.js 存在"
+        else
+          echo "❌ config.example.js 不存在"
+        fi
+    
+    - name: Debug - Check secrets
+      run: |
+        echo "=== 检查Secrets ==="
+        if [ -n "${{ secrets.FIREBASE_API_KEY }}" ]; then
+          echo "✅ FIREBASE_API_KEY 已配置"
+        else
+          echo "❌ FIREBASE_API_KEY 未配置"
+        fi
+        
+        if [ -n "${{ secrets.FIREBASE_PROJECT_ID }}" ]; then
+          echo "✅ FIREBASE_PROJECT_ID 已配置"
+        else
+          echo "❌ FIREBASE_PROJECT_ID 未配置"
+        fi
+    
     - name: Create config.js from secrets
       run: |
+        echo "=== 创建config.js ==="
         cat > config.js << 'EOF'
         /**
          * MSH系统配置文件 (自动生成)
@@ -42,7 +76,7 @@ jobs:
             appId: "${{ secrets.FIREBASE_APP_ID }}"
           };
           
-          // 外部表单系统配置
+          // 外部表单系统配置（可选）
           window.externalFormConfig = {
             apiBaseUrl: '${{ secrets.EXTERNAL_FORM_API_URL }}' || 'http://your-server-ip/api',
             auth: {
@@ -59,6 +93,10 @@ jobs:
           };
         }
         EOF
+        
+        echo "✅ config.js 已创建"
+        echo "=== config.js 内容预览 ==="
+        head -20 config.js
     
     - name: Setup Pages
       uses: actions/configure-pages@v4
