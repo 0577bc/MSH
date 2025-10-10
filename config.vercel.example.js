@@ -4,23 +4,23 @@
  */
 
 if (typeof window !== 'undefined') {
-  // Firebase配置 - 从Vercel环境变量读取
+  // Firebase配置 - 请替换为您的真实配置
   window.firebaseConfig = {
-    apiKey: "AIzaSyBMp9_gt3TpRQivmCFTz6g9SSKF-oOo01Y",
-    authDomain: "yjys-4102e.firebaseapp.com",
-    databaseURL: "https://yjys-4102e-default-rtdb.firebaseio.com/",
-    projectId: "yjys-4102e",
-    storageBucket: "yjys-4102e.firebasestorage.app",
-    messagingSenderId: "690578220792",
-    appId: "1:690578220792:web:8e6d537901e2636782fd0d"
+    apiKey: "YOUR_FIREBASE_API_KEY",
+    authDomain: "your-project.firebaseapp.com",
+    databaseURL: "https://your-project-default-rtdb.firebaseio.com/",
+    projectId: "your-project-id",
+    storageBucket: "your-project.firebasestorage.app",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
   };
   
   // 外部表单系统配置（可选）
   window.externalFormConfig = {
-    apiBaseUrl: 'http://112.124.97.58/api',
+    apiBaseUrl: 'http://your-server-ip/api',
     auth: {
-      username: 'admin',
-      password: 'admin123456',
+      username: 'your-username',
+      password: 'your-password',
       token: null
     },
     endpoints: {
