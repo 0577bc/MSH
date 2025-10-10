@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⏰ 修复时间格式工具</title>
+    <title>⏰ 时间格式 & 时区修复工具</title>
     <style>
         * {
             margin: 0;
@@ -154,13 +154,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>⏰ 时间格式修复工具</h1>
+        <h1>⏰ 时间格式 & 时区修复工具</h1>
 
         <div class="alert">
-            <h3>⚠️ 问题诊断</h3>
-            <p><strong>问题：</strong>备份数据中的time字段格式为 <code>"2025/8/1 09:55:00"</code></p>
-            <p><strong>需要：</strong>转换为时间戳格式（毫秒）或ISO字符串格式</p>
-            <p><strong>影响：</strong>日报表和签到记录页面无法正确查询数据</p>
+            <h3>🛠️ 工具功能</h3>
+            <p><strong>功能1：</strong>修复time字段格式（<code>"2025/8/1 09:55:00"</code> → 时间戳或ISO格式）</p>
+            <p><strong>功能2：</strong>修复date字段时区问题（UTC时区 → 本地时区，YYYY-MM-DD格式）</p>
+            <p><strong>说明：</strong>2025-10-10前的记录可能存在时区问题，凌晨签到被错误记录为前一天</p>
         </div>
 
         <div class="stats" id="stats">
@@ -184,12 +184,22 @@
             </div>
         </div>
 
+        <h3 style="margin-top: 30px; color: #667eea;">功能1：Time字段格式修复</h3>
         <button class="btn-primary" onclick="checkAndFixLocalStorage()">
             🔍 检查并修复本地存储数据
         </button>
 
         <button class="btn-success" onclick="checkAndFixFirebase()">
             ☁️ 检查并修复Firebase数据
+        </button>
+
+        <h3 style="margin-top: 30px; color: #667eea;">功能2：Date字段时区修复</h3>
+        <button class="btn-primary" onclick="scanDateFieldTimezone()">
+            🔍 扫描Date字段时区问题（只读）
+        </button>
+
+        <button class="btn-success" onclick="fixDateFieldTimezone()">
+            🔧 修复Date字段时区并同步Firebase
         </button>
 
         <div class="log" id="log"></div>
@@ -225,6 +235,16 @@
             document.getElementById('totalRecords').textContent = total;
             document.getElementById('fixedRecords').textContent = fixed;
             document.getElementById('errorRecords').textContent = errors;
+        }
+
+        // ==================== 工具函数 ====================
+        
+        // 从ISO时间字符串获取本地日期（YYYY-MM-DD格式）
+        function getLocalDateFromISO(isoString) {
+            const date = new Date(isoString);
+            // 使用时区偏移量转换为本地时间
+            const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+            return localDate.toISOString().split('T')[0];
         }
 
         // 转换时间格式
@@ -412,6 +432,204 @@
             }
         }
 
+        // ==================== Date字段时区修复功能 ====================
+        
+        // 扫描Date字段时区问题（只读）
+        async function scanDateFieldTimezone() {
+            if (!db) {
+                log('❌ Firebase未连接', 'error');
+                alert('Firebase未连接，请刷新页面重试！');
+                return;
+            }
+
+            log('🔍 开始扫描Date字段时区问题...', 'info');
+            log('📋 这是只读扫描，不会修改任何数据', 'info');
+
+            try {
+                const snapshot = await db.ref('attendanceRecords').once('value');
+                const data = snapshot.val();
+
+                if (!data) {
+                    log('❌ Firebase无数据', 'error');
+                    alert('Firebase中没有签到记录！');
+                    return;
+                }
+
+                const records = Array.isArray(data) ? data : Object.values(data);
+                log(`📊 找到 ${records.length} 条记录`, 'info');
+
+                let totalRecords = records.length;
+                let problemCount = 0;
+                let missingDateCount = 0;
+                const problemRecords = [];
+
+                records.forEach((record, index) => {
+                    if (index % 100 === 0) {
+                        updateProgress(Math.round((index / totalRecords) * 100));
+                    }
+
+                    // 检查是否缺少date字段
+                    if (!record.date) {
+                        missingDateCount++;
+                        problemRecords.push({
+                            index,
+                            name: record.name,
+                            time: record.time,
+                            issue: '缺少date字段'
+                        });
+                        problemCount++;
+                        return;
+                    }
+
+                    // 检查date字段是否与time字段匹配
+                    if (record.time) {
+                        const correctDate = getLocalDateFromISO(record.time);
+                        if (record.date !== correctDate) {
+                            problemRecords.push({
+                                index,
+                                name: record.name,
+                                time: record.time,
+                                currentDate: record.date,
+                                correctDate: correctDate,
+                                issue: '时区不匹配'
+                            });
+                            problemCount++;
+                        }
+                    }
+                });
+
+                updateProgress(100);
+                updateStats(totalRecords, 0, problemCount);
+
+                log('', 'info');
+                log('📊 扫描结果统计:', 'success');
+                log(`   总记录数: ${totalRecords}`, 'info');
+                log(`   问题记录数: ${problemCount}`, problemCount > 0 ? 'warning' : 'success');
+                log(`   - 缺少date字段: ${missingDateCount}`, 'warning');
+                log(`   - 时区不匹配: ${problemCount - missingDateCount}`, 'warning');
+
+                if (problemCount > 0) {
+                    log('', 'info');
+                    log('📋 前10条问题记录示例:', 'warning');
+                    problemRecords.slice(0, 10).forEach(p => {
+                        if (p.issue === '缺少date字段') {
+                            log(`   [${p.index}] ${p.name} - time: ${p.time} - ${p.issue}`, 'warning');
+                        } else {
+                            log(`   [${p.index}] ${p.name} - 当前: ${p.currentDate} → 正确: ${p.correctDate}`, 'warning');
+                        }
+                    });
+                    log('', 'info');
+                    log('💡 发现问题记录！可以点击"修复Date字段时区"按钮进行修复', 'info');
+                    alert(`📊 扫描完成！\n\n总记录数: ${totalRecords}\n问题记录: ${problemCount} 条\n\n详情请查看日志`);
+                } else {
+                    log('✅ 所有记录的date字段都正确！无需修复', 'success');
+                    alert('✅ 所有记录的date字段都正确！无需修复');
+                }
+
+            } catch (error) {
+                log(`❌ 扫描失败: ${error.message}`, 'error');
+                alert('扫描失败: ' + error.message);
+            }
+        }
+
+        // 修复Date字段时区并同步Firebase
+        async function fixDateFieldTimezone() {
+            if (!db) {
+                log('❌ Firebase未连接', 'error');
+                alert('Firebase未连接，请刷新页面重试！');
+                return;
+            }
+
+            const confirmScan = confirm('⚠️ 修复前建议先运行扫描功能查看问题数量\n\n是否已经运行过扫描？\n\n点击"确定"继续修复\n点击"取消"先运行扫描');
+            if (!confirmScan) {
+                log('💡 请先点击"扫描Date字段时区问题"按钮', 'info');
+                return;
+            }
+
+            log('🔧 开始修复Date字段时区问题...', 'info');
+
+            try {
+                const snapshot = await db.ref('attendanceRecords').once('value');
+                const data = snapshot.val();
+
+                if (!data) {
+                    log('❌ Firebase无数据', 'error');
+                    alert('Firebase中没有签到记录！');
+                    return;
+                }
+
+                const records = Array.isArray(data) ? data : Object.values(data);
+                log(`📊 找到 ${records.length} 条记录`, 'info');
+
+                let totalRecords = records.length;
+                let fixedCount = 0;
+                let errorCount = 0;
+
+                const fixedRecords = records.map((record, index) => {
+                    if (index % 50 === 0) {
+                        updateProgress(Math.round((index / totalRecords) * 100));
+                    }
+
+                    try {
+                        // 如果缺少date字段，或date字段与time不匹配
+                        if (record.time) {
+                            const correctDate = getLocalDateFromISO(record.time);
+                            
+                            if (!record.date || record.date !== correctDate) {
+                                fixedCount++;
+                                return {
+                                    ...record,
+                                    date: correctDate
+                                };
+                            }
+                        }
+                        
+                        return record;
+                    } catch (error) {
+                        errorCount++;
+                        log(`⚠️ 记录${index}修复失败: ${error.message}`, 'warning');
+                        return record;
+                    }
+                });
+
+                updateProgress(100);
+                updateStats(totalRecords, fixedCount, errorCount);
+
+                if (fixedCount > 0) {
+                    const confirmFix = confirm(`⚠️ 即将修复 ${fixedCount} 条记录并同步到Firebase\n\n此操作会覆盖Firebase中的所有签到记录！\n\n是否确定继续？`);
+                    if (!confirmFix) {
+                        log('❌ 用户取消操作', 'warning');
+                        return;
+                    }
+
+                    log('💾 正在备份当前数据...', 'info');
+                    // 创建备份（使用时间戳）
+                    const backupKey = `attendanceRecords_backup_${Date.now()}`;
+                    await db.ref(backupKey).set(records);
+                    log(`✅ 备份已创建: ${backupKey}`, 'success');
+
+                    // 保存修复后的数据到Firebase
+                    log('📤 正在同步到Firebase...', 'info');
+                    await db.ref('attendanceRecords').set(fixedRecords);
+                    
+                    // 同时更新本地
+                    localStorage.setItem('msh_attendanceRecords', JSON.stringify(fixedRecords));
+                    window.attendanceRecords = fixedRecords;
+                    
+                    log(`✅ 成功修复并同步 ${fixedCount} 条记录`, 'success');
+                    log(`✅ 已更新Firebase、本地存储和全局变量`, 'success');
+                    alert(`✅ 修复完成！\n\n修复记录: ${fixedCount} 条\n错误记录: ${errorCount} 条\n\n备份节点: ${backupKey}`);
+                } else {
+                    log('✅ 所有记录的date字段都正确，无需修复', 'success');
+                    alert('所有记录的date字段都正确，无需修复！');
+                }
+
+            } catch (error) {
+                log(`❌ 修复失败: ${error.message}`, 'error');
+                alert('修复失败: ' + error.message);
+            }
+        }
+
         // 初始化Firebase
         window.addEventListener('load', () => {
             try {
@@ -429,6 +647,7 @@
             }
 
             log('系统就绪，请选择操作', 'info');
+            log('💡 建议：先使用扫描功能查看问题数量，再决定是否修复', 'info');
         });
     </script>
 </body>
