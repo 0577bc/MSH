@@ -73,9 +73,15 @@ class PerformanceMonitor {
 
   // 监控页面加载性能
   monitorPageLoad() {
-    window.addEventListener('load', () => {
+    window.addEventListener('load', async () => {
       const loadTime = performance.now();
       const navigation = performance.getEntriesByType('navigation')[0];
+      
+      // 异步获取现代性能指标
+      const [largestContentfulPaint, cumulativeLayoutShift] = await Promise.all([
+        this.getLargestContentfulPaint(),
+        this.getCumulativeLayoutShift()
+      ]);
       
       const metrics = {
         timestamp: new Date().toISOString(),
@@ -84,8 +90,8 @@ class PerformanceMonitor {
         loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
         firstPaint: this.getFirstPaint(),
         firstContentfulPaint: this.getFirstContentfulPaint(),
-        largestContentfulPaint: this.getLargestContentfulPaint(),
-        cumulativeLayoutShift: this.getCumulativeLayoutShift()
+        largestContentfulPaint: largestContentfulPaint,
+        cumulativeLayoutShift: cumulativeLayoutShift
       };
 
       this.metrics.pageLoad.push(metrics);
@@ -441,13 +447,62 @@ class PerformanceMonitor {
   }
 
   getLargestContentfulPaint() {
-    const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
-    return lcpEntries.length > 0 ? lcpEntries[lcpEntries.length - 1].startTime : 0;
+    // 使用现代PerformanceObserver API替代deprecated的getEntriesByType
+    return new Promise((resolve) => {
+      if ('PerformanceObserver' in window) {
+        try {
+          const observer = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            const lastEntry = entries[entries.length - 1];
+            observer.disconnect(); // 断开观察器
+            resolve(lastEntry ? lastEntry.startTime : 0);
+          });
+          observer.observe({ entryTypes: ['largest-contentful-paint'] });
+          
+          // 设置超时，避免长时间等待
+          setTimeout(() => {
+            observer.disconnect();
+            resolve(0);
+          }, 5000);
+        } catch (error) {
+          console.warn('LCP监控初始化失败:', error);
+          resolve(0);
+        }
+      } else {
+        resolve(0); // 降级处理：不支持PerformanceObserver
+      }
+    });
   }
 
   getCumulativeLayoutShift() {
-    const clsEntries = performance.getEntriesByType('layout-shift');
-    return clsEntries.reduce((sum, entry) => sum + entry.value, 0);
+    // 使用现代PerformanceObserver API替代deprecated的getEntriesByType
+    return new Promise((resolve) => {
+      if ('PerformanceObserver' in window) {
+        try {
+          let clsValue = 0;
+          const observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              // 只计算非用户输入的布局偏移
+              if (!entry.hadRecentInput) {
+                clsValue += entry.value;
+              }
+            }
+          });
+          observer.observe({ entryTypes: ['layout-shift'] });
+          
+          // 设置超时，收集一段时间后返回结果
+          setTimeout(() => {
+            observer.disconnect();
+            resolve(clsValue);
+          }, 5000);
+        } catch (error) {
+          console.warn('CLS监控初始化失败:', error);
+          resolve(0);
+        }
+      } else {
+        resolve(0); // 降级处理：不支持PerformanceObserver
+      }
+    });
   }
 
   getAveragePageLoadTime() {
