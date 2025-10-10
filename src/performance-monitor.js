@@ -36,8 +36,8 @@ class PerformanceMonitor {
     // 监控数据加载性能
     this.monitorDataLoad();
     
-    // 监控Firebase同步性能
-    this.monitorFirebaseSync();
+    // 延迟启动Firebase监控，等待Firebase初始化完成
+    this.delayedFirebaseMonitoring();
     
     // 监控内存使用
     this.monitorMemoryUsage();
@@ -125,6 +125,31 @@ class PerformanceMonitor {
         return response;
       });
     };
+  }
+
+  // 延迟启动Firebase监控，等待Firebase初始化完成
+  delayedFirebaseMonitoring() {
+    const maxAttempts = 20; // 最多尝试20次，每次间隔500ms，总共10秒
+    let attempts = 0;
+    
+    const checkFirebase = () => {
+      attempts++;
+      
+      if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
+        console.log('✅ Firebase已初始化，开始Firebase同步监控');
+        this.monitorFirebaseSync();
+        return;
+      }
+      
+      if (attempts < maxAttempts) {
+        setTimeout(checkFirebase, 500); // 每500ms检查一次
+      } else {
+        console.warn('⚠️ Firebase初始化超时，跳过Firebase同步监控');
+      }
+    };
+    
+    // 立即检查一次，如果还没初始化则开始延迟检查
+    checkFirebase();
   }
 
   // 监控Firebase同步性能
