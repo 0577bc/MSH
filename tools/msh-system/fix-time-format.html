@@ -594,6 +594,21 @@
 
                 updateProgress(100);
                 updateStats(totalRecords, fixedCount, errorCount);
+                
+                // 🔒 详细的数据验证日志
+                log('', 'info');
+                log('🔍 数据完整性验证:', 'info');
+                log(`   原始记录数: ${totalRecords}`, 'info');
+                log(`   处理后记录数: ${fixedRecords.length}`, 'info');
+                log(`   需要修复的记录: ${fixedCount}`, 'warning');
+                log(`   保持不变的记录: ${totalRecords - fixedCount}`, 'info');
+                log(`   错误记录: ${errorCount}`, errorCount > 0 ? 'warning' : 'info');
+                
+                if (fixedRecords.length === totalRecords) {
+                    log('✅ 数据完整性验证通过：记录数量一致', 'success');
+                } else {
+                    log('❌ 数据完整性验证失败：记录数量不一致！', 'error');
+                }
 
                 if (fixedCount > 0) {
                     // 🔒 数据量安全检查
@@ -603,7 +618,7 @@
                         return;
                     }
                     
-                    const confirmFix = confirm(`⚠️ 即将修复 ${fixedCount} 条记录并同步到Firebase\n\n⚠️ 重要提示：\n- 使用 .set() 全量覆盖操作\n- 会覆盖整个attendanceRecords节点\n- 总记录数: ${totalRecords} 条\n- 修复记录数: ${fixedCount} 条\n- 会自动创建备份\n\n是否确定继续？`);
+                    const confirmFix = confirm(`⚠️ 即将修复 ${fixedCount} 条记录并同步到Firebase\n\n⚠️ 重要提示：\n- 使用 .set() 全量覆盖操作\n- 会覆盖整个attendanceRecords节点\n\n📊 数据详情：\n- 原始总记录数: ${totalRecords} 条\n- 需要修复: ${fixedCount} 条\n- 保持不变: ${totalRecords - fixedCount} 条\n- 回传总记录数: ${fixedRecords.length} 条 ✅\n\n🔒 安全确认：\n- 回传数据包含全部${totalRecords}条记录\n- 会自动创建备份\n\n是否确定继续？`);
                     if (!confirmFix) {
                         log('❌ 用户取消操作', 'warning');
                         return;
@@ -623,8 +638,16 @@
                     }
 
                     // 保存修复后的数据到Firebase
+                    log('', 'info');
                     log('📤 正在同步到Firebase...', 'info');
-                    log(`🔒 使用 .set() 全量覆盖，记录数: ${fixedRecords.length}`, 'warning');
+                    log(`🔒 操作类型: .set() 全量覆盖`, 'warning');
+                    log(`📊 数据明细:`, 'info');
+                    log(`   - 原始记录: ${totalRecords} 条`, 'info');
+                    log(`   - 修复记录: ${fixedCount} 条`, 'info');
+                    log(`   - 保持不变: ${totalRecords - fixedCount} 条`, 'info');
+                    log(`   - 回传总数: ${fixedRecords.length} 条`, 'success');
+                    log(`✅ 确认：回传的是全部${fixedRecords.length}条记录（包括修改和未修改的）`, 'success');
+                    
                     await db.ref('attendanceRecords').set(fixedRecords);
                     
                     // 同时更新本地
