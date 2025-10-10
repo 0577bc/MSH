@@ -1,7 +1,7 @@
 // ==================== 签到数据备份工具 ====================
-// 功能：备份和导出所有签到数据，为系统优化做准备
+// 功能：备份和导出签到数据（默认最近3个月），为系统优化做准备
 // 作者：MSH系统
-// 版本：2.0
+// 版本：2.1 - 优化：只加载最近3个月数据，提升性能
 
 (function() {
     'use strict';
@@ -71,6 +71,7 @@
 
     /**
      * 从多个来源加载数据
+     * 优化：从Firebase只加载最近3个月的数据，减少数据传输量
      */
     async function loadFromMultipleSources() {
         attendanceRecords = [];
@@ -98,10 +99,22 @@
             console.error('❌ 从本地存储加载失败:', error);
         }
         
-        // 3. 从Firebase加载
+        // 3. 从Firebase加载（优化：只加载最近3个月数据）
         try {
             const db = firebase.database();
-            const snapshot = await db.ref('attendanceRecords').once('value');
+            
+            // 计算3个月前的日期
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+            
+            addLog(`从Firebase加载最近3个月数据（自${threeMonthsAgoStr}起）...`, 'info');
+            
+            // 使用orderByChild和startAt过滤数据
+            const snapshot = await db.ref('attendanceRecords')
+                .orderByChild('date')
+                .startAt(threeMonthsAgoStr)
+                .once('value');
             
             if (snapshot.exists()) {
                 const firebaseRecords = snapshot.val();
@@ -110,11 +123,30 @@
                     const existingIds = new Set(attendanceRecords.map(r => r.recordId || r.time));
                     const newRecords = firebaseRecords.filter(r => !existingIds.has(r.recordId || r.time));
                     attendanceRecords = [...attendanceRecords, ...newRecords];
-                    addLog(`从Firebase加载: ${newRecords.length} 条新记录`, 'info');
+                    addLog(`从Firebase加载: ${newRecords.length} 条新记录（最近3个月）`, 'info');
                 }
+            } else {
+                addLog('Firebase中没有找到最近3个月的数据', 'info');
             }
         } catch (error) {
             console.error('❌ 从Firebase加载失败:', error);
+            addLog('从Firebase加载失败，尝试不带过滤条件加载...', 'info');
+            
+            // 如果过滤查询失败，回退到加载所有数据
+            try {
+                const snapshot = await db.ref('attendanceRecords').once('value');
+                if (snapshot.exists()) {
+                    const firebaseRecords = snapshot.val();
+                    if (Array.isArray(firebaseRecords)) {
+                        const existingIds = new Set(attendanceRecords.map(r => r.recordId || r.time));
+                        const newRecords = firebaseRecords.filter(r => !existingIds.has(r.recordId || r.time));
+                        attendanceRecords = [...attendanceRecords, ...newRecords];
+                        addLog(`从Firebase加载: ${newRecords.length} 条新记录（全部数据）`, 'info');
+                    }
+                }
+            } catch (fallbackError) {
+                console.error('❌ Firebase回退加载也失败:', fallbackError);
+            }
         }
         
         // 按时间排序

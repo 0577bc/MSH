@@ -235,8 +235,27 @@ const EncryptedStorage = {
     localStorage.removeItem(key);
   },
   
-  // 清空所有数据
+  /**
+   * ⚠️ 危险操作：清空所有localStorage数据
+   * 
+   * 警告：此操作会删除所有MSH系统的本地数据！
+   * 包括：签到记录、小组数据、成员信息、配置等
+   * 
+   * 使用场景：
+   * - 系统完全重置
+   * - 数据损坏需要重新加载
+   * - 测试环境清理
+   * 
+   * 建议：
+   * - 清空前确保已从Firebase加载完整数据
+   * - 或者只删除特定数据而不是全部清空
+   * - 考虑使用removeItem()删除特定项
+   * 
+   * @危险级别 🔴 高
+   * @参考 2025-10-07数据覆盖事故教训
+   */
   clear: function() {
+    console.warn('⚠️ localStorage.clear()被调用，所有本地数据将被清空！');
     localStorage.clear();
   }
 };
