@@ -584,7 +584,11 @@ async function initializeSampleData() {
   }
 
   function loadAttendanceRecords() {
-    const today = window.utils.getTodayString();
+    // 🔧 修复：确保使用最新的全局变量
+    attendanceRecords = window.attendanceRecords || [];
+    
+    // 🔧 修复：使用 getLocalDateString() 获取 YYYY-MM-DD 格式
+    const today = window.utils.getLocalDateString();
     console.log('📊 加载签到记录:', {
       today: today,
       totalRecords: attendanceRecords.length,
@@ -593,7 +597,8 @@ async function initializeSampleData() {
     
     // 显示所有签到记录（仅上午，过滤掉下午和晚上）
     const todayRecords = attendanceRecords.filter(record => {
-      const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
+      // 🔧 修复：使用 record.date 字段（YYYY-MM-DD格式）进行比较
+      const recordDate = record.date || window.utils.getLocalDateFromISO(record.time);
       const attendanceType = getAttendanceType(new Date(record.time));
       return recordDate === today && attendanceType !== 'afternoon';
     });
@@ -737,13 +742,14 @@ async function initializeSampleData() {
     updateSigninCount();
   }
 
-  // 加载当日新增人员
-  function loadTodayNewcomers() {
+// 加载当日新增人员
+function loadTodayNewcomers() {
     const newcomerList = document.getElementById('newcomerList');
     const newcomerSection = document.querySelector('.newcomer-section');
     if (!newcomerList || !newcomerSection) return;
     
-    const today = window.utils.getTodayString();
+    // 🔧 修复：使用 getLocalDateString() 获取 YYYY-MM-DD 格式
+    const today = window.utils.getLocalDateString();
     const todayNewcomers = [];
     
     // 查找当日新增的成员（只有通过"新朋友"按钮添加的人员）
@@ -787,10 +793,12 @@ async function initializeSampleData() {
     const signinCountElement = document.getElementById('signinCount');
     if (!signinCountElement) return;
     
-    const today = window.utils.getTodayString();
+    // 🔧 修复：使用 getLocalDateString() 获取 YYYY-MM-DD 格式
+    const today = window.utils.getLocalDateString();
     // 统计所有签到记录（仅上午，过滤掉下午和晚上）
     const todayRecords = attendanceRecords.filter(record => {
-      const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
+      // 🔧 修复：使用 record.date 字段（YYYY-MM-DD格式）进行比较
+      const recordDate = record.date || window.utils.getLocalDateFromISO(record.time);
       const attendanceType = getAttendanceType(new Date(record.time));
       return recordDate === today && attendanceType !== 'afternoon';
     });
