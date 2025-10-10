@@ -4,9 +4,10 @@
 
 # ==================== 敏感信息（绝对禁止上传）====================
 # Firebase配置包含真实密钥
-# 重要: config.js必须存在于本地才能运行系统
+# 重要: config.js和config.vercel.js必须存在于本地才能运行系统
 # 但永远不应上传到GitHub以保护隐私
 config.js
+config.vercel.js
 SECRETS_VALUES.txt
 
 # 环境配置文件
