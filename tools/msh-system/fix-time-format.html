@@ -596,7 +596,14 @@
                 updateStats(totalRecords, fixedCount, errorCount);
 
                 if (fixedCount > 0) {
-                    const confirmFix = confirm(`⚠️ 即将修复 ${fixedCount} 条记录并同步到Firebase\n\n此操作会覆盖Firebase中的所有签到记录！\n\n是否确定继续？`);
+                    // 🔒 数据量安全检查
+                    if (fixedRecords.length !== totalRecords) {
+                        log(`❌ 严重错误：修复后记录数(${fixedRecords.length})与原记录数(${totalRecords})不一致！`, 'error');
+                        alert(`❌ 数据量验证失败！\n\n原记录数: ${totalRecords}\n修复后: ${fixedRecords.length}\n\n操作已中止，请检查数据！`);
+                        return;
+                    }
+                    
+                    const confirmFix = confirm(`⚠️ 即将修复 ${fixedCount} 条记录并同步到Firebase\n\n⚠️ 重要提示：\n- 使用 .set() 全量覆盖操作\n- 会覆盖整个attendanceRecords节点\n- 总记录数: ${totalRecords} 条\n- 修复记录数: ${fixedCount} 条\n- 会自动创建备份\n\n是否确定继续？`);
                     if (!confirmFix) {
                         log('❌ 用户取消操作', 'warning');
                         return;
@@ -608,8 +615,16 @@
                     await db.ref(backupKey).set(records);
                     log(`✅ 备份已创建: ${backupKey}`, 'success');
 
+                    // 🚨 最后确认（防止误操作）
+                    const finalConfirm = confirm(`⚠️⚠️⚠️ 最后确认 ⚠️⚠️⚠️\n\n即将执行 .set() 全量覆盖操作！\n\n备份节点: ${backupKey}\n总记录数: ${totalRecords} 条\n\n请再次确认是否继续？`);
+                    if (!finalConfirm) {
+                        log('❌ 用户取消操作', 'warning');
+                        return;
+                    }
+
                     // 保存修复后的数据到Firebase
                     log('📤 正在同步到Firebase...', 'info');
+                    log(`🔒 使用 .set() 全量覆盖，记录数: ${fixedRecords.length}`, 'warning');
                     await db.ref('attendanceRecords').set(fixedRecords);
                     
                     // 同时更新本地
