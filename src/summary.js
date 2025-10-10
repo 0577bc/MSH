@@ -107,6 +107,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 【优化V2.0】只加载基础数据，不加载签到记录
   await loadBasicDataOnly();
   
+  // 🔧 修复：初始化页面状态（设置默认日期、显示section、加载今天的数据）
+  await initializePage();
+  
   console.log("✅ 汇总页面初始化完成（精简加载模式）");
 });
 
@@ -643,7 +646,7 @@ function initializeEventListeners() {
 
   // 旧的数据加载函数已移除，现在使用NewDataManager
 
-  function initializePage() {
+  async function initializePage() {
     // 设置默认日期为今天
     const today = window.utils.getLocalDateString();
     if (dailyDateSelect) dailyDateSelect.value = today;
@@ -653,13 +656,21 @@ function initializeEventListeners() {
     
     // 默认显示日报表
     showSection('dailyReport');
+    
+    // 🔧 修复：自动加载今天的日报表数据
+    console.log('🔄 自动加载今天的日报表数据...');
+    const todayRecords = await loadAttendanceDataForDate(today);
+    loadDailyReport(today, todayRecords);
   }
 
   function initializePeriodOptions() {
+    // 🔧 修复：由于优化V2.0不再预加载attendanceRecords，改为生成当前年份和过去2年的选项
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear - 1, currentYear - 2];
+    
     // 初始化季度选项
     if (quarterSelect) {
       quarterSelect.innerHTML = '<option value="">--请选择季度--</option>';
-      const years = [...new Set(attendanceRecords.map(r => new Date(r.time).getFullYear()))];
       years.forEach(year => {
         for (let q = 1; q <= 4; q++) {
           const option = document.createElement('option');
@@ -673,7 +684,6 @@ function initializeEventListeners() {
     // 初始化年份选项
     if (yearSelect) {
       yearSelect.innerHTML = '<option value="">--请选择年份--</option>';
-      const years = [...new Set(attendanceRecords.map(r => new Date(r.time).getFullYear()))];
       years.forEach(year => {
         const option = document.createElement('option');
         option.value = year;
