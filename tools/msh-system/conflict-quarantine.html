@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH冲突隔离管理工具</title>
+    <link rel="stylesheet" href="../../src/style.css">
+    <link rel="stylesheet" href="conflict-tools-shared.css">
+</head>
+<body>
+    <div class="conflict-manager-container">
+        <!-- 页面头部 -->
+        <div class="quarantine-header">
+            <h2>🛡️ 冲突隔离管理</h2>
+            <p>管理被隔离的冲突数据，防止数据污染</p>
+        </div>
+        
+        <!-- 返回按钮 -->
+        <div class="back-button-container">
+            <button class="back-button" onclick="goBack()">
+                ← 返回管理页面
+            </button>
+        </div>
+        
+        <!-- 隔离统计 -->
+        <div class="quarantine-stats">
+            <div class="stat-card">
+                <div class="stat-number" id="quarantineCount">0</div>
+                <div class="stat-label">隔离数据</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="quarantineResolved">0</div>
+                <div class="stat-label">已解决</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="quarantinePending">0</div>
+                <div class="stat-label">待处理</div>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="quarantine-actions">
+            <button class="btn btn-primary" onclick="loadQuarantineData()">
+                🔄 刷新数据
+            </button>
+            <button class="btn btn-success" onclick="resolveQuarantineItem()" id="resolveBtn" disabled>
+                ✅ 解决选中项
+            </button>
+            <button class="btn btn-warning" onclick="restoreQuarantineItem()" id="restoreBtn" disabled>
+                ♻️ 恢复选中项
+            </button>
+            <button class="btn btn-danger" onclick="deleteQuarantineItem()" id="deleteBtn" disabled>
+                🗑️ 删除选中项
+            </button>
+            <button class="btn btn-danger" onclick="clearAllQuarantine()">
+                🧹 清空所有隔离数据
+            </button>
+        </div>
+        
+        <!-- 隔离数据列表 -->
+        <div class="quarantine-list">
+            <h3>📋 隔离数据列表</h3>
+            <div id="quarantineItems">
+                <p style="color: #666; text-align: center;">点击"刷新数据"加载隔离数据</p>
+            </div>
+        </div>
+        
+        <!-- 隔离数据详情 -->
+        <div class="quarantine-details" id="quarantineDetails" style="display: none;">
+            <h3>📄 数据详情</h3>
+            <div class="quarantine-details-content" id="quarantineDetailsContent">
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../src/smart-config-loader.js"></script>
+    <script src="../../src/core/firebase-utils.js"></script>
+  <script src="../../src/core/time-utils.js"></script>
+  <script src="../../src/core/security-utils.js"></script>
+  <script src="../../src/data/uuid-manager.js"></script>
+  <script src="../../src/features/sunday-tracking-utils.js"></script>
+  <script src="../../src/data/sync-managers.js"></script>
+  <script src="../../src/utils.js"></script>
+    <script src="../../src/new-data-manager.js"></script>
+    
+    <script>
+        // 初始化Firebase
+        if (typeof firebase !== 'undefined' && !firebase.apps.length && window.firebaseConfig) {
+            try {
+                firebase.initializeApp(window.firebaseConfig);
+                console.log('✅ Firebase初始化成功');
+            } catch (error) {
+                console.error('❌ Firebase初始化失败:', error);
+            }
+        }
+        
+        // 冲突隔离管理系统的JavaScript功能
+        let quarantineData = [];
+        let selectedQuarantineItem = null;
+        
+        // 返回管理页面
+        function goBack() {
+            console.log('🔙 返回管理页面');
+            window.location.href = '../../admin.html';
+        }
+        
+        // 加载隔离数据
+        async function loadQuarantineData() {
+            try {
+                console.log('🔍 开始加载隔离数据...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                const snapshot = await db.ref('quarantine').once('value');
+                const data = snapshot.val();
+                
+                if (!data) {
+                    quarantineData = [];
+                } else if (Array.isArray(data)) {
+                    quarantineData = data.filter(item => item !== null && item !== undefined);
+                } else {
+                    quarantineData = Object.values(data).filter(item => item !== null && item !== undefined);
+                }
+                
+                console.log(`✅ 加载了 ${quarantineData.length} 条隔离数据`);
+                
+                // 更新统计
+                updateQuarantineStats();
+                
+                // 显示数据
+                displayQuarantineData();
+                
+            } catch (error) {
+                console.error('❌ 加载隔离数据失败:', error);
+                alert('加载隔离数据失败: ' + error.message);
+            }
+        }
+        
+        // 显示隔离数据
+        function displayQuarantineData() {
+            const itemsContainer = document.getElementById('quarantineItems');
+            
+            if (quarantineData.length === 0) {
+                itemsContainer.innerHTML = `
+                    <div class="no-conflicts">
+                        <h4>✅ 没有隔离数据</h4>
+                        <p>系统中没有被隔离的冲突数据</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            itemsContainer.innerHTML = '';
+            
+            quarantineData.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'quarantine-item';
+                itemDiv.onclick = () => selectQuarantineItem(index);
+                
+                const status = item.resolved ? 'resolved' : 'pending';
+                const statusText = item.resolved ? '已解决' : '待处理';
+                
+                const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString('zh-CN') : '未知时间';
+                const type = item.type || '未知类型';
+                const description = item.description || '无描述';
+                
+                itemDiv.innerHTML = `
+                    <div class="quarantine-item-header">
+                        <div class="quarantine-item-title">
+                            #${index + 1} ${type}
+                        </div>
+                        <span class="quarantine-item-status ${status}">${statusText}</span>
+                    </div>
+                    <div class="quarantine-item-details">
+                        <div><strong>时间：</strong>${timestamp}</div>
+                        <div><strong>描述：</strong>${description}</div>
+                    </div>
+                `;
+                
+                itemsContainer.appendChild(itemDiv);
+            });
+        }
+        
+        // 选择隔离项
+        function selectQuarantineItem(index) {
+            selectedQuarantineItem = index;
+            
+            // 更新选中状态
+            document.querySelectorAll('.quarantine-item').forEach((item, idx) => {
+                if (idx === index) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            
+            // 显示详情
+            showQuarantineDetails(quarantineData[index]);
+            
+            // 启用按钮
+            document.getElementById('resolveBtn').disabled = false;
+            document.getElementById('restoreBtn').disabled = false;
+            document.getElementById('deleteBtn').disabled = false;
+        }
+        
+        // 显示隔离数据详情
+        function showQuarantineDetails(item) {
+            const detailsContainer = document.getElementById('quarantineDetails');
+            const detailsContent = document.getElementById('quarantineDetailsContent');
+            
+            detailsContainer.style.display = 'block';
+            detailsContent.textContent = JSON.stringify(item, null, 2);
+        }
+        
+        // 更新隔离统计
+        function updateQuarantineStats() {
+            const totalCount = quarantineData.length;
+            const resolvedCount = quarantineData.filter(item => item.resolved).length;
+            const pendingCount = totalCount - resolvedCount;
+            
+            document.getElementById('quarantineCount').textContent = totalCount;
+            document.getElementById('quarantineResolved').textContent = resolvedCount;
+            document.getElementById('quarantinePending').textContent = pendingCount;
+        }
+        
+        // 解决隔离项
+        async function resolveQuarantineItem() {
+            if (selectedQuarantineItem === null) {
+                alert('请先选择一个隔离项');
+                return;
+            }
+            
+            try {
+                const item = quarantineData[selectedQuarantineItem];
+                
+                if (!confirm(`确定要标记为已解决吗？\n\n类型: ${item.type}\n描述: ${item.description}`)) {
+                    return;
+                }
+                
+                console.log('✅ 标记为已解决:', item);
+                
+                // 更新状态
+                item.resolved = true;
+                item.resolvedAt = new Date().toISOString();
+                
+                // 保存到Firebase
+                const db = firebase.database();
+                await db.ref(`quarantine/${selectedQuarantineItem}`).update({
+                    resolved: true,
+                    resolvedAt: item.resolvedAt
+                });
+                
+                console.log('✅ 隔离项已标记为已解决');
+                
+                // 刷新显示
+                await loadQuarantineData();
+                alert('已标记为已解决');
+                
+            } catch (error) {
+                console.error('❌ 解决隔离项失败:', error);
+                alert('操作失败: ' + error.message);
+            }
+        }
+        
+        // 恢复隔离项
+        async function restoreQuarantineItem() {
+            if (selectedQuarantineItem === null) {
+                alert('请先选择一个隔离项');
+                return;
+            }
+            
+            try {
+                const item = quarantineData[selectedQuarantineItem];
+                
+                if (!confirm(`确定要恢复这个隔离项吗？\n\n类型: ${item.type}\n描述: ${item.description}\n\n这将从隔离区删除该项`)) {
+                    return;
+                }
+                
+                console.log('♻️ 恢复隔离项:', item);
+                
+                // 从Firebase隔离区删除
+                const db = firebase.database();
+                await db.ref(`quarantine/${selectedQuarantineItem}`).remove();
+                
+                console.log('✅ 隔离项已恢复（从隔离区删除）');
+                
+                // 刷新显示
+                selectedQuarantineItem = null;
+                await loadQuarantineData();
+                
+                // 隐藏详情
+                document.getElementById('quarantineDetails').style.display = 'none';
+                
+                // 禁用按钮
+                document.getElementById('resolveBtn').disabled = true;
+                document.getElementById('restoreBtn').disabled = true;
+                document.getElementById('deleteBtn').disabled = true;
+                
+                alert('隔离项已恢复');
+                
+            } catch (error) {
+                console.error('❌ 恢复隔离项失败:', error);
+                alert('恢复失败: ' + error.message);
+            }
+        }
+        
+        // 删除隔离项
+        async function deleteQuarantineItem() {
+            if (selectedQuarantineItem === null) {
+                alert('请先选择一个隔离项');
+                return;
+            }
+            
+            try {
+                const item = quarantineData[selectedQuarantineItem];
+                
+                if (!confirm(`确定要永久删除这个隔离项吗？\n\n类型: ${item.type}\n描述: ${item.description}\n\n此操作不可撤销！`)) {
+                    return;
+                }
+                
+                console.log('🗑️ 删除隔离项:', item);
+                
+                // 从Firebase删除
+                const db = firebase.database();
+                await db.ref(`quarantine/${selectedQuarantineItem}`).remove();
+                
+                console.log('✅ 隔离项已删除');
+                
+                // 刷新显示
+                selectedQuarantineItem = null;
+                await loadQuarantineData();
+                
+                // 隐藏详情
+                document.getElementById('quarantineDetails').style.display = 'none';
+                
+                // 禁用按钮
+                document.getElementById('resolveBtn').disabled = true;
+                document.getElementById('restoreBtn').disabled = true;
+                document.getElementById('deleteBtn').disabled = true;
+                
+                alert('隔离项已删除');
+                
+            } catch (error) {
+                console.error('❌ 删除隔离项失败:', error);
+                alert('删除失败: ' + error.message);
+            }
+        }
+        
+        // 清空所有隔离数据
+        async function clearAllQuarantine() {
+            if (quarantineData.length === 0) {
+                alert('没有隔离数据可清空');
+                return;
+            }
+            
+            if (!confirm(`确定要清空所有 ${quarantineData.length} 条隔离数据吗？\n\n此操作不可撤销！`)) {
+                return;
+            }
+            
+            try {
+                console.log('🧹 开始清空所有隔离数据...');
+                
+                if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                    throw new Error('Firebase未初始化');
+                }
+                
+                const db = firebase.database();
+                
+                // 清空隔离区
+                await db.ref('quarantine').remove();
+                
+                console.log('✅ 所有隔离数据已清空');
+                
+                // 刷新显示
+                selectedQuarantineItem = null;
+                await loadQuarantineData();
+                
+                // 隐藏详情
+                document.getElementById('quarantineDetails').style.display = 'none';
+                
+                // 禁用按钮
+                document.getElementById('resolveBtn').disabled = true;
+                document.getElementById('restoreBtn').disabled = true;
+                document.getElementById('deleteBtn').disabled = true;
+                
+                alert('所有隔离数据已成功清空');
+                
+            } catch (error) {
+                console.error('❌ 清空隔离数据失败:', error);
+                alert('清空隔离数据失败: ' + error.message);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', async function() {
+            console.log('冲突隔离管理工具加载完成');
+            
+            if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                console.error('❌ Firebase未初始化');
+            } else {
+                console.log('✅ Firebase已初始化');
+                // 自动加载数据
+                await loadQuarantineData();
+            }
+        });
+    </script>
+</body>
+</html>
+

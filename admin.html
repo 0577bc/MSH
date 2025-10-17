@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理员页面</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="./src/style.css">
+  <!-- 样式模块 -->
+    <link rel="stylesheet" href="./src/styles/base.css">
+    <link rel="stylesheet" href="./src/styles/components.css">
+    <link rel="stylesheet" href="./src/styles/utils.css">
   <script src="./src/smart-config-loader.js"></script>
   <!-- 引入配置管理器 -->
   <script src="./src/config-manager.js"></script>
@@ -48,7 +51,6 @@
       <button id="groupManagementButton" type="button" aria-label="成员管理" class="primary-button">成员管理</button>
       <button id="excludedMembersViewerButton" type="button" aria-label="未签到不统计人员管理" class="excluded-members-btn">📊 未签到不统计人员</button>
       <button id="toolsButton" type="button" aria-label="系统工具" class="tools-btn">🛠️ 系统工具</button>
-      <button id="deleteManagementButton" type="button" aria-label="数据删除管理" class="delete-management-btn">🗑️ 数据删除管理</button>
       <button id="externalFormAdminButton" type="button" aria-label="外部表单管理" class="external-form-btn">📋 外部表单管理</button>
       <button id="dataForwardButton" type="button" aria-label="数据转发到外部表单" class="data-forward-btn">🔄 数据转发到外部表单</button>
       <div id="syncButtonContainer"></div>
@@ -58,9 +60,16 @@
       
     </section>
   </main>
-  <script src="./src/utils.js"></script>
+  <!-- 工具函数模块 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
   <script src="./src/navigation-utils.js"></script>
-  <script src="./src/new-data-manager.js"></script>
+  <!-- 数据管理器模块 -->
+    <script src="./src/new-data-manager.js"></script>
   <!-- 使用简化版 admin.js - 所有成员管理功能已迁移到 group-management.js -->
   <script src="./src/admin-simplified.js"></script>
 </body>

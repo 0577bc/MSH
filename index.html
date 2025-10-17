@@ -6,7 +6,10 @@
   <title>MSH签到系统</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="./src/style.css">
+  <!-- 样式模块 -->
+    <link rel="stylesheet" href="./src/styles/base.css">
+    <link rel="stylesheet" href="./src/styles/components.css">
+    <link rel="stylesheet" href="./src/styles/utils.css">
   <link rel="manifest" href="manifest.json">
   <!-- 引入配置文件 -->
   <script src="./src/smart-config-loader.js"></script>
@@ -54,6 +57,7 @@
     <section class="button-row">
       <button id="signinButton" type="button" class="main-button signin-button" aria-label="签到">签到</button>
       <button id="addNewcomerButton" type="button" class="main-button new-member-button" aria-label="新朋友">新朋友</button>
+      <button id="refreshDataBtn" type="button" class="main-button" aria-label="刷新数据">🔄 刷新</button>
       <button id="dailyReportButton" type="button" class="main-button" aria-label="查看日报表">日报表</button>
       <button id="adminButton" type="button" class="main-button" aria-label="进入管理页面">管理</button>
     </section>
@@ -176,8 +180,15 @@
       <p class="signin-count">签到人数：<span id="signinCount">0</span>人</p>
     </section>
   </main>
-  <script src="./src/utils.js"></script>
+  <!-- 工具函数模块 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
   <script src="./src/navigation-utils.js"></script>
+  <!-- 数据管理器 -->
   <script src="./src/new-data-manager.js"></script>
   <script src="./src/main.js"></script>
 </body>

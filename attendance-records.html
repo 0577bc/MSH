@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>签到原始记录 - MSH管理系统</title>
   <link rel="icon" href="./favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="./src/style.css">
+  <!-- 样式模块 -->
+    <link rel="stylesheet" href="./src/styles/base.css">
+    <link rel="stylesheet" href="./src/styles/components.css">
+    <link rel="stylesheet" href="./src/styles/utils.css">
   
   <!-- 配置文件（最先加载） -->
   <script src="./src/smart-config-loader.js"></script>
@@ -23,8 +26,15 @@
   <script src="./src/security.js"></script>
   
   <!-- 核心功能 -->
-  <script src="./src/utils.js"></script>
-  <script src="./src/new-data-manager.js"></script>
+  <!-- 工具函数模块 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
+  <!-- 数据管理器模块 -->
+    <script src="./src/new-data-manager.js"></script>
   <script src="./src/attendance-records.js"></script>
 </head>
 <body>

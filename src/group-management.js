@@ -21,6 +21,9 @@ let exportMembersButton, exportMembersDialog, cancelExportButton, confirmExportB
 // 修改组名相关元素
 let editGroupNameButton, editGroupForm, editGroupName, editGroupDescription, saveEditGroupButton, cancelEditGroupButton;
 
+// 标志位：防止事件监听器重复绑定
+let eventListenersInitialized = false;
+
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('小组管理页面：脚本加载完成');
@@ -309,18 +312,26 @@ function validateDataIntegrity() {
 function initializeEventListeners() {
   console.log('🔍 开始初始化事件监听器...');
   
+  // 防止重复绑定
+  if (eventListenersInitialized) {
+    console.log('⚠️ 事件监听器已初始化，跳过重复绑定');
+    return;
+  }
+  
   // 返回按钮
   const backToAdminButton = document.getElementById('backToAdminButton');
   const backToMainButton = document.getElementById('backToMainButton');
   
   if (backToAdminButton) {
     backToAdminButton.addEventListener('click', () => {
+      console.log('🔙 点击返回管理页面按钮');
       window.location.href = 'admin.html';
     });
   }
   
   if (backToMainButton) {
     backToMainButton.addEventListener('click', async () => {
+      console.log('🔙 点击返回签到页面按钮');
       if (window.NavigationUtils) {
         await window.NavigationUtils.navigateBackToIndex();
       } else {
@@ -407,6 +418,8 @@ function initializeEventListeners() {
   // 表单事件
   initializeFormEvents();
   
+  // 标记已初始化
+  eventListenersInitialized = true;
   console.log('✅ 事件监听器初始化完成');
 }
 

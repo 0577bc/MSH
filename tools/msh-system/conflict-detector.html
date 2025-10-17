@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSH冲突检测与解决工具</title>
+    <link rel="stylesheet" href="../../src/style.css">
+    <link rel="stylesheet" href="conflict-tools-shared.css">
+</head>
+<body>
+    <div class="conflict-manager-container">
+        <!-- 管理员警告横幅 -->
+        <div class="admin-warning-banner">
+            <h2>
+                <span class="warning-icon">🚨</span>
+                管理员专用工具 - 数据冲突诊断区
+            </h2>
+            <p><strong>⚠️ 警告：此页面用于检测和解决系统数据冲突！</strong></p>
+            <p>本页面功能：</p>
+            <ul>
+                <li>🔍 检测 <strong>UUID冲突</strong>（重复UUID）</li>
+                <li>🔍 检测 <strong>小组名称冲突</strong>（不一致）</li>
+                <li>🔍 检测 <strong>数据不一致</strong>（groups vs groupNames）</li>
+                <li>⚔️ <strong>解决冲突</strong>（可能修改数据）</li>
+            </ul>
+            <p><strong>请在执行任何操作前先备份数据！</strong></p>
+        </div>
+        
+        <!-- 页面头部 -->
+        <div class="conflict-manager-header">
+            <h1>⚔️ MSH冲突检测与解决</h1>
+            <p>检测和解决Firebase数据冲突</p>
+        </div>
+        
+        <!-- 返回按钮 -->
+        <div class="back-button-container">
+            <button class="back-button" onclick="goBack()">
+                ← 返回管理页面
+            </button>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalConflicts">0</div>
+                <div class="stat-label">总冲突数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="uuidConflicts">0</div>
+                <div class="stat-label">UUID冲突</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="groupConflicts">0</div>
+                <div class="stat-label">小组冲突</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="dataConflicts">0</div>
+                <div class="stat-label">数据不一致</div>
+            </div>
+        </div>
+
+        <!-- 冲突检测区域 -->
+        <div class="conflict-section">
+            <h2>🔍 冲突检测</h2>
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="detectConflicts()">
+                    🔍 检测所有冲突
+                </button>
+                <button class="btn btn-success" onclick="exportConflictReport()">
+                    📄 导出冲突报告
+                </button>
+                <button class="btn btn-warning" onclick="clearConflicts()">
+                    🧹 清空结果
+                </button>
+            </div>
+            
+            <div id="conflictResults" style="margin-top: 20px;">
+                <p style="color: #666; text-align: center;">点击"检测所有冲突"开始分析</p>
+            </div>
+        </div>
+
+        <!-- 冲突列表 -->
+        <div id="conflictList" class="conflict-section" style="display: none;">
+            <h2>⚠️ 检测到的冲突</h2>
+            <div id="conflictItems"></div>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../../src/smart-config-loader.js"></script>
+    <script src="../../src/core/firebase-utils.js"></script>
+  <script src="../../src/core/time-utils.js"></script>
+  <script src="../../src/core/security-utils.js"></script>
+  <script src="../../src/data/uuid-manager.js"></script>
+  <script src="../../src/features/sunday-tracking-utils.js"></script>
+  <script src="../../src/data/sync-managers.js"></script>
+  <script src="../../src/utils.js"></script>
+    <script src="../../src/new-data-manager.js"></script>
+    
+    <script>
+        // 初始化Firebase
+        if (typeof firebase !== 'undefined' && !firebase.apps.length && window.firebaseConfig) {
+            try {
+                firebase.initializeApp(window.firebaseConfig);
+                console.log('✅ Firebase初始化成功');
+            } catch (error) {
+                console.error('❌ Firebase初始化失败:', error);
+            }
+        }
+        
+        // 冲突检测系统的JavaScript功能
+        let detectedConflicts = [];
+        
+        // 返回管理页面
+        function goBack() {
+            console.log('🔙 返回管理页面');
+            window.location.href = '../../admin.html';
+        }
+        
+        // 检测所有冲突
+        async function detectConflicts() {
+            try {
+                document.getElementById('conflictResults').innerHTML = 
+                    '<p style="color: #667eea;">🔍 正在检测冲突...</p>';
+                
+                // 清空之前的结果
+                detectedConflicts = [];
+                
+                // 从Firebase加载数据
+                const db = firebase.database();
+                const groupsSnapshot = await db.ref('groups').once('value');
+                const groupNamesSnapshot = await db.ref('groupNames').once('value');
+                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
+                
+                const firebaseGroups = groupsSnapshot.val() || {};
+                const firebaseGroupNames = groupNamesSnapshot.val() || {};
+                const firebaseAttendance = attendanceSnapshot.val() || [];
+                
+                // 从localStorage加载数据
+                const localGroups = JSON.parse(localStorage.getItem('msh_groups') || '{}');
+                const localGroupNames = JSON.parse(localStorage.getItem('msh_groupNames') || '{}');
+                const localAttendance = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+                
+                console.log('📊 数据加载完成:');
+                console.log('  Firebase Groups:', Object.keys(firebaseGroups).length);
+                console.log('  localStorage Groups:', Object.keys(localGroups).length);
+                console.log('  Firebase Attendance:', firebaseAttendance.length);
+                console.log('  localStorage Attendance:', localAttendance.length);
+                
+                // 1. 检测UUID冲突
+                const uuidConflicts = detectUUIDConflicts(firebaseGroups);
+                detectedConflicts.push(...uuidConflicts);
+                
+                // 2. 检测小组名称冲突
+                const groupNameConflicts = detectGroupNameConflicts(firebaseGroups, firebaseGroupNames);
+                detectedConflicts.push(...groupNameConflicts);
+                
+                // 3. 检测数据不一致
+                const dataConflicts = detectDataInconsistency(firebaseGroups, firebaseGroupNames);
+                detectedConflicts.push(...dataConflicts);
+                
+                // 更新统计
+                updateConflictStats();
+                
+                // 显示结果
+                displayConflicts();
+                
+            } catch (error) {
+                console.error('冲突检测失败:', error);
+                document.getElementById('conflictResults').innerHTML = 
+                    `<p style="color: #f56565;">❌ 检测失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 检测UUID冲突（同一个UUID出现在多个成员中）
+        function detectUUIDConflicts(groups) {
+            const conflicts = [];
+            const uuidMap = new Map(); // uuid -> [成员列表]
+            
+            // 收集所有UUID
+            Object.keys(groups).forEach(groupKey => {
+                const members = groups[groupKey] || [];
+                members.forEach(member => {
+                    if (member && member.uuid) {
+                        if (!uuidMap.has(member.uuid)) {
+                            uuidMap.set(member.uuid, []);
+                        }
+                        uuidMap.get(member.uuid).push({
+                            ...member,
+                            groupKey
+                        });
+                    }
+                });
+            });
+            
+            // 查找重复的UUID
+            uuidMap.forEach((members, uuid) => {
+                if (members.length > 1) {
+                    // 检查是否是真正的冲突（姓名不同）
+                    const uniqueNames = [...new Set(members.map(m => m.name))];
+                    
+                    if (uniqueNames.length > 1) {
+                        conflicts.push({
+                            type: 'uuid_conflict',
+                            severity: 'high',
+                            uuid,
+                            members,
+                            description: `UUID ${uuid} 被 ${members.length} 个不同成员使用`
+                        });
+                    }
+                }
+            });
+            
+            return conflicts;
+        }
+        
+        // 检测小组名称冲突
+        function detectGroupNameConflicts(groups, groupNames) {
+            const conflicts = [];
+            
+            Object.keys(groups).forEach(groupKey => {
+                const expectedName = groupNames[groupKey];
+                if (!expectedName) {
+                    conflicts.push({
+                        type: 'group_name_missing',
+                        severity: 'medium',
+                        groupKey,
+                        description: `小组 ${groupKey} 缺少名称定义`
+                    });
+                }
+            });
+            
+            // 检查groupNames中是否有多余的条目
+            Object.keys(groupNames).forEach(groupKey => {
+                if (!groups[groupKey]) {
+                    conflicts.push({
+                        type: 'orphan_group_name',
+                        severity: 'low',
+                        groupKey,
+                        groupName: groupNames[groupKey],
+                        description: `小组名称 "${groupNames[groupKey]}" (${groupKey}) 没有对应的成员数据`
+                    });
+                }
+            });
+            
+            return conflicts;
+        }
+        
+        // 检测数据不一致
+        function detectDataInconsistency(groups, groupNames) {
+            const conflicts = [];
+            
+            // 检查空小组
+            Object.keys(groups).forEach(groupKey => {
+                const members = groups[groupKey];
+                if (!members || members.length === 0) {
+                    conflicts.push({
+                        type: 'empty_group',
+                        severity: 'low',
+                        groupKey,
+                        groupName: groupNames[groupKey],
+                        description: `小组 "${groupNames[groupKey]}" 没有成员`
+                    });
+                }
+            });
+            
+            return conflicts;
+        }
+        
+        // 更新冲突统计
+        function updateConflictStats() {
+            const uuidConflicts = detectedConflicts.filter(c => c.type === 'uuid_conflict').length;
+            const groupConflicts = detectedConflicts.filter(c => 
+                c.type === 'group_name_missing' || c.type === 'orphan_group_name'
+            ).length;
+            const dataConflicts = detectedConflicts.filter(c => c.type === 'empty_group').length;
+            
+            document.getElementById('totalConflicts').textContent = detectedConflicts.length;
+            document.getElementById('uuidConflicts').textContent = uuidConflicts;
+            document.getElementById('groupConflicts').textContent = groupConflicts;
+            document.getElementById('dataConflicts').textContent = dataConflicts;
+        }
+        
+        // 显示冲突
+        function displayConflicts() {
+            const conflictList = document.getElementById('conflictList');
+            const conflictItems = document.getElementById('conflictItems');
+            const conflictResults = document.getElementById('conflictResults');
+            
+            if (detectedConflicts.length === 0) {
+                conflictResults.innerHTML = `
+                    <div class="no-conflicts">
+                        <h4>✅ 未检测到冲突</h4>
+                        <p>系统数据一致性良好</p>
+                    </div>
+                `;
+                conflictList.style.display = 'none';
+                return;
+            }
+            
+            conflictResults.innerHTML = `
+                <p style="color: #f56565; font-weight: bold;">
+                    ⚠️ 检测到 ${detectedConflicts.length} 个冲突
+                </p>
+            `;
+            
+            conflictList.style.display = 'block';
+            conflictItems.innerHTML = '';
+            
+            detectedConflicts.forEach((conflict, index) => {
+                const conflictDiv = document.createElement('div');
+                conflictDiv.className = `conflict-item ${conflict.type.replace('_', '-')}`;
+                
+                const severityClass = conflict.severity === 'high' ? 'uuid' : 
+                                     conflict.severity === 'medium' ? 'group' : 'data';
+                
+                conflictDiv.innerHTML = `
+                    <div class="conflict-header">
+                        <div>
+                            <span class="conflict-type ${severityClass}">${conflict.severity.toUpperCase()}</span>
+                            <span class="conflict-title">#${index + 1} ${conflict.description}</span>
+                        </div>
+                    </div>
+                    <div class="conflict-details">
+                        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px;">
+${JSON.stringify(conflict, null, 2)}
+                        </pre>
+                    </div>
+                    <div class="conflict-actions">
+                        <button class="btn btn-primary" onclick="showConflictDetails(${index})">
+                            查看详情
+                        </button>
+                        <button class="btn btn-warning" onclick="ignoreConflict(${index})">
+                            忽略
+                        </button>
+                    </div>
+                `;
+                
+                conflictItems.appendChild(conflictDiv);
+            });
+        }
+        
+        // 显示冲突详情
+        function showConflictDetails(index) {
+            const conflict = detectedConflicts[index];
+            alert(`冲突详情 #${index + 1}\n\n${JSON.stringify(conflict, null, 2)}`);
+        }
+        
+        // 忽略冲突
+        function ignoreConflict(index) {
+            if (confirm('确定要忽略这个冲突吗？')) {
+                detectedConflicts.splice(index, 1);
+                updateConflictStats();
+                displayConflicts();
+            }
+        }
+        
+        // 清空冲突结果
+        function clearConflicts() {
+            detectedConflicts = [];
+            updateConflictStats();
+            document.getElementById('conflictResults').innerHTML = 
+                '<p style="color: #666; text-align: center;">点击"检测所有冲突"开始分析</p>';
+            document.getElementById('conflictList').style.display = 'none';
+        }
+        
+        // 导出冲突报告
+        function exportConflictReport() {
+            if (detectedConflicts.length === 0) {
+                alert('没有冲突数据可导出');
+                return;
+            }
+            
+            const report = {
+                timestamp: new Date().toISOString(),
+                conflictCount: detectedConflicts.length,
+                conflicts: detectedConflicts
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `conflict-report-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert('冲突报告已导出');
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', async function() {
+            console.log('冲突检测工具加载完成');
+            
+            if (typeof firebase === 'undefined' || firebase.apps.length === 0) {
+                console.error('❌ Firebase未初始化');
+            } else {
+                console.log('✅ Firebase已初始化');
+            }
+        });
+    </script>
+</body>
+</html>
+

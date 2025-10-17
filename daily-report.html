@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MSH日报表</title>
-  <link rel="stylesheet" href="./src/style.css">
+  <!-- 样式模块 -->
+    <link rel="stylesheet" href="./src/styles/base.css">
+    <link rel="stylesheet" href="./src/styles/components.css">
+    <link rel="stylesheet" href="./src/styles/utils.css">
   <!-- 引入配置文件 -->
   <script src="./src/smart-config-loader.js"></script>
   <!-- 引入配置管理器 -->
@@ -15,13 +18,15 @@
   <!-- 引入导出功能库 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <!-- 引入新数据管理器 -->
-  <script src="./src/new-data-manager.js"></script>
+  <!-- 数据管理器模块 -->
+    <script src="./src/new-data-manager.js"></script>
 </head>
 <body>
   <main>
     <h1>MSH日报表</h1>
     <section class="button-row">
       <button id="backButton" type="button" aria-label="返回签到页面">返回签到页面</button>
+      <button id="refreshDataBtn" type="button" aria-label="刷新数据" class="btn-secondary">🔄 刷新数据</button>
       <button id="exportTableButton" type="button" aria-label="导出表格">导出表格</button>
     </section>
     <!-- 当日签到人员表 - 隐藏但保留 -->
@@ -119,7 +124,13 @@
       </div>
     </section>
   </main>
-  <script src="./src/utils.js"></script>
+  <!-- 工具函数模块 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
   <script src="./src/navigation-utils.js"></script>
   <script src="./src/daily-report.js"></script>
 </body>

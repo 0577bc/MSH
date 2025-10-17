@@ -56,6 +56,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 【优化V2.0】只加载基础数据和当天的签到记录
   await loadBasicDataAndToday();
   
+  // 🔔 监听数据更新事件，自动刷新页面数据
+  window.addEventListener('attendanceRecordsUpdated', (event) => {
+    console.log('🔔 检测到签到记录更新事件:', event.detail);
+    
+    // 清除所有sessionStorage中的签到记录缓存
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.startsWith('attendance_')) {
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ 已清除缓存: ${key}`);
+      }
+    });
+    
+    // 重新加载当前日期的数据
+    if (dateSelect && dateSelect.value) {
+      console.log('🔄 重新加载数据:', dateSelect.value);
+      loadAttendanceDataByDate(dateSelect.value);
+    }
+  });
+  
+  console.log('✅ 数据更新事件监听器已注册');
+  
   // 创建同步按钮
   if (window.newDataManager) {
     window.newDataManager.createSyncButton('syncButtonContainer');
@@ -303,7 +324,16 @@ function renderAttendanceRecords(records) {
     const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
     const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
     const displayName = window.utils.getDisplayName(memberInfo);
-    const signinTime = new Date(record.time).toISOString();
+    // 显示本地时区的日期和时间
+    const signinTime = new Date(record.time).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
     
     row.innerHTML = `
       <td>${index + 1}</td>
@@ -347,7 +377,10 @@ function openEditModal(record) {
   const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
   const displayName = window.utils.getDisplayName(memberInfo);
   
-  if (editName) editName.value = displayName;
+  if (editName) {
+    editName.value = displayName;
+    editName.setAttribute('readonly', 'true'); // 确保姓名字段为只读
+  }
   if (editTime) {
     // 转换时间格式为datetime-local需要的格式
     const date = new Date(record.time);
@@ -391,21 +424,17 @@ async function saveEditedRecord() {
   
   const record = currentEditRecord;
   
-  // 获取表单数据
-  const newName = editName ? editName.value.trim() : '';
+  // 获取表单数据（姓名字段为只读，不允许修改）
   const newGroup = editGroup ? editGroup.value : '';
   const newTime = editTime ? editTime.value : '';
   
-  if (!newName || !newGroup || !newTime) {
+  if (!newGroup || !newTime) {
     alert('请填写完整信息');
     return;
   }
   
-  // 验证姓名格式
-  if (newName.length < 2 || newName.length > 10) {
-    alert('姓名长度应在2-10个字符之间');
-    return;
-  }
+  // 姓名不允许修改，使用原记录的姓名
+  const newName = record.name;
   
   // 验证时间格式
   const newDateTime = new Date(newTime);
@@ -419,6 +448,89 @@ async function saveEditedRecord() {
   if (newDateTime > now) {
     alert('签到时间不能是未来时间');
     return;
+  }
+  
+  // 【安全漏洞修复】检查修改时间后是否会导致重复签到
+  const newTimeSlot = window.utils.getAttendanceType(newDateTime);
+  const newDate = newDateTime.toLocaleDateString('zh-CN');
+  
+  // 获取成员的UUID
+  let memberUUID = record.memberUUID;
+  if (!memberUUID) {
+    // 如果没有UUID，尝试从groups中查找
+    const memberInfo = window.groups[newGroup]?.find(m => m.name === newName);
+    memberUUID = memberInfo?.uuid;
+  }
+  
+  if (memberUUID) {
+    // 检查是否会导致重复签到（排除当前记录）
+    const attendanceRecords = window.attendanceRecords || [];
+    const duplicateCheck = attendanceRecords.some(existingRecord => {
+      // 排除当前正在编辑的记录（优先使用UUID + time匹配）
+      if (record.memberUUID && existingRecord.memberUUID === record.memberUUID && existingRecord.time === record.time) {
+        return false;
+      }
+      // 降级方案：使用name + time匹配（兼容旧数据）
+      if (!record.memberUUID && existingRecord.time === record.time && existingRecord.name === record.name) {
+        return false;
+      }
+      
+      const existingDate = new Date(existingRecord.time).toLocaleDateString('zh-CN');
+      const existingTimeSlot = window.utils.getAttendanceType(new Date(existingRecord.time));
+      
+      // 检查UUID和日期匹配
+      if (existingRecord.memberUUID !== memberUUID || existingDate !== newDate) {
+        return false;
+      }
+      
+      // 时间段重复检查规则
+      switch (newTimeSlot) {
+        case 'early':
+        case 'onTime':
+        case 'late':
+          // 上午时间段(0:00-11:00)只允许一次签到
+          const morningSlots = ['early', 'onTime', 'late'];
+          return morningSlots.includes(existingTimeSlot);
+          
+        case 'afternoon':
+          // 下午签到：11:00-17:00只允许一次签到
+          return existingTimeSlot === 'afternoon';
+          
+        case 'evening':
+          // 晚上签到：17:00-00:00只允许一次签到
+          return existingTimeSlot === 'evening';
+          
+        default:
+          return false;
+      }
+    });
+    
+    if (duplicateCheck) {
+      const timeSlotNames = {
+        'early': '早到时间段(0:00-9:20)',
+        'onTime': '准时时间段(9:20-9:30)',
+        'late': '迟到时间段(9:30-10:40)',
+        'afternoon': '下午时间段(11:00-17:00)',
+        'evening': '晚上时间段(17:00-00:00)'
+      };
+      
+      const restrictionMessage = {
+        'early': '上午时间段(0:00-11:00)',
+        'onTime': '上午时间段(0:00-11:00)',
+        'late': '上午时间段(0:00-11:00)',
+        'afternoon': '下午时间段(11:00-17:00)',
+        'evening': '晚上时间段(17:00-00:00)'
+      };
+      
+      alert(`🚫 修改时间会导致重复签到！\n\n` +
+            `成员：${newName}\n` +
+            `修改时间：${timeSlotNames[newTimeSlot]}\n` +
+            `限制：${restrictionMessage[newTimeSlot]}内只允许一次签到\n\n` +
+            `该成员已在此时间段签到，不允许修改到此时间！`);
+      return;
+    }
+  } else {
+    console.warn('⚠️ 无法获取成员UUID，跳过重复签到检查');
   }
   
   // 【优化V2.0】更新记录（需要更新Firebase中的记录）
@@ -441,17 +553,22 @@ async function saveEditedRecord() {
     const db = firebase.database();
     
     // 找到并更新Firebase中的记录
-    // 方案：通过唯一标识查找记录（name + group + 原time）
+    // 方案：通过UUID + 原time查找记录（避免姓名修改冲突）
     const recordsRef = db.ref('attendanceRecords');
     const snapshot = await recordsRef.once('value');
     const allRecords = snapshot.val() || {};
     
-    // 找到匹配的记录
+    // 找到匹配的记录（优先通过UUID匹配，避免姓名修改冲突）
     let recordKey = null;
     for (const [key, value] of Object.entries(allRecords)) {
-      if (value.name === record.name && 
-          value.group === record.group && 
-          value.time === record.time) {
+      // 优先使用UUID + time匹配（UUID是唯一标识）
+      if (record.memberUUID && value.memberUUID === record.memberUUID && value.time === record.time) {
+        recordKey = key;
+        break;
+      }
+      // 降级方案：使用name + group + time匹配（用于旧数据兼容）
+      if (!record.memberUUID && value.name === record.name && 
+          value.group === record.group && value.time === record.time) {
         recordKey = key;
         break;
       }
@@ -472,6 +589,10 @@ async function saveEditedRecord() {
     if (oldDate !== newDate) {
       sessionStorage.removeItem(`attendance_${newDate}`);
     }
+    
+    // 清除localStorage中的签到记录缓存，确保index页面能看到更新
+    localStorage.removeItem('msh_attendanceRecords');
+    console.log('🗑️ 已清除localStorage中的签到记录缓存，index页面将从Firebase重新加载');
     
     // 重新加载当前日期的数据
     const currentDate = dateSelect ? dateSelect.value : '';

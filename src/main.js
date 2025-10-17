@@ -204,8 +204,8 @@ async function initializeSampleData() {
       
       if (needsUpdate) {
         // 更新本地存储
-        const updatedGroups = await window.dataManager.loadGroups();
-        const updatedGroupNames = await window.dataManager.loadGroupNames();
+        const updatedGroups = await window.newDataManager.loadGroups();
+        const updatedGroupNames = await window.newDataManager.loadGroupNames();
         localStorage.setItem('msh_groups', JSON.stringify(updatedGroups));
         localStorage.setItem('msh_groupNames', JSON.stringify(updatedGroupNames));
       }
@@ -222,9 +222,9 @@ async function initializeSampleData() {
       await initializeSampleData();
 
       // 使用统一数据管理器加载数据
-      groups = await window.dataManager.loadGroups();
-      groupNames = await window.dataManager.loadGroupNames();
-      attendanceRecords = await window.dataManager.loadAttendanceRecords();
+      groups = await window.newDataManager.loadGroups();
+      groupNames = await window.newDataManager.loadGroupNames();
+      attendanceRecords = await window.newDataManager.loadAttendanceRecords();
 
       // 为所有人员添加UUID（如果还没有）
       if (window.utils && window.utils.addUUIDsToMembers) {
@@ -568,17 +568,24 @@ async function initializeSampleData() {
     const minutes = date.getMinutes();
     const timeInMinutes = hours * 60 + minutes;
     
-    // 早到：9:20之前 (0:00 - 9:20)
+    // 早到：9:20之前 (0:00 - 9:20) [不包含9:20]
     if (timeInMinutes < 9 * 60 + 20) return 'early';
     
-    // 准时：9:30之前 (9:20 - 9:30)
-    if (timeInMinutes < 9 * 60 + 30) return 'onTime';
+    // 准时：9:20-9:30 (包含9:20，包含9:30)
+    if (timeInMinutes >= 9 * 60 + 20 && timeInMinutes <= 9 * 60 + 30) return 'onTime';
     
-    // 迟到：10:40之前 (9:30 - 10:40)
-    if (timeInMinutes < 10 * 60 + 40) return 'late';
+    // 迟到：9:30-10:40 (不包含9:30，包含10:40)
+    if (timeInMinutes > 9 * 60 + 30 && timeInMinutes <= 10 * 60 + 40) return 'late';
     
-    // 下午和晚上签到：10:40之后
-    if (timeInMinutes >= 10 * 60 + 40) return 'afternoon';
+    // 禁止签到：10:40-11:00 (不包含10:40，不包含11:00)
+    if (timeInMinutes > 10 * 60 + 40 && timeInMinutes < 11 * 60) return 'forbidden';
+    
+    // 下午签到：11:00-17:00 (包含11:00，包含17:00)
+    if (timeInMinutes >= 11 * 60 && timeInMinutes <= 17 * 60) return 'afternoon';
+    
+    // 晚上签到：17:00-00:00 (不包含17:00，不包含00:00)
+    // 注意：00:00应该属于新的一天，不应该算作晚上签到
+    if (timeInMinutes > 17 * 60) return 'evening';
     
     return 'invalid';
   }
@@ -595,12 +602,12 @@ async function initializeSampleData() {
       records: attendanceRecords.slice(0, 3) // 显示前3条记录作为示例
     });
     
-    // 显示所有签到记录（仅上午，过滤掉下午和晚上）
+    // 显示所有签到记录（过滤掉禁止签到时间段）
     const todayRecords = attendanceRecords.filter(record => {
       // 🔧 修复：使用 record.date 字段（YYYY-MM-DD格式）进行比较
       const recordDate = record.date || window.utils.getLocalDateFromISO(record.time);
       const attendanceType = getAttendanceType(new Date(record.time));
-      return recordDate === today && attendanceType !== 'afternoon';
+      return recordDate === today && attendanceType !== 'forbidden';
     });
     
     console.log('📊 今日签到记录:', {
@@ -631,6 +638,10 @@ async function initializeSampleData() {
       .sort((a, b) => new Date(a.time) - new Date(b.time));
     const lateRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'late')
       .sort((a, b) => new Date(a.time) - new Date(b.time));
+    const afternoonRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'afternoon')
+      .sort((a, b) => new Date(a.time) - new Date(b.time));
+    const eveningRecords = todayRecords.filter(record => getAttendanceType(new Date(record.time)) === 'evening')
+      .sort((a, b) => new Date(a.time) - new Date(b.time));
     
     // 显示早到签到名单 (9:20之前)
     const earlyTable = document.getElementById('earlyTable');
@@ -643,7 +654,8 @@ async function initializeSampleData() {
           // 使用快照数据，确保显示的是签到时的真实信息
           const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
           const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
-          const displayName = window.utils.getDisplayName(memberInfo);
+          // index页面规则：有花名只显示花名，无花名显示姓名
+          const displayName = memberInfo.nickname?.trim() ? memberInfo.nickname : (memberInfo.name || record.name);
           
           row.innerHTML = `
             <td>${displayGroup}</td>
@@ -677,7 +689,8 @@ async function initializeSampleData() {
           // 使用快照数据，确保显示的是签到时的真实信息
           const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
           const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
-          const displayName = window.utils.getDisplayName(memberInfo);
+          // index页面规则：有花名只显示花名，无花名显示姓名
+          const displayName = memberInfo.nickname?.trim() ? memberInfo.nickname : (memberInfo.name || record.name);
           
           row.innerHTML = `
             <td>${displayGroup}</td>
@@ -711,7 +724,8 @@ async function initializeSampleData() {
           // 使用快照数据，确保显示的是签到时的真实信息
           const displayGroup = record.groupSnapshot?.groupName || groupNames[record.group] || record.group;
           const memberInfo = record.memberSnapshot || { name: record.name, nickname: '' };
-          const displayName = window.utils.getDisplayName(memberInfo);
+          // index页面规则：有花名只显示花名，无花名显示姓名
+          const displayName = memberInfo.nickname?.trim() ? memberInfo.nickname : (memberInfo.name || record.name);
           
           row.innerHTML = `
             <td>${displayGroup}</td>
@@ -734,6 +748,7 @@ async function initializeSampleData() {
       }
     }
     
+    // 下午和晚上签到记录只保存，不显示在页面上
     
     // 加载当日新增人员
     loadTodayNewcomers();
@@ -795,12 +810,17 @@ function loadTodayNewcomers() {
     
     // 🔧 修复：使用 getLocalDateString() 获取 YYYY-MM-DD 格式
     const today = window.utils.getLocalDateString();
-    // 统计所有签到记录（仅上午，过滤掉下午和晚上）
+    
+    // 🔧 2025-10-14修复：只统计上午签到（00:00-10:40）
+    // 上午时间段：early, onTime, late
+    const morningTypes = ['early', 'onTime', 'late'];
+    
     const todayRecords = attendanceRecords.filter(record => {
       // 🔧 修复：使用 record.date 字段（YYYY-MM-DD格式）进行比较
       const recordDate = record.date || window.utils.getLocalDateFromISO(record.time);
       const attendanceType = getAttendanceType(new Date(record.time));
-      return recordDate === today && attendanceType !== 'afternoon';
+      // 只统计今天的上午签到记录
+      return recordDate === today && morningTypes.includes(attendanceType);
     });
     
     signinCountElement.textContent = todayRecords.length;
@@ -936,6 +956,64 @@ function initializeEventListeners() {
   // 管理页面按钮事件
   if (adminButton) {
     adminButton.addEventListener('click', handleAdminPage);
+  }
+
+  // 刷新数据按钮事件
+  const refreshDataBtn = document.getElementById('refreshDataBtn');
+  if (refreshDataBtn) {
+    refreshDataBtn.addEventListener('click', async () => {
+      try {
+        refreshDataBtn.disabled = true;
+        refreshDataBtn.textContent = '⏳ 刷新中...';
+        
+        // 清除所有签到记录缓存，强制从Firebase重新加载
+        localStorage.removeItem('msh_attendanceRecords');
+        // 清除sessionStorage中的日期缓存
+        const today = new Date().toISOString().split('T')[0];
+        sessionStorage.removeItem(`attendance_${today}`);
+        console.log('🗑️ 已清除所有签到记录缓存');
+        
+        // 使用NewDataManager重新加载数据
+        groups = await window.newDataManager.loadGroups();
+        groupNames = await window.newDataManager.loadGroupNames();
+        attendanceRecords = await window.newDataManager.loadAttendanceRecords();
+        
+        // 更新全局变量
+        window.groups = groups;
+        window.groupNames = groupNames;
+        window.attendanceRecords = attendanceRecords;
+        
+        // 重置数据变更标记（清除误报的变更检测）
+        if (window.newDataManager) {
+          window.newDataManager.hasLocalChanges = false;
+          window.newDataManager.dataChangeFlags = {
+            groups: { added: [], modified: [], deleted: [] },
+            attendanceRecords: { added: [], modified: [], deleted: [] },
+            groupNames: { added: [], modified: [], deleted: [] },
+            dailyNewcomers: { added: [], modified: [], deleted: [] },
+            excludedMembers: { added: [], modified: [], deleted: [] }
+          };
+          console.log('✅ 已清除数据变更标记');
+        }
+        
+        // 更新页面显示
+        loadGroupsAndMembers();
+        loadMembers(groupSelect ? groupSelect.value : '');
+        loadAttendanceRecords();  // 重新加载并显示签到记录
+        updateSigninCount();
+        
+        // 恢复按钮状态
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新';
+        
+        console.log('✅ 数据刷新完成');
+      } catch (error) {
+        console.error('❌ 数据刷新失败:', error);
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新';
+        alert('❌ 数据刷新失败，请重试');
+      }
+    });
   }
 
   // 数据同步监听器（禁用，使用新数据管理器）
@@ -1106,13 +1184,39 @@ async function handleSignin() {
   
   // 检查签到时间有效性
   if (timeSlot === 'invalid') {
-    alert('当前时间不允许签到！签到时间：上午9:20-10:40，下午和晚上11:30之后。');
+    alert('❌ 签到时间无效，请检查系统时间！');
+    return;
+  }
+  
+  // 检查是否在禁止签到时间段
+  if (timeSlot === 'forbidden') {
+    alert('❌ 10:40-11:00时间段禁止签到！\n\n请等待11:00后进行下午签到。');
     return;
   }
   
   // 检查重复签到
   if (isAlreadySignedIn(member, today, timeSlot)) {
-    alert(`该成员在0:00-10:40时间段内已签到，不能重复签到！`);
+    const timeSlotNames = {
+      'early': '早到时间段(0:00-9:20)',
+      'onTime': '准时时间段(9:20-9:30)',
+      'late': '迟到时间段(9:30-10:40)',
+      'afternoon': '下午时间段(11:00-17:00)',
+      'evening': '晚上时间段(17:00-00:00)'
+    };
+    
+    const restrictionMessage = {
+      'early': '上午时间段(0:00-11:00)',
+      'onTime': '上午时间段(0:00-11:00)',
+      'late': '上午时间段(0:00-11:00)',
+      'afternoon': '下午时间段(11:00-17:00)',
+      'evening': '晚上时间段(17:00-00:00)'
+    };
+    
+    alert(`⚠️ 重复签到提醒\n\n` +
+          `成员：${member}\n` +
+          `当前时间：${timeSlotNames[timeSlot]}\n` +
+          `限制：${restrictionMessage[timeSlot]}内只允许一次签到\n\n` +
+          `该成员已在此时间段签到，不能重复签到！`);
     return;
   }
   
@@ -1144,36 +1248,45 @@ async function handleSignin() {
 }
 
 // 检查是否已签到（基于UUID的精确检查）
-// 新规则：0:00-10:40之间只允许一次签到，不能重复签到
+// 新规则：按时间段限制重复签到
 function isAlreadySignedIn(member, today, timeSlot) {
-  // 首先尝试通过UUID检查
+  // 首先获取成员UUID
   const memberInfo = groups[groupSelect.value]?.find(m => m.name === member);
-  if (memberInfo && memberInfo.uuid) {
-    return attendanceRecords.some(record => {
-      const recordUUID = record.memberUUID || record.name; // 兼容旧数据
-      const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
-      const recordTimeSlot = getAttendanceType(new Date(record.time));
-      
-      // 新规则：0:00-10:40之间只允许一次签到
-      // 检查是否在0:00-10:40时间段内已有签到记录
-      const isInMorningSlot = recordTimeSlot === 'early' || recordTimeSlot === 'onTime' || recordTimeSlot === 'late';
-      const isNewSigninInMorningSlot = timeSlot === 'early' || timeSlot === 'onTime' || timeSlot === 'late';
-      
-      return recordUUID === memberInfo.uuid && 
-             recordDate === today && 
-             isInMorningSlot && isNewSigninInMorningSlot; // 0:00-10:40时间段内不允许重复签到
-    });
+  if (!memberInfo || !memberInfo.uuid) {
+    console.warn('⚠️ 成员没有UUID，无法进行精确检查');
+    return false;
   }
   
-  // 如果没有UUID，降级使用姓名检查
+  // 基于UUID进行精确检查
   return attendanceRecords.some(record => {
+    const recordDate = new Date(record.time).toLocaleDateString('zh-CN');
     const recordTimeSlot = getAttendanceType(new Date(record.time));
-    const isInMorningSlot = recordTimeSlot === 'early' || recordTimeSlot === 'onTime' || recordTimeSlot === 'late';
-    const isNewSigninInMorningSlot = timeSlot === 'early' || timeSlot === 'onTime' || timeSlot === 'late';
     
-    return record.name === member && 
-           new Date(record.time).toLocaleDateString('zh-CN') === today &&
-           isInMorningSlot && isNewSigninInMorningSlot; // 0:00-10:40时间段内不允许重复签到
+    // 检查UUID和日期匹配
+    if (record.memberUUID !== memberInfo.uuid || recordDate !== today) {
+      return false;
+    }
+    
+    // 时间段重复检查规则
+    switch (timeSlot) {
+      case 'early':
+      case 'onTime':
+      case 'late':
+        // 上午时间段(0:00-11:00)只允许一次签到
+        const morningSlots = ['early', 'onTime', 'late'];
+        return morningSlots.includes(recordTimeSlot);
+        
+      case 'afternoon':
+        // 下午签到：11:00-17:00只允许一次签到
+        return recordTimeSlot === 'afternoon';
+        
+      case 'evening':
+        // 晚上签到：17:00-00:00只允许一次签到
+        return recordTimeSlot === 'evening';
+        
+      default:
+        return false;
+    }
   });
 }
 

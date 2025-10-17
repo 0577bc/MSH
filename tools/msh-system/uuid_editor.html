@@ -11,7 +11,13 @@
     
     <!-- 系统依赖文件 -->
     <script src="../../src/smart-config-loader.js"></script>
-    <script src="../../src/utils.js"></script>
+    <script src="../../src/core/firebase-utils.js"></script>
+  <script src="../../src/core/time-utils.js"></script>
+  <script src="../../src/core/security-utils.js"></script>
+  <script src="../../src/data/uuid-manager.js"></script>
+  <script src="../../src/features/sunday-tracking-utils.js"></script>
+  <script src="../../src/data/sync-managers.js"></script>
+  <script src="../../src/utils.js"></script>
     <script src="../../src/new-data-manager.js"></script>
     
     <!-- 外部样式文件 -->
@@ -750,8 +756,21 @@
                 hideSaveWarning();
                 log('🎉 所有更改已同步完成！', 'success');
                 
+                // 5. 显示同步成功弹窗提示
+                alert('✅ UUID修改已保存并同步成功！\n\n' +
+                    '✓ 数据已保存到本地存储\n' +
+                    '✓ 数据已同步到Firebase\n' +
+                    '✓ 全局变量已更新\n\n' +
+                    '所有更改已完成！');
+                
             } catch (error) {
                 log(`❌ 保存失败: ${error.message}`, 'error');
+                
+                // 显示保存失败弹窗提示
+                alert('❌ UUID修改保存失败！\n\n' +
+                    `错误信息: ${error.message}\n\n` +
+                    '请检查网络连接后重试，或联系管理员。');
+                
                 // 保存失败时，数据仍然在本地存储中，用户可以重试
             }
         }

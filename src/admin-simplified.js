@@ -84,21 +84,6 @@ function initializeEventListeners() {
     });
   }
 
-  // 数据删除管理按钮
-  const deleteManagementButton = document.getElementById('deleteManagementButton');
-  if (deleteManagementButton) {
-    deleteManagementButton.addEventListener('click', () => {
-      console.log('🔍 点击数据删除管理按钮');
-      const confirmAccess = confirm('⚠️ 数据删除管理是危险操作！\n\n只有管理员才能访问此功能。\n确定要继续吗？');
-      if (confirmAccess) {
-        console.log('✅ 正在跳转到数据冲突管理工具...');
-        window.location.href = 'tools/msh-system/data-conflict-manager.html';
-      } else {
-        console.log('❌ 用户取消访问');
-      }
-    });
-  }
-
   // 外部表单管理按钮
   const externalFormAdminButton = document.getElementById('externalFormAdminButton');
   if (externalFormAdminButton) {

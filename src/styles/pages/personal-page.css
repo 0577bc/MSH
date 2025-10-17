@@ -1,0 +1,253 @@
+/**
+ * MSH系统样式文件 (style.css)
+ * 功能：整体UI样式、主题、组件样式
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+
+/* ==================== 个人页面签到日历样式 ==================== */
+
+/* 日历控制区域 */
+.calendar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.calendar-controls button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.calendar-controls button:hover {
+  background-color: #0056b3;
+}
+
+.calendar-controls button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.month-display {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* 日历主体 */
+.attendance-calendar {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+}
+
+.calendar-header-cell {
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: bold;
+  color: #666;
+  border-right: 1px solid #ddd;
+}
+
+.calendar-header-cell:last-child {
+  border-right: none;
+}
+
+.calendar-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-day {
+  min-height: 60px;
+  padding: 8px;
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.calendar-day:nth-child(7n) {
+  border-right: none;
+}
+
+.calendar-day:hover {
+  background-color: #f8f9fa;
+}
+
+.calendar-day.other-month {
+  background-color: #f8f9fa;
+  color: #999;
+}
+
+.calendar-day.today {
+  background-color: #e3f2fd;
+  border: 2px solid #2196f3;
+}
+
+.calendar-day.sunday {
+  background-color: #fff3e0;
+}
+
+.calendar-day.sunday.today {
+  background-color: #e1f5fe;
+  border: 2px solid #ff9800;
+}
+
+.calendar-day.present {
+  background-color: #e8f5e8;
+  border-left: 4px solid #4caf50;
+}
+
+.calendar-day.absent {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+}
+
+.calendar-day.sunday.present {
+  background-color: #e8f5e8;
+  border-left: 4px solid #4caf50;
+}
+
+.calendar-day.sunday.absent {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+}
+
+.day-number {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.day-info {
+  font-size: 10px;
+  color: #666;
+  line-height: 1.2;
+}
+
+.day-info.present {
+  color: #2e7d32;
+  font-weight: bold;
+}
+
+.day-info.absent {
+  color: #c62828;
+  font-weight: bold;
+}
+
+/* 日历图例 */
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  border: 1px solid #ddd;
+}
+
+.legend-color.present {
+  background-color: #4caf50;
+}
+
+.legend-color.absent {
+  background-color: #f44336;
+}
+
+.legend-color.sunday {
+  background-color: #ff9800;
+}
+
+.legend-color.today {
+  background-color: #2196f3;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .calendar-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .calendar-controls button {
+    width: 100%;
+    max-width: 120px;
+  }
+  
+  .calendar-day {
+    min-height: 50px;
+    padding: 6px;
+  }
+  
+  .day-number {
+    font-size: 14px;
+  }
+  
+  .day-info {
+    font-size: 9px;
+  }
+  
+  .calendar-legend {
+    gap: 15px;
+  }
+  
+  .legend-item {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-day {
+    min-height: 45px;
+    padding: 4px;
+  }
+  
+  .day-number {
+    font-size: 12px;
+  }
+  
+  .day-info {
+    font-size: 8px;
+  }
+  
+  .calendar-legend {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+}
+

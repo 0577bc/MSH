@@ -76,7 +76,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 初始化事件监听器
   initializeEventListeners();
   
+  // 🔔 监听数据更新事件，自动刷新页面数据
+  window.addEventListener('attendanceRecordsUpdated', async (event) => {
+    console.log('🔔 日报表页面检测到签到记录更新事件:', event.detail);
+    
+    // 清除所有sessionStorage中的签到记录缓存
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.startsWith('attendance_')) {
+        sessionStorage.removeItem(key);
+        console.log(`🗑️ 已清除缓存: ${key}`);
+      }
+    });
+    
+    // 重新加载当前选择日期的数据
+    if (dateInput && dateInput.value) {
+      console.log('🔄 重新加载数据:', dateInput.value);
+      const records = await loadAttendanceRecordsForDate(dateInput.value);
+      generateDailyReport(records);
+    }
+  });
+  
   console.log("✅ 日报表页面初始化完成（优化加载模式）");
+  console.log('✅ 数据更新事件监听器已注册');
 });
 
 // ==================== 基础数据和当天数据加载（优化V2.0）====================
@@ -234,6 +255,18 @@ async function loadAttendanceRecordsForDate(date) {
 // ==================== 返回导航机制 ====================
 // 使用统一的导航工具
 
+// ==================== 缓存管理函数 ====================
+/**
+ * 清除今日数据缓存
+ * 用于强制重新从Firebase加载最新数据
+ */
+function clearTodayCache() {
+  const today = new Date().toISOString().split('T')[0];
+  const cacheKey = `attendance_${today}`;
+  sessionStorage.removeItem(cacheKey);
+  console.log('✅ 已清除今日缓存:', cacheKey);
+}
+
 // ==================== 事件监听器初始化 ====================
 function initializeEventListeners() {
   // 返回按钮事件
@@ -243,6 +276,37 @@ function initializeEventListeners() {
         await window.NavigationUtils.navigateBackToIndex();
       } else {
         window.location.href = 'index.html';
+      }
+    });
+  }
+
+  // 刷新数据按钮事件
+  const refreshDataBtn = document.getElementById('refreshDataBtn');
+  if (refreshDataBtn) {
+    refreshDataBtn.addEventListener('click', async () => {
+      try {
+        // 清除缓存
+        clearTodayCache();
+        
+        // 显示加载提示
+        refreshDataBtn.disabled = true;
+        refreshDataBtn.textContent = '⏳ 刷新中...';
+        
+        // 重新加载数据
+        await loadBasicDataAndToday();
+        
+        // 恢复按钮状态
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新数据';
+        
+        // 提示用户
+        alert('✅ 数据已刷新！');
+        console.log('✅ 数据刷新完成');
+      } catch (error) {
+        console.error('❌ 数据刷新失败:', error);
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新数据';
+        alert('❌ 数据刷新失败，请重试');
       }
     });
   }

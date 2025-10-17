@@ -441,10 +441,10 @@ class NewDataManager {
           }
           
           // 🔧 修复：更新originalData为恢复后的数据，避免误报变更
-          this.originalData.groups = JSON.parse(JSON.stringify(window.groups));
-          this.originalData.groupNames = JSON.parse(JSON.stringify(window.groupNames));
-          this.originalData.attendanceRecords = JSON.parse(JSON.stringify(window.attendanceRecords));
-          this.originalData.excludedMembers = JSON.parse(JSON.stringify(window.excludedMembers));
+          if (window.groups) this.originalData.groups = JSON.parse(JSON.stringify(window.groups));
+          if (window.groupNames) this.originalData.groupNames = JSON.parse(JSON.stringify(window.groupNames));
+          if (window.attendanceRecords) this.originalData.attendanceRecords = JSON.parse(JSON.stringify(window.attendanceRecords));
+          if (window.excludedMembers) this.originalData.excludedMembers = JSON.parse(JSON.stringify(window.excludedMembers));
           console.log('✅ 已更新originalData基准数据');
           
           console.log('✅ 数据恢复完成，跳过重新拉取');

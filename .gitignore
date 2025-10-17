@@ -114,6 +114,9 @@ debug-*.html
 debug-*.js
 *-test.html
 *-debug.html
+*-testing.html
+simple-test*.html
+functional-testing.html
 
 # 临时HTML文件
 temp-*.html

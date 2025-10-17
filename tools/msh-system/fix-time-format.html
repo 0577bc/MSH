@@ -150,6 +150,11 @@
             font-weight: bold;
             width: 0%;
         }
+
+        .section-title {
+            margin-top: 30px;
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -184,21 +189,21 @@
             </div>
         </div>
 
-        <h3 style="margin-top: 30px; color: #667eea;">功能1：Time字段格式修复</h3>
-        <button class="btn-primary" onclick="checkAndFixLocalStorage()">
+        <h3 class="section-title">功能1：Time字段格式修复</h3>
+        <button type="button" class="btn-primary" onclick="checkAndFixLocalStorage()">
             🔍 检查并修复本地存储数据
         </button>
 
-        <button class="btn-success" onclick="checkAndFixFirebase()">
+        <button type="button" class="btn-success" onclick="checkAndFixFirebase()">
             ☁️ 检查并修复Firebase数据
         </button>
 
-        <h3 style="margin-top: 30px; color: #667eea;">功能2：Date字段时区修复</h3>
-        <button class="btn-primary" onclick="scanDateFieldTimezone()">
+        <h3 class="section-title">功能2：Date字段时区修复</h3>
+        <button type="button" class="btn-primary" onclick="scanDateFieldTimezone()">
             🔍 扫描Date字段时区问题（只读）
         </button>
 
-        <button class="btn-success" onclick="fixDateFieldTimezone()">
+        <button type="button" class="btn-success" onclick="fixDateFieldTimezone()">
             🔧 修复Date字段时区并同步Firebase
         </button>
 

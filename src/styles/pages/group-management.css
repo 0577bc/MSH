@@ -1,0 +1,780 @@
+/**
+ * MSH系统样式文件 (style.css)
+ * 功能：整体UI样式、主题、组件样式
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+
+/* ==================== 小组管理页面样式 ==================== */
+
+/* 页面头部样式 */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.back-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+/* 管理区域样式 */
+.admin-section {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+}
+
+.admin-section h2 {
+  color: #2c3e50;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+/* 小组列表控制区域 */
+.group-list-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.group-stats {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.group-stats span {
+  background: #f8f9fa;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-weight: 500;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+/* 小组列表表格样式 */
+.group-list-container {
+  overflow-x: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#groupListTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 13px;
+}
+
+#groupListTable th,
+#groupListTable td {
+  border: none;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  line-height: 1.3;
+}
+
+#groupListTable th {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  height: 32px;
+}
+
+#groupListTable tbody tr:hover {
+  background-color: #f8f9ff;
+}
+
+#groupListTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 成员管理控制区域 */
+.member-management-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.member-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 成员列表表格样式 */
+.member-list-container {
+  overflow-x: auto;
+  /* 移除容器边框，让表格边框直接显示 */
+}
+
+#memberTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 13px;
+  border: 2px solid #333; /* 外粗线 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#memberTable th,
+#memberTable td {
+  border: 1px solid #ddd; /* 内细线 */
+  padding: 6px 8px;
+  text-align: center;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* 隐藏UUID列 */
+#memberTable th.hidden-column,
+#memberTable td.hidden-column {
+  display: none;
+}
+
+#memberTable th {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  height: 32px;
+}
+
+#memberTable tbody tr:hover {
+  background-color: #f8f9ff;
+}
+
+#memberTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 表单对话框样式 */
+.form-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+/* 编辑成员表单紧凑样式 - 与表格间距一致 */
+#editMemberForm .dialog-content {
+  padding: 15px 20px;
+  max-height: 85vh;
+  min-width: 500px;
+  width: auto;
+  max-width: 70vw;
+}
+
+/* 编辑成员表单 - 表格两列布局 - Excel标准尺寸 */
+.edit-member-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-bottom: 10px !important;
+  table-layout: fixed !important;
+}
+
+.edit-member-cell {
+  width: 50% !important;
+  height: 25px !important;
+  padding: 2px !important;
+  vertical-align: middle !important;
+}
+
+.edit-member-cell:first-child {
+  width: 50% !important;
+}
+
+.edit-member-uuid-cell {
+  width: 100% !important;
+  height: 25px !important;
+  padding: 2px !important;
+  vertical-align: middle !important;
+}
+
+.edit-member-uuid-cell .form-group {
+  width: 100% !important;
+  margin-bottom: 0 !important;
+}
+
+.edit-member-uuid-cell .uuid-display {
+  width: 100% !important;
+  word-break: break-all !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  margin: 0 !important;
+}
+
+#editMemberForm .form-group {
+  margin-bottom: 0 !important;
+  height: 25px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+
+#editMemberForm .form-group label {
+  margin-bottom: 0 !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  display: inline-block !important;
+  width: auto !important;
+  min-width: 60px !important;
+}
+
+#editMemberForm .form-group input,
+#editMemberForm .form-group select {
+  padding: 2px 6px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  height: 20px !important;
+  width: calc(100% - 65px) !important;
+  box-sizing: border-box !important;
+  flex: 1 !important;
+}
+
+#editMemberForm h3,
+#editMemberFormElement h3 {
+  margin-bottom: 1px !important;
+  font-size: 1.1rem !important;
+  padding-bottom: 1px !important;
+  width: 100% !important;
+  flex: 0 0 100% !important;
+  display: block !important;
+}
+
+#editMemberForm .form-group,
+#editMemberFormElement .form-group {
+  margin-bottom: 0px !important;
+  width: calc(50% - 5px) !important;
+  flex: 0 0 calc(50% - 5px) !important;
+  display: block !important;
+  float: left !important;
+  margin-right: 10px !important;
+}
+
+#editMemberForm .form-group label {
+  margin-bottom: 2px !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  display: block !important;
+}
+
+#editMemberForm .form-group input,
+#editMemberForm .form-group select {
+  padding: 2px 8px !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  height: auto !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#editMemberForm .dialog-buttons {
+  margin-top: 10px;
+  padding-top: 10px;
+  text-align: center;
+  width: 100%;
+  flex: 0 0 100%;
+}
+
+#editMemberForm .dialog-buttons button {
+  padding: 6px 16px;
+  font-size: 13px;
+  height: auto;
+}
+
+.form-dialog .dialog-content {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  min-width: 400px;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form-dialog h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #2c3e50;
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.form-dialog .form-group {
+  margin-bottom: 12px;
+}
+
+.form-dialog .form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: #495057;
+  font-size: 13px;
+}
+
+.form-dialog .form-group input,
+.form-dialog .form-group select,
+.form-dialog .form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+}
+
+.form-dialog .form-group input:focus,
+.form-dialog .form-group select:focus,
+.form-dialog .form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-dialog .form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-dialog .dialog-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 2px solid #e9ecef;
+}
+
+.form-dialog .dialog-buttons button {
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  min-width: 100px;
+}
+
+/* 按钮样式 */
+.primary-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.primary-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.secondary-button {
+  background: #6c757d;
+  color: white;
+}
+
+.secondary-button:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+.danger-button {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+}
+
+.danger-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+}
+
+.success-button {
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  color: white;
+}
+
+.success-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+}
+
+/* 操作按钮样式 */
+.edit-group-btn,
+.edit-member-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 2px;
+  transition: all 0.2s ease;
+}
+
+.edit-group-btn:hover,
+.edit-member-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+.delete-group-btn,
+.delete-member-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 2px;
+  transition: all 0.2s ease;
+}
+
+.delete-group-btn:hover,
+.delete-member-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+/* 删除警告样式 */
+.delete-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.delete-warning p {
+  margin: 0 0 10px 0;
+  color: #856404;
+  font-weight: 500;
+}
+
+.delete-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.group-info,
+.member-info {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.group-info p,
+.member-info p {
+  margin: 0 0 8px 0;
+  color: #495057;
+}
+
+.group-info p:last-child,
+.member-info p:last-child {
+  margin-bottom: 0;
+}
+
+.group-info strong,
+        .member-info strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        /* 多选控件样式 */
+        .multi-select {
+            height: 120px;
+        }
+
+        .multi-select-controls {
+            margin-top: 10px;
+        }
+
+        .select-all-btn {
+            margin-right: 10px;
+        }
+
+        /* 统一的日期控件样式 */
+        .date-input {
+            width: auto;
+            min-width: 150px;
+            padding: 6px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            background-color: white;
+        }
+
+        .date-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+/* 成员管理页面样式 */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* 人员检索控件样式 - 与选择小组控件保持一致 */
+.group-selection-row label {
+    font-weight: 500;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+.group-selection-row select,
+.group-selection-row input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+    min-width: 200px;
+}
+
+.group-selection-row input:focus {
+    outline: none;
+    border-color: #2196F3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.group-selection-row select:focus {
+    outline: none;
+    border-color: #2196F3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+/* 人员检索建议框定位 */
+.group-selection-row input {
+    position: relative;
+}
+
+#memberSuggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    margin-top: 2px;
+}
+
+        .section-header h2 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.5em;
+            font-weight: 600;
+        }
+
+        .section-header .member-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .section-header .member-actions .primary-button,
+        .section-header .member-actions .success-button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .section-header .member-actions .primary-button:hover,
+        .section-header .member-actions .success-button:hover {
+            background: #1976D2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        .section-header .member-actions .success-button {
+            background: #4CAF50;
+        }
+
+        .section-header .member-actions .success-button:hover {
+            background: #45a049;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .header-actions {
+    justify-content: center;
+  }
+  
+  .group-list-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .member-management-controls {
+    gap: 10px;
+  }
+  
+  .member-actions {
+    justify-content: center;
+  }
+  
+  .form-dialog .dialog-content {
+    min-width: 90%;
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .form-dialog .dialog-buttons {
+    flex-direction: column;
+  }
+  
+  .form-dialog .dialog-buttons button {
+    width: 100%;
+  }
+  
+  #groupListTable,
+  #memberTable {
+    font-size: 12px;
+  }
+  
+  #groupListTable th,
+  #groupListTable td,
+  #memberTable th,
+  #memberTable td {
+    padding: 8px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-section {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  
+  .admin-section h2 {
+    font-size: 1.2rem;
+  }
+  
+  .form-dialog .dialog-content {
+    min-width: 95%;
+    margin: 10px;
+    padding: 15px;
+  }
+  
+  .form-dialog h3 {
+    font-size: 1.2rem;
+  }
+  
+  #groupListTable,
+  #memberTable {
+    font-size: 11px;
+  }
+  
+  #groupListTable th,
+  #groupListTable td,
+  #memberTable th,
+  #memberTable td {
+    padding: 6px 4px;
+  }
+}
+

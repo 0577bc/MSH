@@ -1,0 +1,14 @@
+/**
+ * MSH系统样式文件 (style.css)
+ * 功能：整体UI样式、主题、组件样式
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+
+/* ==================== 通用隐藏样式 ==================== */
+.hidden {
+  display: none !important;
+}
+
+.hidden-dialog {
+  display: none;

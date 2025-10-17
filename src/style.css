@@ -2577,9 +2577,7 @@ button:hover {
 /* 成员列表表格样式 */
 .member-list-container {
   overflow-x: auto;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* 移除容器边框，让表格边框直接显示 */
 }
 
 #memberTable {
@@ -2587,14 +2585,21 @@ button:hover {
   border-collapse: collapse;
   background: white;
   font-size: 14px;
+  border: 2px solid #333; /* 外粗线 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 #memberTable th,
 #memberTable td {
-  border: none;
+  border: 1px solid #ddd; /* 内细线 */
   padding: 10px 12px;
   text-align: center;
-  border-bottom: 1px solid #f0f0f0;
+}
+
+/* 隐藏UUID列 */
+#memberTable th.hidden-column,
+#memberTable td.hidden-column {
+  display: none;
 }
 
 #memberTable th {

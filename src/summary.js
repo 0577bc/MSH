@@ -110,7 +110,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 🔧 修复：初始化页面状态（设置默认日期、显示section、加载今天的数据）
   await initializePage();
   
+  // 🔔 监听数据更新事件，自动刷新页面数据
+  window.addEventListener('attendanceRecordsUpdated', (event) => {
+    console.log('🔔 汇总页面检测到签到记录更新事件:', event.detail);
+    
+    // 清除所有sessionStorage中的签到记录缓存
+    clearAllAttendanceCache();
+    
+    // 根据当前显示的页面类型重新加载数据
+    const currentSection = document.querySelector('section[style*="display: block"]');
+    if (currentSection) {
+      const sectionId = currentSection.id;
+      console.log('🔄 重新加载当前页面数据:', sectionId);
+      
+      if (sectionId === 'dailyReportSection' && dailyReportDateInput && dailyReportDateInput.value) {
+        loadDailyReportData(dailyReportDateInput.value);
+      } else if (sectionId === 'quarterlyReportSection' && quarterSelect && quarterSelect.value) {
+        loadQuarterlyReportData(quarterSelect.value);
+      } else if (sectionId === 'yearlyReportSection' && yearSelect && yearSelect.value) {
+        loadYearlyReportData(yearSelect.value);
+      }
+    }
+  });
+  
   console.log("✅ 汇总页面初始化完成（精简加载模式）");
+  console.log('✅ 数据更新事件监听器已注册');
 });
 
 // ==================== 基础数据加载（优化V2.0）====================
@@ -301,6 +325,63 @@ async function loadAttendanceDataForDateRange(startDate, endDate) {
 // ==================== 数据加载和管理 ====================
 // 旧的loadData函数已移除，现在使用NewDataManager
 
+// ==================== 缓存管理函数 ====================
+/**
+ * 清除指定的缓存
+ * @param {string} cacheKey - 缓存键名
+ */
+function clearCache(cacheKey) {
+  sessionStorage.removeItem(cacheKey);
+  console.log('✅ 已清除缓存:', cacheKey);
+}
+
+/**
+ * 清除所有签到相关的缓存
+ * 用于强制重新从Firebase加载最新数据
+ */
+function clearAllAttendanceCache() {
+  // 清除所有以 'attendance_' 开头的缓存
+  const keysToRemove = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith('attendance_')) {
+      keysToRemove.push(key);
+    }
+  }
+  
+  keysToRemove.forEach(key => sessionStorage.removeItem(key));
+  console.log(`✅ 已清除 ${keysToRemove.length} 个签到缓存`);
+  return keysToRemove.length;
+}
+
+/**
+ * 重新加载当前显示的报表模块
+ */
+async function reloadCurrentSection() {
+  // 判断当前显示的是哪个模块
+  if (dailyReportSection && !dailyReportSection.classList.contains('hidden-form')) {
+    // 日报表
+    const date = dailyDateSelect?.value || window.utils.getLocalDateString();
+    console.log('🔄 重新加载日报表:', date);
+    const records = await loadAttendanceDataForDate(date);
+    loadDailyReport(date, records);
+  } else if (quarterlyReportSection && !quarterlyReportSection.classList.contains('hidden-form')) {
+    // 季度报表
+    const quarter = quarterSelect?.value;
+    if (quarter) {
+      console.log('🔄 重新加载季度报表:', quarter);
+      await loadQuarterlyReportData(quarter);
+    }
+  } else if (yearlyReportSection && !yearlyReportSection.classList.contains('hidden-form')) {
+    // 年度报表
+    const year = yearSelect?.value;
+    if (year) {
+      console.log('🔄 重新加载年度报表:', year);
+      await loadYearlyReportData(year);
+    }
+  }
+}
+
 // ==================== 事件监听器初始化 ====================
 function initializeEventListeners() {
   // 返回按钮事件
@@ -328,6 +409,36 @@ function initializeEventListeners() {
       }
       // 直接跳转到index页面，不使用history.back()
       window.location.href = 'index.html';
+    });
+  }
+
+  // 刷新数据按钮事件
+  const refreshDataBtn = document.getElementById('refreshDataBtn');
+  if (refreshDataBtn) {
+    refreshDataBtn.addEventListener('click', async () => {
+      try {
+        // 清除所有缓存
+        refreshDataBtn.disabled = true;
+        refreshDataBtn.textContent = '⏳ 刷新中...';
+        
+        const clearedCount = clearAllAttendanceCache();
+        
+        // 重新加载当前显示的数据
+        await reloadCurrentSection();
+        
+        // 恢复按钮状态
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新数据';
+        
+        // 提示用户
+        alert(`✅ 数据已刷新！清除了 ${clearedCount} 个缓存`);
+        console.log('✅ 数据刷新完成');
+      } catch (error) {
+        console.error('❌ 数据刷新失败:', error);
+        refreshDataBtn.disabled = false;
+        refreshDataBtn.textContent = '🔄 刷新数据';
+        alert('❌ 数据刷新失败，请重试');
+      }
     });
   }
 

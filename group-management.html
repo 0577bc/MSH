@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>成员管理</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/style.css?v=202510141952">
   <!-- 引入配置文件 -->
   <script src="./src/smart-config-loader.js"></script>
   <!-- 引入配置管理器 -->
@@ -134,7 +134,7 @@
               <th>联系方式</th>
               <th>是否受洗</th>
               <th>年龄段</th>
-              <th>UUID</th>
+              <th class="hidden-column">UUID</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -209,56 +209,80 @@
       <div class="dialog-content">
         <h3>编辑成员</h3>
         <form id="editMemberFormElement">
-          <div class="form-group">
-            <label for="editMemberName">姓名：</label>
-            <input type="text" id="editMemberName" placeholder="请输入成员姓名" required aria-label="成员姓名">
-          </div>
-          <div class="form-group">
-            <label for="editMemberNickname">花名：</label>
-            <input type="text" id="editMemberNickname" placeholder="请输入花名" aria-label="花名">
-          </div>
-          <div class="form-group">
-            <label for="editMemberPhone">联系方式：</label>
-            <input type="text" id="editMemberPhone" placeholder="请输入联系方式" aria-label="联系方式">
-          </div>
-          <div class="form-group">
-            <label for="editMemberGender">性别：</label>
-            <select id="editMemberGender" required aria-label="性别">
-              <option value="">--请选择性别--</option>
-              <option value="男">男</option>
-              <option value="女">女</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="editMemberBaptized">是否受洗：</label>
-            <select id="editMemberBaptized" required aria-label="是否受洗">
-              <option value="">--请选择--</option>
-              <option value="是">是</option>
-              <option value="否">否</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="editMemberAge">年龄段：</label>
-            <select id="editMemberAge" required aria-label="年龄段">
-              <option value="">--请选择年龄段--</option>
-              <option value="10后">10后</option>
-              <option value="05后">05后</option>
-              <option value="00后">00后</option>
-              <option value="95后">95后</option>
-              <option value="90后">90后</option>
-              <option value="85后">85后</option>
-              <option value="80后">80后</option>
-              <option value="75后">75后</option>
-              <option value="70后">70后</option>
-              <option value="65后">65后</option>
-              <option value="60后">60后</option>
-              <option value="其他">其他</option>
-            </select>
-          </div>
-          <div class="form-group hidden-uuid" id="editMemberUuid">
-            <label>UUID：</label>
-            <div class="uuid-display"></div>
-          </div>
+          <table class="edit-member-table">
+            <tr>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberName">姓名：</label>
+                  <input type="text" id="editMemberName" placeholder="请输入成员姓名" required aria-label="成员姓名">
+                </div>
+              </td>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberNickname">花名：</label>
+                  <input type="text" id="editMemberNickname" placeholder="请输入花名" aria-label="花名">
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberPhone">联系方式：</label>
+                  <input type="text" id="editMemberPhone" placeholder="请输入联系方式" aria-label="联系方式">
+                </div>
+              </td>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberGender">性别：</label>
+                  <select id="editMemberGender" required aria-label="性别">
+                    <option value="">--请选择性别--</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberBaptized">是否受洗：</label>
+                  <select id="editMemberBaptized" required aria-label="是否受洗">
+                    <option value="">--请选择--</option>
+                    <option value="是">是</option>
+                    <option value="否">否</option>
+                  </select>
+                </div>
+              </td>
+              <td class="edit-member-cell">
+                <div class="form-group">
+                  <label for="editMemberAge">年龄段：</label>
+                  <select id="editMemberAge" required aria-label="年龄段">
+                    <option value="">--请选择年龄段--</option>
+                    <option value="10后">10后</option>
+                    <option value="05后">05后</option>
+                    <option value="00后">00后</option>
+                    <option value="95后">95后</option>
+                    <option value="90后">90后</option>
+                    <option value="85后">85后</option>
+                    <option value="80后">80后</option>
+                    <option value="75后">75后</option>
+                    <option value="70后">70后</option>
+                    <option value="65后">65后</option>
+                    <option value="60后">60后</option>
+                    <option value="其他">其他</option>
+                  </select>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" class="edit-member-uuid-cell">
+                <div class="form-group hidden-uuid" id="editMemberUuid">
+                  <label>UUID：</label>
+                  <div class="uuid-display"></div>
+                </div>
+              </td>
+            </tr>
+          </table>
           <div class="dialog-buttons">
             <button id="saveEditMemberButton" type="button" class="primary-button">保存</button>
             <button id="cancelEditMemberButton" type="button" class="secondary-button">取消</button>
@@ -368,9 +392,23 @@
     </div>
   </main>
 
-  <script src="./src/utils.js"></script>
+  <!-- 工具函数模块 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
   <script src="./src/navigation-utils.js"></script>
-  <script src="./src/new-data-manager.js"></script>
-  <script src="./src/group-management.js"></script>
+  <!-- 数据管理器模块 -->
+    <script src="./src/new-data-manager.js"></script>
+  <!-- 小组管理模块 -->
+    <script src="./src/group-management/shared-state.js"></script>
+    <script src="./src/group-management/init-module.js"></script>
+    <script src="./src/group-management/event-handlers.js"></script>
+    <script src="./src/group-management/group-member-operations.js"></script>
+    <script src="./src/group-management/search-export.js"></script>
+    <script src="./src/group-management/group-name-editor.js"></script>
+    <script src="./src/group-management/index.js"></script>
 </body>
 </html>
