@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>清空缺勤数据</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #d32f2f;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .controls {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+    }
+    .danger-btn {
+      background: #d32f2f;
+      color: white;
+    }
+    .danger-btn:hover {
+      background: #b71c1c;
+    }
+    .safe-btn {
+      background: #6c757d;
+      color: white;
+    }
+    .safe-btn:hover {
+      background: #5a6268;
+    }
+    .log {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚠️ 清空缺勤数据</h1>
+  
+  <div class="warning">
+    <h3>⚠️ 警告</h3>
+    <p><strong>此操作将删除以下数据：</strong></p>
+    <ul>
+      <li><code>absenceCalc</code> - 所有缺勤计算结果</li>
+      <li><code>absenceEvents</code> - 所有缺勤事件</li>
+    </ul>
+    <p><strong style="color: red;">删除后无法恢复！</strong></p>
+    <p>清空后，需要重新运行"缺勤计算工具"来生成正确的数据。</p>
+  </div>
+  
+  <div class="controls">
+    <button class="danger-btn" onclick="clearData()">🗑️ 清空数据</button>
+    <button class="safe-btn" onclick="window.location.href='index.html'">返回</button>
+  </div>
+  
+  <div class="log" id="log"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <script src="../../src/smart-config-loader.js"></script>
+  <script>
+    let db;
+    
+    // 初始化Firebase
+    async function initFirebase() {
+      let attempts = 0;
+      while (!window.firebaseConfig && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!window.firebaseConfig) {
+        throw new Error('Firebase配置加载超时');
+      }
+      
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.firebaseConfig);
+      }
+      db = firebase.database();
+      log('Firebase初始化成功');
+    }
+    
+    // 日志函数
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      const item = document.createElement('div');
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(item);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+    
+    // 清空数据
+    async function clearData() {
+      // 二次确认
+      const confirm1 = confirm('⚠️ 警告：此操作将删除所有缺勤计算结果和事件！\n\n是否继续？');
+      if (!confirm1) return;
+      
+      const confirm2 = confirm('⚠️ 最后确认：数据删除后无法恢复！\n\n确定要清空数据吗？');
+      if (!confirm2) return;
+      
+      try {
+        log('开始清空数据...');
+        await initFirebase();
+        
+        // 清空 absenceCalc
+        log('清空 absenceCalc...');
+        await db.ref('absenceCalc').remove();
+        log('✅ absenceCalc 已清空');
+        
+        // 清空 absenceEvents
+        log('清空 absenceEvents...');
+        await db.ref('absenceEvents').remove();
+        log('✅ absenceEvents 已清空');
+
+        // 清空 trackingRecords（旧事件记录）
+        log('清空 trackingRecords...');
+        await db.ref('trackingRecords').remove();
+        log('✅ trackingRecords 已清空');
+
+        // 清除本地缓存
+        log('清除浏览器 localStorage 中的事件缓存...');
+        localStorage.removeItem('msh_sunday_tracking');
+        log('✅ localStorage 已清除');
+        
+        log('==============================');
+        log('✅ 数据清空完成！');
+        log('请访问"缺勤计算工具"重新计算数据');
+        
+        alert('数据清空完成！\n\n请访问"缺勤计算工具"重新计算数据。');
+        
+      } catch (error) {
+        log(`❌ 错误: ${error.message}`);
+        alert('清空数据失败: ' + error.message);
+        console.error(error);
+      }
+    }
+    
+    window.addEventListener('load', () => {
+      log('页面加载完成');
+      log('点击"清空数据"按钮开始操作');
+    });
+  </script>
+</body>
+</html>
+

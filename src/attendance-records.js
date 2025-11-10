@@ -590,13 +590,105 @@ async function saveEditedRecord() {
       sessionStorage.removeItem(`attendance_${newDate}`);
     }
     
-    // 清除localStorage中的签到记录缓存，确保index页面能看到更新
-    localStorage.removeItem('msh_attendanceRecords');
-    console.log('🗑️ 已清除localStorage中的签到记录缓存，index页面将从Firebase重新加载');
-    
-    // 重新加载当前日期的数据
+    // 🔧 修复：更新localStorage中的记录并通知NewDataManager
+    // 重新加载当前日期的数据（这会从Firebase获取最新数据）
     const currentDate = dateSelect ? dateSelect.value : '';
     await loadAttendanceDataByDate(currentDate);
+    
+    // 🔧 修复：更新NewDataManager的数据，避免误报变更
+    if (window.newDataManager) {
+      try {
+        // 更新localStorage中的记录（只更新被修改的那条）
+        const localRecords = JSON.parse(localStorage.getItem('msh_attendanceRecords') || '[]');
+        const recordIndex = localRecords.findIndex(r => {
+          // 优先使用UUID + time匹配
+          if (record.memberUUID && r.memberUUID === record.memberUUID && r.time === record.time) {
+            return true;
+          }
+          // 降级方案：使用name + group + time匹配
+          if (!record.memberUUID && r.name === record.name && 
+              r.group === record.group && r.time === record.time) {
+            return true;
+          }
+          return false;
+        });
+        
+        if (recordIndex !== -1) {
+          // 更新localStorage中的记录
+          localRecords[recordIndex] = updatedRecord;
+          if (window.newDataManager.saveToLocalStorage) {
+            window.newDataManager.saveToLocalStorage('attendanceRecords', localRecords);
+            console.log('✅ 已更新localStorage中的签到记录');
+          }
+          
+          // 更新全局变量
+          window.attendanceRecords = localRecords;
+          
+          // 更新NewDataManager的基准数据，避免误报变更
+          if (window.newDataManager.originalData) {
+            // 更新基准数据中对应的记录
+            const originalRecords = window.newDataManager.originalData.attendanceRecords || [];
+            const originalIndex = originalRecords.findIndex(r => {
+              if (record.memberUUID && r.memberUUID === record.memberUUID && r.time === record.time) {
+                return true;
+              }
+              if (!record.memberUUID && r.name === record.name && 
+                  r.group === record.group && r.time === record.time) {
+                return true;
+              }
+              return false;
+            });
+            
+            if (originalIndex !== -1) {
+              originalRecords[originalIndex] = JSON.parse(JSON.stringify(updatedRecord));
+            }
+            window.newDataManager.originalData.attendanceRecords = originalRecords;
+            console.log('✅ 已更新NewDataManager基准数据');
+          }
+          
+          // 清除变更标记（因为数据已同步到Firebase）
+          if (window.newDataManager.dataChangeFlags) {
+            // 从变更标记中移除这条记录
+            const flags = window.newDataManager.dataChangeFlags.attendanceRecords;
+            flags.modified = flags.modified.filter(item => {
+              // 移除匹配的记录变更标记
+              if (typeof item === 'object' && item.time === record.time) {
+                if (record.memberUUID && item.memberUUID === record.memberUUID) {
+                  return false;
+                }
+                if (!record.memberUUID && item.name === record.name && item.group === record.group) {
+                  return false;
+                }
+              }
+              return true;
+            });
+            
+            // 如果没有其他变更，清除变更标记
+            const hasOtherChanges = flags.added.length > 0 || flags.modified.length > 0 || flags.deleted.length > 0;
+            if (!hasOtherChanges && 
+                Object.values(window.newDataManager.dataChangeFlags).every(f => 
+                  f.added.length === 0 && f.modified.length === 0 && f.deleted.length === 0)) {
+              window.newDataManager.hasLocalChanges = false;
+              console.log('✅ 已清除数据变更标记（无其他变更）');
+            } else {
+              console.log('✅ 已更新数据变更标记（仍有其他变更）');
+            }
+          }
+        } else {
+          console.warn('⚠️ 未在localStorage中找到要更新的记录');
+        }
+        
+      } catch (error) {
+        console.error('❌ 更新NewDataManager数据失败:', error);
+        // 如果更新失败，清除localStorage作为后备方案
+        localStorage.removeItem('msh_attendanceRecords');
+        console.log('🗑️ 已清除localStorage中的签到记录缓存，下次将从Firebase重新加载');
+      }
+    } else {
+      // 如果没有NewDataManager，清除localStorage作为后备方案
+      localStorage.removeItem('msh_attendanceRecords');
+      console.log('🗑️ 已清除localStorage中的签到记录缓存，index页面将从Firebase重新加载');
+    }
     
     // 关闭模态框
     closeEditModal();

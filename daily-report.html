@@ -29,6 +29,12 @@
       <button id="refreshDataBtn" type="button" aria-label="刷新数据" class="btn-secondary">🔄 刷新数据</button>
       <button id="exportTableButton" type="button" aria-label="导出表格">导出表格</button>
     </section>
+    <!-- 日期选择控件 -->
+    <section class="date-selection" style="margin: 20px 0; padding: 15px; background-color: #f5f5f5; border-radius: 8px;">
+      <label for="dateInput" style="margin-right: 10px; font-weight: bold;">选择日期：</label>
+      <input type="date" id="dateInput" class="date-input" style="padding: 8px 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px;">
+      <button id="viewDailyReportBtn" type="button" class="main-button" style="padding: 8px 16px;">查看日报表</button>
+    </section>
     <!-- 当日签到人员表 - 隐藏但保留 -->
     <h2 class="hidden-form">当日签到人员</h2>
     <table id="signedTable" class="attendance-table hidden-form" aria-label="当日签到人员表">

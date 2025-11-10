@@ -1,3 +1,33 @@
+/**
+ * 显示通知
+ * 功能：显示操作结果通知
+ * 作者：MSH系统
+ * 版本：2.0
+ */
+function showNotification(message, type = 'info') {
+  // 创建通知元素
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  
+  // 添加样式
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    max-width: 300px;
+    word-wrap: break-word;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideInRight 0.3s ease-out;
+  `;
+  
+  // 设置背景色
+  const colors = {
     success: '#4CAF50',
     error: '#F44336',
     warning: '#FF9800',
@@ -50,7 +80,7 @@ function hideLoadingState() {
 }
 
 // 计算缺勤周数范围显示
-function getAbsenceWeekRange(startDate, consecutiveAbsences) {
+window.getAbsenceWeekRange = function getAbsenceWeekRange(startDate, consecutiveAbsences) {
   if (!startDate || !consecutiveAbsences) return '';
   
   try {
@@ -107,6 +137,65 @@ function viewPersonalPage(memberUUID) {
 // 将函数暴露到全局作用域
 window.viewPersonalPage = viewPersonalPage;
 
+// ==================== 全局函数定义（在DOMContentLoaded之前）====================
+// 添加已终止事件管理功能
+window.showTerminatedEvents = function() {
+  console.log('📋 显示已终止事件');
+  if (!window.utils || !window.utils.SundayTrackingManager) {
+    console.error('❌ SundayTrackingManager未加载');
+    return;
+  }
+  const allEvents = window.utils.SundayTrackingManager.getTrackingRecords();
+  const terminatedEvents = allEvents.filter(event => event.status === 'terminated');
+  
+  if (terminatedEvents.length === 0) {
+    alert('暂无已终止的事件');
+    return;
+  }
+  
+  // 显示已终止事件列表
+  if (window.displayEventList) {
+    window.displayEventList(terminatedEvents.map(event => ({
+      eventId: event.recordId,
+      memberUUID: event.memberUUID,
+      memberName: event.memberName,
+      group: event.group,
+      groupDisplayName: event.groupDisplayName || event.group,
+      eventType: event.eventType,
+      status: event.status,
+      consecutiveAbsences: event.consecutiveAbsences,
+      lastAttendanceDate: event.lastAttendanceDate,
+      trackingStartDate: event.trackingStartDate,
+      memberSnapshot: event.memberSnapshot || {
+        uuid: event.memberUUID,
+        name: event.memberName,
+        group: event.group
+      },
+      lastUpdateTime: event.updatedAt || event.createdAt
+    })));
+  } else {
+    console.error('❌ displayEventList函数未定义');
+  }
+};
+
+window.showAllEvents = function() {
+  console.log('📊 显示所有事件（包括已终止的）');
+  if (window.loadSundayTracking) {
+    // 传递 showAll=true 参数来显示所有事件
+    window.loadSundayTracking(true, false, true, true);
+  } else {
+    console.error('❌ loadSundayTracking函数未定义');
+  }
+};
+
+window.restartTerminatedEvent = function(eventId) {
+  if (confirm('确定要重新启动这个已终止的事件吗？')) {
+    console.log(`🔄 重新启动事件: ${eventId}`);
+    // 这里可以添加重新启动事件的逻辑
+    alert('事件重新启动功能开发中...');
+  }
+};
+
 // ==================== 页面初始化 ====================
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('主日跟踪页面加载中...');
@@ -139,7 +228,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // 自动加载跟踪数据
-  loadSundayTracking();
+  if (window.loadSundayTracking) {
+    window.loadSundayTracking();
+  }
   
   console.log('主日跟踪页面初始化完成');
   
@@ -159,45 +250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
   
-  // 添加已终止事件管理功能
-  window.showTerminatedEvents = function() {
-    console.log('📋 显示已终止事件');
-    const allEvents = window.utils.SundayTrackingManager.getTrackingRecords();
-    const terminatedEvents = allEvents.filter(event => event.status === 'terminated');
-    
-    if (terminatedEvents.length === 0) {
-      alert('暂无已终止的事件');
-      return;
-    }
-    
-    // 显示已终止事件列表
-    displayEventList(terminatedEvents.map(event => ({
-      eventId: event.recordId,
-      memberUUID: event.memberUUID,
-      memberName: event.memberName,
-      group: event.group,
-      eventType: event.eventType,
-      status: event.status,
-      consecutiveAbsences: event.consecutiveAbsences,
-      lastAttendanceDate: event.lastAttendanceDate,
-      trackingStartDate: event.trackingStartDate,
-      lastUpdateTime: event.updatedAt || event.createdAt
-    })));
-  };
-  
-  window.showAllEvents = function() {
-    console.log('📊 显示所有事件');
-    loadSundayTracking(true, false, true); // 强制刷新
-  };
-  
-  window.restartTerminatedEvent = function(eventId) {
-    if (confirm('确定要重新启动这个已终止的事件吗？')) {
-      console.log(`🔄 重新启动事件: ${eventId}`);
-      // 这里可以添加重新启动事件的逻辑
-      alert('事件重新启动功能开发中...');
-    }
-  };
-  
+
   // 添加转发历史记录查看功能
   window.showForwardHistory = function() {
     console.log('📋 显示转发历史记录');

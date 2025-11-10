@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主日跟踪首次计算工具</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="../../src/smart-config-loader.js"></script>
+    <script src="../../src/core/time-utils.js"></script>
+    <script src="../../src/new-data-manager.js"></script>
+    <script src="../../src/features/sunday-tracking-utils.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f4f7f6; 
+            color: #333; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: auto; 
+            background: #fff; 
+            padding: 30px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+        h1 { 
+            color: #2c3e50; 
+            text-align: center; 
+            margin-bottom: 30px; 
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .button-group { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin: 30px 0; 
+            flex-wrap: wrap; 
+        }
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            color: white;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        button.primary { background-color: #3498db; }
+        button.primary:hover:not(:disabled) { background-color: #2980b9; transform: translateY(-2px); }
+        button.secondary { background-color: #2ecc71; }
+        button.secondary:hover:not(:disabled) { background-color: #27ae60; transform: translateY(-2px); }
+        button.warning { background-color: #f39c12; }
+        button.warning:hover:not(:disabled) { background-color: #e67e22; transform: translateY(-2px); }
+        .log-container { 
+            background-color: #ecf0f1; 
+            border-radius: 5px; 
+            padding: 15px; 
+            max-height: 600px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+        }
+        .log-item { 
+            margin-bottom: 8px; 
+            font-size: 14px; 
+            line-height: 1.4; 
+        }
+        .log-item.info { color: #34495e; }
+        .log-item.success { color: #27ae60; }
+        .log-item.warning { color: #f39c12; }
+        .log-item.error { color: #c0392b; font-weight: bold; }
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #ecf0f1;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #3498db;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .summary {
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>主日跟踪首次计算工具</h1>
+        
+        <div class="form-group">
+            <label for="startDate">开始日期（首个主日）:</label>
+            <input type="date" id="startDate" value="2025-08-03">
+        </div>
+        
+        <div class="form-group">
+            <label for="endDate">结束日期（最后一个主日）:</label>
+            <input type="date" id="endDate">
+        </div>
+        
+        <div class="button-group">
+            <button class="primary" id="initializeButton">开始首次计算</button>
+            <button class="secondary" id="generateDailyReportsButton">生成DailyReports</button>
+            <button class="warning" id="checkStatusButton">检查计算状态</button>
+            <button class="danger" id="clearLogButton">清空日志</button>
+        </div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+            </div>
+            <div id="progressText" style="text-align: center; margin-top: 10px;"></div>
+        </div>
+        
+        <div class="summary" id="summary"></div>
+        <div class="log-container">
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase初始化
+        let db;
+        if (!firebase.apps.length) {
+            firebase.initializeApp(window.firebaseConfig);
+        }
+        if (!window.db) {
+            db = firebase.database();
+            window.db = db;
+        } else {
+            db = window.db;
+        }
+        
+        const logElement = document.getElementById('log');
+        const summaryElement = document.getElementById('summary');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        // 初始化结束日期为今天
+        const today = new Date();
+        const nextSunday = getNextSunday(today);
+        document.getElementById('endDate').value = formatDate(nextSunday);
+        
+        function appendLog(message, type = 'info') {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(logItem);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        function getNextSunday(date) {
+            const day = date.getDay();
+            const diff = day === 0 ? 7 : 7 - day;
+            const nextSunday = new Date(date);
+            nextSunday.setDate(date.getDate() + diff);
+            return nextSunday;
+        }
+        
+        function getPreviousSunday(date) {
+            const day = date.getDay();
+            const diff = day === 0 ? 7 : day;
+            const previousSunday = new Date(date);
+            previousSunday.setDate(date.getDate() - diff);
+            return previousSunday;
+        }
+        
+        function getSundayDatesBetween(startDate, endDate) {
+            const sundays = [];
+            let current = new Date(startDate);
+            const end = new Date(endDate);
+            
+            // 确保从周日开始
+            if (current.getDay() !== 0) {
+                current = getNextSunday(current);
+            }
+            
+            while (current <= end) {
+                sundays.push(formatDate(current));
+                current.setDate(current.getDate() + 7);
+            }
+            
+            return sundays;
+        }
+        
+        function updateProgress(current, total, message) {
+            const percentage = Math.round((current / total) * 100);
+            progressFill.style.width = `${percentage}%`;
+            progressFill.textContent = `${percentage}%`;
+            progressText.textContent = message || `处理中: ${current}/${total}`;
+        }
+        
+        document.getElementById('clearLogButton').addEventListener('click', () => {
+            logElement.innerHTML = '';
+            summaryElement.innerHTML = '';
+            appendLog('日志已清空。', 'info');
+        });
+        
+        // 检查计算状态
+        document.getElementById('checkStatusButton').addEventListener('click', async () => {
+            appendLog('开始检查计算状态...', 'info');
+            summaryElement.innerHTML = '';
+            
+            try {
+                const snapshot = await db.ref('sundayTrackingWeekly').once('value');
+                if (!snapshot.exists()) {
+                    appendLog('❌ 没有找到任何计算结果', 'warning');
+                    return;
+                }
+                
+                const calculations = snapshot.val();
+                const sundayDates = Object.keys(calculations).sort();
+                
+                appendLog(`✅ 找到 ${sundayDates.length} 周的计算结果`, 'success');
+                appendLog(`最早: ${sundayDates[0]}`, 'info');
+                appendLog(`最新: ${sundayDates[sundayDates.length - 1]}`, 'info');
+                
+                summaryElement.innerHTML = `
+                    <div>总周数: ${sundayDates.length}</div>
+                    <div>最早周: ${sundayDates[0]}</div>
+                    <div>最新周: ${sundayDates[sundayDates.length - 1]}</div>
+                `;
+            } catch (error) {
+                appendLog(`❌ 检查失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 生成DailyReports
+        document.getElementById('generateDailyReportsButton').addEventListener('click', async () => {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                appendLog('❌ 请选择开始和结束日期', 'error');
+                return;
+            }
+            
+            appendLog('开始生成DailyReports...', 'info');
+            progressContainer.style.display = 'block';
+            
+            const sundayDates = getSundayDatesBetween(startDate, endDate);
+            appendLog(`需要生成 ${sundayDates.length} 周的DailyReports`, 'info');
+            
+            let completed = 0;
+            let failed = 0;
+            
+            // 等待数据管理器初始化
+            await new Promise(resolve => {
+                if (window.newDataManager && window.newDataManager.isDataLoaded) {
+                    resolve();
+                } else {
+                    const checkInterval = setInterval(() => {
+                        if (window.newDataManager && window.newDataManager.isDataLoaded) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                }
+            });
+            
+            // 初始化summaryPage
+            if (!window.summaryPage) {
+                window.summaryPage = {
+                    loadAttendanceDataForDate: async function(date) {
+                        try {
+                            const startOfDay = new Date(date);
+                            startOfDay.setHours(0, 0, 0, 0);
+                            const endOfDay = new Date(date);
+                            endOfDay.setHours(23, 59, 59, 999);
+                            
+                            const startTime = startOfDay.toISOString();
+                            const endTime = endOfDay.toISOString();
+                            
+                            const snapshot = await db.ref('attendanceRecords')
+                                .orderByChild('time')
+                                .startAt(startTime)
+                                .endAt(endTime)
+                                .once('value');
+                            
+                            if (!snapshot.exists()) {
+                                return [];
+                            }
+                            
+                            const records = [];
+                            snapshot.forEach(child => {
+                                records.push(child.val());
+                            });
+                            
+                            return records;
+                        } catch (error) {
+                            console.error('加载签到记录失败:', error);
+                            return [];
+                        }
+                    }
+                };
+            }
+            
+            for (let i = 0; i < sundayDates.length; i++) {
+                const sundayDate = sundayDates[i];
+                updateProgress(i, sundayDates.length, `生成 ${sundayDate} 的DailyReport...`);
+                
+                try {
+                    // 检查是否已存在
+                    const existingSnapshot = await db.ref(`dailyReports/${sundayDate}`).once('value');
+                    if (existingSnapshot.exists()) {
+                        appendLog(`⏭️ ${sundayDate} 已存在，跳过`, 'info');
+                        completed++;
+                        continue;
+                    }
+                    
+                    // 加载签到记录
+                    const dateRecords = await window.summaryPage.loadAttendanceDataForDate(sundayDate);
+                    appendLog(`📊 ${sundayDate}: 加载到 ${dateRecords.length} 条签到记录`, 'info');
+                    
+                    // 获取所有成员
+                    const allMembers = window.utils.SundayTrackingManager.getAllMembers();
+                    
+                    // 计算已签到的成员UUID
+                    const signedUUIDs = new Set();
+                    dateRecords.forEach(record => {
+                        const identifier = record.memberUUID || record.name;
+                        if (identifier) {
+                            signedUUIDs.add(identifier);
+                        }
+                    });
+                    
+                    // 计算未签到的成员
+                    const unsignedMembers = allMembers.filter(member => {
+                        const memberUUID = member.uuid || member.name;
+                        return !signedUUIDs.has(memberUUID);
+                    });
+                    
+                    // 构建已签到成员列表
+                    const signedMembers = [];
+                    dateRecords.forEach(record => {
+                        const identifier = record.memberUUID || record.name;
+                        if (signedUUIDs.has(identifier)) {
+                            if (!signedMembers.find(m => (m.uuid || m.name) === identifier)) {
+                                signedMembers.push({
+                                    uuid: record.memberUUID || record.name,
+                                    name: record.name,
+                                    group: record.group,
+                                    time: record.time,
+                                    memberSnapshot: record.memberSnapshot,
+                                    groupSnapshot: record.groupSnapshot
+                                });
+                            }
+                        }
+                    });
+                    
+                    // 构建未签到成员列表
+                    const unsignedMembersList = unsignedMembers.map(member => ({
+                        uuid: member.uuid,
+                        name: member.name,
+                        group: member.group
+                    }));
+                    
+                    // 构建日报表数据
+                    const dailyReportData = {
+                        date: sundayDate,
+                        signedMembers: signedMembers,
+                        unsignedMembers: unsignedMembersList,
+                        totalSigned: signedMembers.length,
+                        totalUnsigned: unsignedMembersList.length,
+                        totalMembers: allMembers.length,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    // 保存到Firebase
+                    await db.ref(`dailyReports/${sundayDate}`).update(dailyReportData);
+                    appendLog(`✅ ${sundayDate}: 已保存DailyReport (签到: ${signedMembers.length}, 未签到: ${unsignedMembersList.length})`, 'success');
+                    completed++;
+                } catch (error) {
+                    appendLog(`❌ ${sundayDate}: 生成失败 - ${error.message}`, 'error');
+                    failed++;
+                }
+            }
+            
+            updateProgress(sundayDates.length, sundayDates.length, '完成');
+            summaryElement.innerHTML = `
+                <div>完成: ${completed}/${sundayDates.length}</div>
+                <div>失败: ${failed}</div>
+            `;
+            appendLog(`✅ DailyReports生成完成: 成功 ${completed} 个，失败 ${failed} 个`, 'success');
+        });
+        
+        // 开始首次计算
+        document.getElementById('initializeButton').addEventListener('click', async () => {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                appendLog('❌ 请选择开始和结束日期', 'error');
+                return;
+            }
+            
+            appendLog('开始首次计算...', 'info');
+            progressContainer.style.display = 'block';
+            
+            const sundayDates = getSundayDatesBetween(startDate, endDate);
+            appendLog(`需要计算 ${sundayDates.length} 周的数据`, 'info');
+            
+            // 等待数据管理器初始化
+            await new Promise(resolve => {
+                if (window.newDataManager && window.newDataManager.isDataLoaded) {
+                    resolve();
+                } else {
+                    const checkInterval = setInterval(() => {
+                        if (window.newDataManager && window.newDataManager.isDataLoaded) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                }
+            });
+            
+            let completed = 0;
+            let failed = 0;
+            let skipped = 0;
+            
+            for (let i = 0; i < sundayDates.length; i++) {
+                const sundayDate = sundayDates[i];
+                updateProgress(i, sundayDates.length, `计算 ${sundayDate}...`);
+                
+                try {
+                    // 检查是否已存在
+                    const existingSnapshot = await db.ref(`sundayTrackingWeekly/${sundayDate}`).once('value');
+                    if (existingSnapshot.exists()) {
+                        appendLog(`⏭️ ${sundayDate} 已存在，跳过`, 'info');
+                        skipped++;
+                        completed++;
+                        continue;
+                    }
+                    
+                    // 执行计算（批量计算时跳过清理，批量计算完成后统一清理）
+                    if (i === 0) {
+                        // 第一周使用首次计算
+                        const result = await window.utils.SundayTrackingManager.calculateFirstWeek(sundayDate, true);
+                        if (result) {
+                            appendLog(`✅ ${sundayDate}: 首次计算完成，计算了 ${Object.keys(result).length} 个成员`, 'success');
+                            completed++;
+                        } else {
+                            appendLog(`⚠️ ${sundayDate}: 计算失败（可能是缺少dailyReport）`, 'warning');
+                            failed++;
+                        }
+                    } else {
+                        // 后续周使用增量计算
+                        const result = await window.utils.SundayTrackingManager.calculateIncrementalWeek(sundayDate, true);
+                        if (result) {
+                            appendLog(`✅ ${sundayDate}: 增量计算完成，计算了 ${Object.keys(result).length} 个成员`, 'success');
+                            completed++;
+                        } else {
+                            appendLog(`⚠️ ${sundayDate}: 计算失败（可能是缺少dailyReport）`, 'warning');
+                            failed++;
+                        }
+                    }
+                } catch (error) {
+                    appendLog(`❌ ${sundayDate}: 计算失败 - ${error.message}`, 'error');
+                    failed++;
+                }
+            }
+            
+            // 批量计算完成后，统一执行清理（只保留最新10周）
+            appendLog('🧹 批量计算完成，执行清理操作...', 'info');
+            await window.utils.SundayTrackingManager.cleanupOldWeeklyCalculations(10);
+            
+            updateProgress(sundayDates.length, sundayDates.length, '完成');
+            summaryElement.innerHTML = `
+                <div>完成: ${completed}/${sundayDates.length}</div>
+                <div>跳过: ${skipped}</div>
+                <div>失败: ${failed}</div>
+            `;
+            appendLog(`✅ 首次计算完成: 成功 ${completed} 个，跳过 ${skipped} 个，失败 ${failed} 个`, 'success');
+        });
+        
+        // 页面加载时初始化
+        window.addEventListener('load', async () => {
+            appendLog('页面加载完成，等待数据管理器初始化...', 'info');
+            
+            // 等待数据管理器初始化
+            await new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (window.newDataManager && window.newDataManager.isDataLoaded) {
+                        clearInterval(checkInterval);
+                        appendLog('✅ 数据管理器初始化完成', 'success');
+                        resolve();
+                    }
+                }, 100);
+                
+                // 超时处理
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    appendLog('⚠️ 数据管理器初始化超时，但可以继续操作', 'warning');
+                    resolve();
+                }, 10000);
+            });
+        });
+    </script>
+</body>
+</html>

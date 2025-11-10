@@ -74,3 +74,11 @@ window.summaryPage.reloadCurrentSection = reloadCurrentSection;
 console.log('✅ 汇总页面 - 缓存管理模块已加载');
 
 
+
+
+
+
+
+
+
+

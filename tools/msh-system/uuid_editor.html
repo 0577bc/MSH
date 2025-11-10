@@ -83,6 +83,7 @@
         <div class="actions">
             <button onclick="autoFillUUIDs()" class="success-button">自动填充UUID</button>
             <button onclick="detectDuplicateNames()" class="warning-button">🔍 同名检测</button>
+            <button onclick="checkUUIDMemberCoverage()" class="warning-button">🧭 检测UUID有效性</button>
             <button onclick="clearFilters()">清除筛选</button>
         </div>
         
@@ -971,6 +972,68 @@
             filteredRecords = duplicateRecords;
             displayRecords();
             log(`已筛选显示 ${duplicateRecords.length} 条重复记录`);
+        }
+        
+        // 检查UUID是否能匹配到成员
+        function checkUUIDMemberCoverage() {
+            log('🧭 开始检测UUID有效性...');
+            
+            if (!allRecords || allRecords.length === 0) {
+                log('⚠️ 当前没有签到记录，请先加载数据', 'warning');
+                return;
+            }
+            
+            if (!groups || Object.keys(groups).length === 0) {
+                log('❌ 尚未加载组别数据，请先点击“从Firebase加载”按钮', 'error');
+                return;
+            }
+            
+            if (!window.utils || !window.utils.createMemberUUIDIndex) {
+                log('❌ 未找到UUID索引工具（window.utils.createMemberUUIDIndex）', 'error');
+                return;
+            }
+            
+            const uuidIndex = window.utils.createMemberUUIDIndex(groups);
+            const checkedUUIDs = new Set();
+            const missingMembers = [];
+            
+            allRecords.forEach(record => {
+                const uuid = (record.memberUUID || '').trim();
+                if (!uuid) {
+                    return;
+                }
+                
+                if (checkedUUIDs.has(uuid)) {
+                    return;
+                }
+                checkedUUIDs.add(uuid);
+                
+                if (!uuidIndex[uuid]) {
+                    missingMembers.push({
+                        uuid,
+                        name: record.name || '未知成员',
+                        group: groupNames[record.group] || record.group || '未知组别',
+                        time: record.time || ''
+                    });
+                }
+            });
+            
+            if (missingMembers.length === 0) {
+                log('✅ 检测完成：所有签到UUID均能在成员列表中找到对应成员', 'success');
+            } else {
+                log(`⚠️ 检测完成：发现 ${missingMembers.length} 个UUID无法匹配成员`, 'error');
+                missingMembers.forEach((item, index) => {
+                    let timeText = '';
+                    if (item.time) {
+                        try {
+                            timeText = new Date(item.time).toLocaleString('zh-CN');
+                        } catch (e) {
+                            timeText = item.time;
+                        }
+                    }
+                    log(`  ${index + 1}. UUID: ${item.uuid}｜姓名: ${item.name}｜组别: ${item.group}｜时间: ${timeText}`, 'error');
+                });
+            }
         }
         
         // ==================== 排除人员UUID管理功能 ====================

@@ -958,63 +958,9 @@ function initializeEventListeners() {
     adminButton.addEventListener('click', handleAdminPage);
   }
 
-  // 刷新数据按钮事件
-  const refreshDataBtn = document.getElementById('refreshDataBtn');
-  if (refreshDataBtn) {
-    refreshDataBtn.addEventListener('click', async () => {
-      try {
-        refreshDataBtn.disabled = true;
-        refreshDataBtn.textContent = '⏳ 刷新中...';
-        
-        // 清除所有签到记录缓存，强制从Firebase重新加载
-        localStorage.removeItem('msh_attendanceRecords');
-        // 清除sessionStorage中的日期缓存
-        const today = new Date().toISOString().split('T')[0];
-        sessionStorage.removeItem(`attendance_${today}`);
-        console.log('🗑️ 已清除所有签到记录缓存');
-        
-        // 使用NewDataManager重新加载数据
-        groups = await window.newDataManager.loadGroups();
-        groupNames = await window.newDataManager.loadGroupNames();
-        attendanceRecords = await window.newDataManager.loadAttendanceRecords();
-        
-        // 更新全局变量
-        window.groups = groups;
-        window.groupNames = groupNames;
-        window.attendanceRecords = attendanceRecords;
-        
-        // 重置数据变更标记（清除误报的变更检测）
-        if (window.newDataManager) {
-          window.newDataManager.hasLocalChanges = false;
-          window.newDataManager.dataChangeFlags = {
-            groups: { added: [], modified: [], deleted: [] },
-            attendanceRecords: { added: [], modified: [], deleted: [] },
-            groupNames: { added: [], modified: [], deleted: [] },
-            dailyNewcomers: { added: [], modified: [], deleted: [] },
-            excludedMembers: { added: [], modified: [], deleted: [] }
-          };
-          console.log('✅ 已清除数据变更标记');
-        }
-        
-        // 更新页面显示
-        loadGroupsAndMembers();
-        loadMembers(groupSelect ? groupSelect.value : '');
-        loadAttendanceRecords();  // 重新加载并显示签到记录
-        updateSigninCount();
-        
-        // 恢复按钮状态
-        refreshDataBtn.disabled = false;
-        refreshDataBtn.textContent = '🔄 刷新';
-        
-        console.log('✅ 数据刷新完成');
-      } catch (error) {
-        console.error('❌ 数据刷新失败:', error);
-        refreshDataBtn.disabled = false;
-        refreshDataBtn.textContent = '🔄 刷新';
-        alert('❌ 数据刷新失败，请重试');
-      }
-    });
-  }
+  // 刷新数据按钮已移除（2025-10-17）
+  // 原因：刷新功能导致数据状态混乱，与自动同步机制冲突
+  // 如果需要刷新数据，请使用浏览器刷新功能（F5）或使用右上角的同步按钮
 
   // 数据同步监听器（禁用，使用新数据管理器）
   // 注释掉旧的监听器，避免与新数据管理器冲突

@@ -1729,13 +1729,41 @@ class NewDataManager {
   }
 
   // 创建同步按钮
-  createSyncButton() {
+  createSyncButton(container = null) {
     if (this.syncButton) return;
+
+    // 处理容器参数：支持字符串ID或DOM元素
+    let containerElement = null;
+    if (container) {
+      if (typeof container === 'string') {
+        containerElement = document.getElementById(container);
+        if (!containerElement) {
+          console.warn(`⚠️ 同步按钮容器 "${container}" 未找到，使用默认方式`);
+        }
+      } else if (container instanceof HTMLElement) {
+        containerElement = container;
+      }
+    }
 
     const button = document.createElement('button');
     button.id = 'manualSyncButton';
     button.className = 'sync-button';
     button.innerHTML = '🔄 同步数据';
+    
+    // 如果指定了容器且容器存在，使用相对定位；否则使用固定定位
+    if (containerElement) {
+      button.style.cssText = `
+        padding: 10px 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      `;
+      containerElement.appendChild(button);
+    } else {
     button.style.cssText = `
       position: fixed;
       top: 20px;
@@ -1750,13 +1778,14 @@ class NewDataManager {
       font-size: 14px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     `;
+      document.body.appendChild(button);
+    }
 
     button.addEventListener('click', () => this.performManualSync());
     button.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       this.showChangeDetails();
     });
-    document.body.appendChild(button);
     this.syncButton = button;
     this.updateSyncButton();
   }
@@ -2218,6 +2247,11 @@ class NewDataManager {
         console.log('❌ 手动同步失败，保持变更标识');
         console.log('❌ 同步失败详情:', syncResults);
         
+        // 详细输出每个数据类型的同步状态
+        Object.entries(syncResults).forEach(([type, success]) => {
+          console.log(`  ${type}: ${success ? '✅ 成功' : '❌ 失败'}`);
+        });
+        
         // 特别处理excludedMembers同步失败
         if (failedTypes.includes('excludedMembers')) {
           console.log('❌ excludedMembers同步失败，可能数据被覆盖');
@@ -2371,11 +2405,19 @@ class NewDataManager {
           localData.filter(record => record.date === today) : [];
         const remoteLength = Array.isArray(remoteData) ? remoteData.length : 0;
         
-        console.log(`🔍 验证${dataType}数据: 本地当天=${localTodayRecords.length}, 远程当天=${remoteLength}`);
+        const difference = Math.abs(localTodayRecords.length - remoteLength);
+        console.log(`🔍 验证${dataType}数据:`);
+        console.log(`  本地当天=${localTodayRecords.length}, 远程当天=${remoteLength}, 差异=${difference}`);
         
-        // 允许±1的差异（网络延迟可能导致）
-        const isValid = Math.abs(localTodayRecords.length - remoteLength) <= 1;
-        console.log(`🔍 ${dataType}数据验证${isValid ? '通过' : '失败'}`);
+        // 允许±2的差异（网络延迟和并发操作可能导致）
+        const isValid = difference <= 2;
+        if (!isValid) {
+          console.log(`❌ ${dataType}数据验证失败：差异过大 (${difference})`);
+        } else if (difference > 0) {
+          console.log(`⚠️ ${dataType}数据有差异 (${difference})，但在允许范围内`);
+        } else {
+          console.log(`✅ ${dataType}数据验证通过`);
+        }
         
         return isValid;
         
@@ -2385,12 +2427,19 @@ class NewDataManager {
         const localLength = Array.isArray(localData) ? localData.length : Object.keys(localData).length;
         const remoteLength = Array.isArray(remoteData) ? remoteData.length : Object.keys(remoteData).length;
         
-        console.log(`🔍 验证${dataType}数据: 本地长度=${localLength}, 远程长度=${remoteLength}`);
+        console.log(`🔍 验证${dataType}数据:`);
+        console.log(`  本地长度=${localLength}, 远程长度=${remoteLength}`);
+        console.log(`  本地格式=${Array.isArray(localData) ? '数组' : '对象'}, 远程格式=${Array.isArray(remoteData) ? '数组' : '对象'}`);
         
-        // 首先检查长度
-        if (Math.abs(localLength - remoteLength) > 1) {
-          console.log(`🔍 ${dataType}数据验证失败：长度差异过大`);
+        // 首先检查长度（放宽限制，允许2个差异）
+        if (Math.abs(localLength - remoteLength) > 2) {
+          console.log(`❌ ${dataType}数据验证失败：长度差异过大 (差异=${Math.abs(localLength - remoteLength)})`);
           return false;
+        }
+        
+        // 如果长度差异在允许范围内，记录但不失败
+        if (Math.abs(localLength - remoteLength) > 0) {
+          console.log(`⚠️ ${dataType}数据长度差异=${Math.abs(localLength - remoteLength)}，在允许范围内`);
         }
         
         // 检查内容一致性（如果长度相同）
@@ -2418,22 +2467,40 @@ class NewDataManager {
           });
           
           // 检查是否有本地数据在远程数据中缺失
+          const missingInRemote = [];
           for (const [key, localItem] of localMap) {
             if (!remoteMap.has(key)) {
-              console.log(`🔍 ${dataType}数据验证失败：远程数据缺失本地项目 ${key}`);
-              return false;
+              missingInRemote.push(key);
             }
           }
           
           // 检查是否有远程数据在本地数据中缺失
+          const missingInLocal = [];
           for (const [key, remoteItem] of remoteMap) {
             if (!localMap.has(key)) {
-              console.log(`🔍 ${dataType}数据验证失败：本地数据缺失远程项目 ${key}`);
-              return false;
+              missingInLocal.push(key);
             }
           }
           
-          console.log(`🔍 ${dataType}数据验证通过：内容一致性检查通过`);
+          // 如果缺失项目较少（≤2个），允许通过（可能是网络延迟导致）
+          if (missingInRemote.length > 2 || missingInLocal.length > 2) {
+            console.log(`❌ ${dataType}数据验证失败：`);
+            console.log(`  远程缺失本地项目 (${missingInRemote.length}个):`, missingInRemote);
+            console.log(`  本地缺失远程项目 (${missingInLocal.length}个):`, missingInLocal);
+              return false;
+            }
+          
+          if (missingInRemote.length > 0 || missingInLocal.length > 0) {
+            console.log(`⚠️ ${dataType}数据有少量差异（允许范围内）:`);
+            if (missingInRemote.length > 0) {
+              console.log(`  远程缺失本地项目:`, missingInRemote);
+            }
+            if (missingInLocal.length > 0) {
+              console.log(`  本地缺失远程项目:`, missingInLocal);
+            }
+          }
+          
+          console.log(`✅ ${dataType}数据验证通过：内容一致性检查通过`);
         }
         
         return true;

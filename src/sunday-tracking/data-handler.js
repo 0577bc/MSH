@@ -1,4 +1,20 @@
-    const sortedList = trackingList.sort((a, b) => {
+// ==================== 显示跟踪列表 ====================
+function displayTrackingList(trackingList) {
+  if (!sundayTrackingList) {
+    console.error('主日跟踪列表元素未找到');
+    return;
+  }
+  
+  sundayTrackingList.innerHTML = '';
+  
+  if (trackingList.length === 0) {
+    const row = document.createElement('tr');
+    row.innerHTML = '<td colspan="5" style="text-align: center; color: #666;">暂无跟踪记录</td>';
+    sundayTrackingList.appendChild(row);
+    return;
+  }
+  
+  const sortedList = trackingList.sort((a, b) => {
       // 第一关键词：组别
       if (a.group !== b.group) {
         // 确保"group0"排在第一
@@ -598,3 +614,20 @@ function showNotification(message, type = 'info') {
   
   // 设置背景色
   const colors = {
+    success: '#4CAF50',
+    error: '#F44336',
+    warning: '#FF9800',
+    info: '#2196F3'
+  };
+  notification.style.backgroundColor = colors[type] || colors.info;
+  
+  // 添加到页面
+  document.body.appendChild(notification);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 3000);
+}

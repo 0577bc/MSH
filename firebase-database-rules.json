@@ -1,0 +1,55 @@
+{
+  "rules": {
+    "attendanceRecords": {
+      ".indexOn": ["date", "time", "timestamp"],
+      ".read": true,
+      ".write": true
+    },
+    "groups": {
+      ".read": true,
+      ".write": true
+    },
+    "groupNames": {
+      ".read": true,
+      ".write": true
+    },
+    "excludedMembers": {
+      ".read": true,
+      ".write": true
+    },
+    "trackingRecords": {
+      ".read": true,
+      ".write": true
+    },
+    "personalTracking": {
+      ".read": true,
+      ".write": true
+    },
+    "dailyNewcomers": {
+      ".read": true,
+      ".write": true
+    },
+    "metadata": {
+      ".read": true,
+      ".write": true
+    },
+    "dailyReports": {
+      ".read": true,
+      ".write": true
+    },
+    "sundayTrackingWeekly": {
+      ".read": true,
+      ".write": true
+    },
+    "absenceCalc": {
+      ".read": true,
+      ".write": true
+    },
+    "absenceEvents": {
+      ".indexOn": ["memberUUID"],
+      ".read": true,
+      ".write": true
+    }
+  }
+}
+

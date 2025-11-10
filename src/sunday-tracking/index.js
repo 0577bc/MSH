@@ -76,7 +76,13 @@ function initializeDOMElements() {
 function initializeEventListeners() {
   // 返回按钮事件
   if (backToSummaryButton) {
-    backToSummaryButton.addEventListener('click', () => window.location.href = 'summary.html');
+    backToSummaryButton.addEventListener('click', () => {
+      console.log('🔙 返回汇总页面');
+      window.location.href = 'summary.html';
+    });
+    console.log('✅ 返回汇总按钮事件监听器已绑定');
+  } else {
+    console.error('❌ 返回汇总按钮未找到');
   }
 
 
@@ -117,7 +123,9 @@ function initializeEventListeners() {
   if (groupFilter) {
     groupFilter.addEventListener('change', () => {
       console.log('🔍 小组筛选变更:', groupFilter.value);
-      filterTrackingList();
+      if (window.filterTrackingList) {
+        window.filterTrackingList();
+      }
     });
     console.log('✅ 小组筛选事件监听器已绑定');
   } else {
@@ -169,6 +177,18 @@ function initializeEventListeners() {
     console.error('❌ 转发历史按钮未找到');
   }
 
+  // 监听数据更新事件，自动刷新跟踪列表
+  window.addEventListener('attendanceRecordsUpdated', (event) => {
+    console.log('🔔 主日跟踪页面检测到签到记录更新事件:', event.detail);
+    loadSundayTracking(false, false, true); // 强制刷新
+  });
+
+  // 监听小组数据更新事件
+  window.addEventListener('groupsUpdated', () => {
+    console.log('🔔 主日跟踪页面检测到小组数据更新事件');
+    populateGroupFilter(); // 重新填充小组筛选器
+    loadSundayTracking(false, false, true); // 强制刷新
+  });
 }
 
 // ==================== 数据加载 ====================
@@ -427,6 +447,98 @@ function loadDataFromLocalStorage() {
   }
 }
 
+// ==================== 填充小组筛选器 ====================
+function populateGroupFilter() {
+  if (!groupFilter) {
+    console.error('❌ 小组筛选控件未找到');
+    return;
+  }
+
+  try {
+    // 保存当前选中的值
+    const currentValue = groupFilter.value;
+    
+    // 清空选项（保留"全部小组"选项）
+    groupFilter.innerHTML = '<option value="">--全部小组--</option>';
+    
+    // 获取小组名称列表
+    const groupNameList = groupNames || {};
+    
+    // 按组别ID排序后填充选项
+    const sortedGroups = Object.keys(groupNameList).sort((a, b) => {
+      // group0排第一
+      if (a === 'group0') return -1;
+      if (b === 'group0') return 1;
+      return a.localeCompare(b);
+    });
+    
+    sortedGroups.forEach(groupId => {
+      const option = document.createElement('option');
+      option.value = groupId;
+      option.textContent = groupNameList[groupId] || groupId;
+      groupFilter.appendChild(option);
+    });
+    
+    // 恢复之前选中的值
+    if (currentValue) {
+      groupFilter.value = currentValue;
+    }
+    
+    console.log(`✅ 小组筛选器已填充，共${sortedGroups.length}个小组`);
+  } catch (error) {
+    console.error('❌ 填充小组筛选器失败:', error);
+  }
+}
+
+// ==================== 初始化同步按钮 ====================
+function initializeSyncButton() {
+  const syncButtonContainer = document.getElementById('syncButtonContainer');
+  
+  if (window.newDataManager && typeof window.newDataManager.createSyncButton === 'function') {
+    // 如果存在容器，使用容器；否则使用默认方式（添加到body）
+    if (syncButtonContainer) {
+      // 创建同步按钮并添加到容器中
+      window.newDataManager.createSyncButton(syncButtonContainer);
+    } else {
+      // 使用默认方式创建按钮
+      window.newDataManager.createSyncButton();
+    }
+    console.log('✅ 同步按钮已初始化');
+  } else {
+    console.warn('⚠️ NewDataManager未加载或createSyncButton方法不可用');
+  }
+}
+
+// ==================== 页面初始化 ====================
+async function initializePage() {
+  try {
+    console.log('🚀 开始初始化主日跟踪页面...');
+    
+    // 填充小组筛选器
+    populateGroupFilter();
+    
+    // 初始化同步按钮
+    initializeSyncButton();
+    
+    // 加载跟踪列表
+    if (window.loadSundayTracking) {
+      await window.loadSundayTracking();
+    } else {
+      console.warn('⚠️ loadSundayTracking 函数未找到，等待加载...');
+      // 等待函数加载
+      setTimeout(async () => {
+        if (window.loadSundayTracking) {
+          await window.loadSundayTracking();
+        }
+      }, 100);
+    }
+    
+    console.log('✅ 主日跟踪页面初始化完成');
+  } catch (error) {
+    console.error('❌ 页面初始化失败:', error);
+  }
+}
+
 // ==================== 数据同步 ====================
 function startListening() {
   if (!db) {
@@ -467,15 +579,23 @@ function startListening() {
               if (window.utils && window.utils.UUIDIndex) {
                 window.utils.UUIDIndex.updateRecordIndex(attendanceRecords);
               }
-              loadSundayTracking();
+              if (window.loadSundayTracking) {
+                window.loadSundayTracking();
+              }
               break;
             case 'groups':
               groups = mergedData;
-              loadSundayTracking();
+              populateGroupFilter(); // 重新填充小组筛选器
+              if (window.loadSundayTracking) {
+                window.loadSundayTracking();
+              }
               break;
             case 'groupNames':
               groupNames = mergedData;
-              loadSundayTracking();
+              populateGroupFilter(); // 重新填充小组筛选器
+              if (window.loadSundayTracking) {
+                window.loadSundayTracking();
+              }
               break;
           }
         } else {
@@ -491,10 +611,52 @@ function startListening() {
               break;
             case 'groups':
               groups = data || {};
+              populateGroupFilter(); // 重新填充小组筛选器
               loadSundayTracking();
               break;
             case 'groupNames':
               groupNames = data || {};
+              populateGroupFilter(); // 重新填充小组筛选器
               loadSundayTracking();
               break;
           }
+        }
+      });
+      console.log('数据同步监听已启动');
+    }
+  } catch (error) {
+    console.error('启动数据同步监听失败:', error);
+  }
+}
+
+// ==================== 页面入口：DOMContentLoaded ====================
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('📄 主日跟踪页面DOM已加载');
+  
+  try {
+    // 初始化DOM元素
+    initializeDOMElements();
+    
+    // 初始化页面同步管理器
+    initializePageSyncManager();
+    
+    // 初始化事件监听器
+    initializeEventListeners();
+    
+    // 初始化Firebase
+    await initializeFirebase();
+    
+    // 加载数据
+    await loadData();
+    
+    // 启动数据同步监听
+    startListening();
+    
+    // 初始化页面（填充筛选器、加载跟踪列表等）
+    await initializePage();
+    
+    console.log('✅ 主日跟踪页面加载完成');
+  } catch (error) {
+    console.error('❌ 主日跟踪页面加载失败:', error);
+  }
+});

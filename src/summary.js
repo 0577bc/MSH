@@ -412,35 +412,9 @@ function initializeEventListeners() {
     });
   }
 
-  // 刷新数据按钮事件
-  const refreshDataBtn = document.getElementById('refreshDataBtn');
-  if (refreshDataBtn) {
-    refreshDataBtn.addEventListener('click', async () => {
-      try {
-        // 清除所有缓存
-        refreshDataBtn.disabled = true;
-        refreshDataBtn.textContent = '⏳ 刷新中...';
-        
-        const clearedCount = clearAllAttendanceCache();
-        
-        // 重新加载当前显示的数据
-        await reloadCurrentSection();
-        
-        // 恢复按钮状态
-        refreshDataBtn.disabled = false;
-        refreshDataBtn.textContent = '🔄 刷新数据';
-        
-        // 提示用户
-        alert(`✅ 数据已刷新！清除了 ${clearedCount} 个缓存`);
-        console.log('✅ 数据刷新完成');
-      } catch (error) {
-        console.error('❌ 数据刷新失败:', error);
-        refreshDataBtn.disabled = false;
-        refreshDataBtn.textContent = '🔄 刷新数据';
-        alert('❌ 数据刷新失败，请重试');
-      }
-    });
-  }
+  // 刷新数据按钮已移除（2025-11-04）
+  // 原因：功能与自动刷新机制重复，已有完善的自动刷新机制（attendanceRecordsUpdated事件监听）
+  // 如果需要刷新数据，请使用浏览器刷新功能（F5）或等待自动刷新
 
   // 导出按钮事件
   if (exportButton) {
@@ -953,6 +927,11 @@ function initializeEventListeners() {
       !signedUUIDs.has(member.uuid) // 没有签到（使用UUID匹配）
     );
     const unsignedCountNum = unsignedMembers.length;
+    
+    // 🆕 保存主日数据到 Firebase（用于缺勤计算优化）
+    saveDailyReportToFirebaseIfSunday(date, dateRecords, signedUUIDs, unsignedMembers, allMembers).catch(err => {
+      console.error('保存主日数据到Firebase失败:', err);
+    });
 
     // 统计新人（只有通过"新朋友"按钮添加的人员，且是选择日期当天新增的）
     let newcomerCountNum = 0;
@@ -1294,9 +1273,122 @@ function initializeEventListeners() {
     return sundays;
   }
 
+// ==================== 保存主日数据到 Firebase（用于缺勤计算优化）====================
+/**
+ * 如果是主日，保存日报表数据到 Firebase
+ * @param {string} date - 日期字符串 YYYY-MM-DD
+ * @param {Array} dateRecords - 签到记录数组
+ * @param {Set} signedUUIDs - 已签到成员的UUID集合
+ * @param {Array} unsignedMembers - 未签到成员数组
+ * @param {Array} allMembers - 所有成员数组
+ */
+async function saveDailyReportToFirebaseIfSunday(date, dateRecords, signedUUIDs, unsignedMembers, allMembers) {
+  try {
+    // 检查是否是主日
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 1 = Monday, ...
+    
+    if (dayOfWeek !== 0) {
+      // 不是主日，不保存
+      return;
+    }
+    
+    console.log(`📅 检测到主日 (${date})，准备保存日报表数据到Firebase`);
+    
+    // 🔧 修复：确保 Firebase 已初始化
+    let firebaseDb = db || window.db;
+    if (!firebaseDb) {
+      // 尝试初始化 Firebase
+      const result = window.utils.initializeFirebase();
+      if (result.success && result.db) {
+        firebaseDb = result.db;
+        db = firebaseDb;
+        window.db = firebaseDb;
+        console.log('✅ Firebase已初始化，可以保存数据');
+      } else {
+        console.warn('⚠️ Firebase未初始化，跳过保存主日数据');
+        return;
+      }
+    }
+    
+    // 构建已签到成员列表
+    const signedMembers = [];
+    const signedUUIDArray = Array.from(signedUUIDs);
+    
+    dateRecords.forEach(record => {
+      const identifier = record.memberUUID || record.name;
+      if (signedUUIDArray.includes(identifier)) {
+        // 检查是否已添加（去重）
+        if (!signedMembers.find(m => (m.uuid || m.name) === identifier)) {
+          signedMembers.push({
+            uuid: record.memberUUID || record.name,
+            name: record.name,
+            group: record.group,
+            time: record.time,
+            memberSnapshot: record.memberSnapshot,
+            groupSnapshot: record.groupSnapshot
+          });
+        }
+      }
+    });
+    
+    // 构建未签到成员列表
+    const unsignedMembersList = unsignedMembers.map(member => ({
+      uuid: member.uuid,
+      name: member.name,
+      group: member.group
+    }));
+    
+    // 构建日报表数据
+    const dailyReportData = {
+      date: date,
+      signedMembers: signedMembers,
+      unsignedMembers: unsignedMembersList,
+      totalSigned: signedMembers.length,
+      totalUnsigned: unsignedMembersList.length,
+      totalMembers: allMembers.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    // 保存到 Firebase（使用update()增量更新，符合数据安全规则）
+    const dateKey = date; // 使用 YYYY-MM-DD 格式作为key
+    // 直接在指定路径使用update()，只更新/创建该日期的数据，不影响其他日期
+    try {
+      await firebaseDb.ref(`dailyReports/${dateKey}`).update(dailyReportData);
+      console.log(`✅ 已保存主日数据到 Firebase: dailyReports/${dateKey}`, {
+        signed: signedMembers.length,
+        unsigned: unsignedMembersList.length,
+        total: allMembers.length
+      });
+    } catch (firebaseError) {
+      // Firebase权限错误处理
+      if (firebaseError.code === 'PERMISSION_DENIED' || firebaseError.message.includes('permission_denied')) {
+        console.warn('⚠️ Firebase权限不足，无法保存到 dailyReports 路径');
+        console.warn('💡 提示：请在Firebase控制台的Realtime Database安全规则中添加以下规则：');
+        console.warn('   "dailyReports": { ".read": true, ".write": true }');
+        console.warn('   或者使用更严格的规则，例如：');
+        console.warn('   "dailyReports": { ".read": "auth != null", ".write": "auth != null" }');
+        
+        // 作为临时方案，保存到本地存储
+        try {
+          const localKey = `msh_dailyReport_${dateKey}`;
+          localStorage.setItem(localKey, JSON.stringify(dailyReportData));
+          console.log(`✅ 已保存主日数据到本地存储: ${localKey}`);
+        } catch (localError) {
+          console.error('❌ 保存到本地存储也失败:', localError);
+        }
+      } else {
+        throw firebaseError; // 重新抛出其他错误
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ 保存主日数据失败:', error);
+    // 不抛出错误，避免影响日报表显示
+  }
+}
   
   
-  
-
 
 

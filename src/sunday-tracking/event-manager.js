@@ -1,27 +1,35 @@
-        }
-      });
-      console.log('数据同步监听已启动');
-    }
-  } catch (error) {
-    console.error('启动数据同步监听失败:', error);
-  }
-}
-
 // ==================== 主日跟踪功能 ====================
 
 // 加载主日跟踪数据（优化版）
-function loadSundayTracking(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
-  const pageLoadStartTime = performance.now();
-  console.log('🚀 开始加载主日跟踪页面（优化版）');
+// 互斥锁：防止并发调用 loadSundayTracking
+window._loadSundayTrackingLock = false;
+window._loadSundayTrackingPromise = null;
+
+window.loadSundayTracking = async function loadSundayTracking(preserveFilters = false, skipFullReload = false, forceRefresh = false, showAll = false) {
+  // 防止并发调用：如果正在加载，等待正在进行的加载完成
+  if (window._loadSundayTrackingLock && window._loadSundayTrackingPromise) {
+    console.log('⏳ 检测到正在加载中，等待完成...');
+    return await window._loadSundayTrackingPromise;
+  }
   
-  try {
-    // 如果强制刷新，清除缓存
-    if (forceRefresh) {
-      console.log('🔄 强制刷新，清除缓存');
-      if (window.unifiedCacheManager) {
-        window.unifiedCacheManager.clearAll();
+  // 设置互斥锁
+  window._loadSundayTrackingLock = true;
+  window._loadSundayTrackingPromise = (async () => {
+    try {
+      const pageLoadStartTime = performance.now();
+      console.log('🚀 开始加载主日跟踪页面（优化版）');
+      
+      // 如果强制刷新，清除缓存
+      if (forceRefresh) {
+        console.log('🔄 强制刷新，清除缓存');
+        if (window.unifiedCacheManager) {
+          window.unifiedCacheManager.clearAll();
+        }
+        // 清除 SundayTrackingManager 的缓存
+        if (window.utils?.SundayTrackingManager?._clearCache) {
+          window.utils.SundayTrackingManager._clearCache();
+        }
       }
-    }
     
     // 检查缓存
     if (window.unifiedCacheManager) {
@@ -41,6 +49,9 @@ function loadSundayTracking(preserveFilters = false, skipFullReload = false, for
         
         console.log(`✅ 主日跟踪页面加载完成，总耗时: ${cacheLoadTime.toFixed(2)}ms`);
         displayEventList(cachedEventList);
+        // 释放互斥锁
+        window._loadSundayTrackingLock = false;
+        window._loadSundayTrackingPromise = null;
         return;
       }
     }
@@ -52,7 +63,7 @@ function loadSundayTracking(preserveFilters = false, skipFullReload = false, for
       console.log(`📊 跟踪记录数量: ${existingTrackingRecords.length}个`);
       
       // 直接生成事件列表，不依赖基础数据
-      const eventList = generateUltraLightEventList();
+      const eventList = await generateUltraLightEventList(showAll);
       
       // 保存到缓存
       if (window.unifiedCacheManager) {
@@ -72,129 +83,182 @@ function loadSundayTracking(preserveFilters = false, skipFullReload = false, for
         window.pageLoadPerformance.loadType = 'tracking_records';
       }
       
+      // 释放互斥锁
+      window._loadSundayTrackingLock = false;
+      window._loadSundayTrackingPromise = null;
       return;
     }
     
-    // 检查基础数据是否已加载
-    if (!window.groups || !window.attendanceRecords) {
+    // 检查基础数据是否已加载（新方案只需要groups，不需要attendanceRecords）
+    if (!window.groups) {
       console.log('⏳ 等待基础数据加载完成...');
-      // 等待基础数据加载
-      const checkDataLoaded = setInterval(() => {
-        if (window.groups && window.attendanceRecords) {
-          clearInterval(checkDataLoaded);
-          console.log('✅ 基础数据加载完成，继续加载事件列表');
-          loadSundayTracking(preserveFilters, skipFullReload, forceRefresh);
-        }
-      }, 100);
-      return;
+      // 等待基础数据加载（最多等待10秒），使用Promise避免递归调用
+      await new Promise((resolve) => {
+        let waitCount = 0;
+        const maxWaitCount = 100; // 10秒 (100 * 100ms)
+        const checkDataLoaded = setInterval(() => {
+          waitCount++;
+          if (window.groups) {
+            clearInterval(checkDataLoaded);
+            console.log('✅ 基础数据加载完成，继续加载事件列表');
+            resolve();
+          } else if (waitCount >= maxWaitCount) {
+            clearInterval(checkDataLoaded);
+            console.error('❌ 基础数据加载超时，尝试继续加载...');
+            resolve(); // 超时后也继续，不阻塞
+          }
+        }, 100);
+      });
+      // 继续执行，不返回
     }
     
     // 优化：检查是否只需要跟踪记录数据
     if (!window.utils || !window.utils.SundayTrackingManager) {
       console.log('⏳ 等待SundayTrackingManager加载完成...');
-      const checkManagerLoaded = setInterval(() => {
-        if (window.utils && window.utils.SundayTrackingManager) {
-          clearInterval(checkManagerLoaded);
-          console.log('✅ SundayTrackingManager加载完成，继续加载事件列表');
-          loadSundayTracking(preserveFilters, skipFullReload, forceRefresh);
-        }
-      }, 100);
-      return;
+      // 等待SundayTrackingManager加载，使用Promise避免递归调用
+      await new Promise((resolve) => {
+        let waitCount = 0;
+        const maxWaitCount = 100; // 10秒
+        const checkManagerLoaded = setInterval(() => {
+          waitCount++;
+          if (window.utils && window.utils.SundayTrackingManager) {
+            clearInterval(checkManagerLoaded);
+            console.log('✅ SundayTrackingManager加载完成，继续加载事件列表');
+            resolve();
+          } else if (waitCount >= maxWaitCount) {
+            clearInterval(checkManagerLoaded);
+            console.error('❌ SundayTrackingManager加载超时，尝试继续加载...');
+            resolve(); // 超时后也继续，不阻塞
+          }
+        }, 100);
+      });
+      // 继续执行，不返回
     }
     
     // 显示加载指示器
     showLoadingIndicator();
     
-    // 异步生成极简事件列表（避免阻塞UI）
-    setTimeout(() => {
-      try {
-        const eventList = generateUltraLightEventList();
-        
-        // 保存到缓存
-        if (window.unifiedCacheManager) {
-          window.unifiedCacheManager.set('eventList', 'all', eventList);
-        }
-        
-        // 显示事件列表
-        displayEventList(eventList);
-        hideLoadingIndicator();
-        
-        // 计算总加载时间
-        const totalLoadTime = performance.now() - pageLoadStartTime;
-        console.log(`✅ 主日跟踪页面加载完成，总耗时: ${totalLoadTime.toFixed(2)}ms`);
-        
-        // 更新性能监控数据
-        if (window.pageLoadPerformance) {
-          window.pageLoadPerformance.totalLoadTime = totalLoadTime;
-          window.pageLoadPerformance.loadType = 'generated';
-        }
-        
-      } catch (error) {
-        console.error('❌ 异步生成事件列表失败:', error);
-        hideLoadingIndicator();
-        showErrorMessage('生成事件列表失败，请重试！');
+    // 直接异步生成极简事件列表（避免阻塞UI，但保持在同一Promise链中）
+    try {
+      // 使用微任务延迟，让UI先渲染
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const eventList = await generateUltraLightEventList(showAll);
+      
+      // 保存到缓存
+      if (window.unifiedCacheManager) {
+        window.unifiedCacheManager.set('eventList', 'all', eventList);
       }
-    }, 10); // 10ms延迟，让UI先渲染
+      
+      // 显示事件列表
+      displayEventList(eventList);
+      hideLoadingIndicator();
+      
+      // 计算总加载时间
+      const totalLoadTime = performance.now() - pageLoadStartTime;
+      console.log(`✅ 主日跟踪页面加载完成，总耗时: ${totalLoadTime.toFixed(2)}ms`);
+      
+      // 更新性能监控数据
+      if (window.pageLoadPerformance) {
+        window.pageLoadPerformance.totalLoadTime = totalLoadTime;
+        window.pageLoadPerformance.loadType = 'generated';
+      }
+    } catch (error) {
+      console.error('❌ 异步生成事件列表失败:', error);
+      hideLoadingIndicator();
+      showErrorMessage('生成事件列表失败，请重试！');
+    }
     
-  } catch (error) {
-    console.error('❌ 加载主日跟踪页面失败:', error);
-    alert('加载跟踪数据失败，请重试！');
-  }
+    } catch (error) {
+      console.error('❌ 加载主日跟踪页面失败:', error);
+      alert('加载跟踪数据失败，请重试！');
+      // 释放互斥锁
+      window._loadSundayTrackingLock = false;
+      window._loadSundayTrackingPromise = null;
+    }
+  })();
+  
+  return await window._loadSundayTrackingPromise;
 }
 
+// 全局变量：控制是否显示所有事件（包括已终止的）
+window.sundayTrackingShowAllEvents = false;
+
 // 生成极简事件列表（真正的极简版本 - 只拉取数据，不计算）
-function generateUltraLightEventList() {
-  console.log('🔍 生成极简事件列表（只拉取数据）');
+// 缓存 generateUltraLightEventList 的结果
+window._generateUltraLightEventListCache = null;
+window._generateUltraLightEventListCacheTime = 0;
+const GENERATE_EVENT_LIST_CACHE_DURATION = 30 * 1000; // 30秒缓存
+
+async function generateUltraLightEventList(showAll = false) {
+  console.log('🔍 生成极简事件列表（使用已有计算逻辑）');
   const startTime = performance.now();
   
-  // 只获取已存在的事件记录，不进行任何计算
+  // 检查缓存（如果参数相同且缓存未过期）
+  if (window._generateUltraLightEventListCache && 
+      window._generateUltraLightEventListCache.showAll === showAll &&
+      Date.now() - window._generateUltraLightEventListCacheTime < GENERATE_EVENT_LIST_CACHE_DURATION) {
+    const cacheLoadTime = performance.now() - startTime;
+    console.log(`📦 使用缓存的事件列表，耗时: ${cacheLoadTime.toFixed(2)}ms`);
+    return window._generateUltraLightEventListCache.eventList;
+  }
+  
+  // 更新全局变量
+  window.sundayTrackingShowAllEvents = showAll;
+  
+  // 检查SundayTrackingManager是否可用
   if (!window.utils || !window.utils.SundayTrackingManager) {
     console.error('❌ SundayTrackingManager未找到');
     return [];
   }
   
-  // 直接获取已存在的事件记录，不调用generateTrackingList（避免计算）
-  const existingEvents = window.utils.SundayTrackingManager.getTrackingRecords();
-  console.log(`📊 获取已存在事件数量: ${existingEvents.length}`);
+  // 🔧 简化方案：直接使用已有的 generateTrackingList() 函数
+  // 它会自动：
+  // 1. 遍历所有成员
+  // 2. 调用 calculateConsecutiveAbsences 获取所有缺勤事件（>=2次）
+  // 3. 自动处理多个独立缺勤事件
+  // 4. 合并现有记录和新事件
+  console.log('🔄 调用 generateTrackingList() 生成所有事件...');
+  const trackingList = await window.utils.SundayTrackingManager.generateTrackingList();
+  console.log(`✅ 生成事件完成，共 ${trackingList.length} 个事件`);
   
-  // 只过滤已终止的事件（排除人员事件应该在生成阶段直接跳过，不生成）
-  const filteredEvents = existingEvents.filter(event => {
-    // 过滤已终止的事件
-    if (event.status === 'terminated') {
-      console.log(`🚫 过滤已终止事件: ${event.memberName}(${event.group}) - 不显示`);
-      return false;
-    }
-    
-    return true;
-  });
+  // 根据showAll参数决定是否过滤已终止的事件
+  const filteredList = showAll 
+    ? trackingList 
+    : trackingList.filter(item => item.status !== 'terminated');
   
-  console.log(`📊 过滤后事件数量: ${filteredEvents.length}个 (过滤掉${existingEvents.length - filteredEvents.length}个)`);
+  console.log(`📊 过滤后事件数量: ${filteredList.length}个 (过滤掉${trackingList.length - filteredList.length}个已终止事件)`);
   
-  // 转换为极简事件列表格式（优化版：使用快照信息）
-  const eventList = filteredEvents.map((item, index) => ({
-    eventId: item.recordId || `event_${item.memberUUID}_${index}`,
+  // 转换为极简格式（如果需要保持一致的数据结构）
+  const eventList = filteredList.map(item => ({
+    eventId: item.recordId || `event_${item.memberUUID}_${Date.now()}`,
     memberUUID: item.memberUUID,
     memberName: item.memberName,
     group: item.group,
-    // 优化：使用快照中的显示名称，如果没有则使用group
     groupDisplayName: item.groupDisplayName || item.group,
     eventType: item.eventType || 'extended_absence',
     status: item.status || 'active',
     consecutiveAbsences: item.consecutiveAbsences,
     lastAttendanceDate: item.lastAttendanceDate,
     trackingStartDate: item.trackingStartDate,
-    // 优化：使用快照中的成员信息
     memberSnapshot: item.memberSnapshot || {
       uuid: item.memberUUID,
       name: item.memberName,
       group: item.group
     },
-    lastUpdateTime: new Date().toISOString()
+    lastUpdateTime: item.updatedAt || item.createdAt || new Date().toISOString()
   }));
   
   const endTime = performance.now();
   const processingTime = endTime - startTime;
   console.log(`✅ 极简事件列表生成完成，耗时: ${processingTime.toFixed(2)}ms，事件数量: ${eventList.length}`);
+  
+  // 保存到缓存
+  window._generateUltraLightEventListCache = {
+    eventList: eventList,
+    showAll: showAll
+  };
+  window._generateUltraLightEventListCacheTime = Date.now();
   
   // 性能监控：记录到全局变量供页面显示
   window.pageLoadPerformance = {
@@ -305,7 +369,7 @@ function getRecentAttendanceRecords(memberUUID, weeks) {
 }
 
 // 显示事件列表
-function displayEventList(eventList) {
+window.displayEventList = function displayEventList(eventList) {
   if (!sundayTrackingList) {
     console.error('主日跟踪列表元素未找到');
     return;
@@ -394,7 +458,7 @@ function displayEventList(eventList) {
       <td>${item.memberName}</td>
       <td>${groupDisplayName}</td>
       <td>${item.consecutiveAbsences || 0}次</td>
-      <td>${item.lastAttendanceDate || '无'}</td>
+      <td>${item.lastAttendanceDate ? (window.utils && window.utils.formatDateForDisplay ? window.utils.formatDateForDisplay(item.lastAttendanceDate) : new Date(item.lastAttendanceDate).toLocaleDateString('zh-CN')) : '无'}</td>
       <td class="action-buttons">
         ${actionButtons}
       </td>
@@ -420,7 +484,7 @@ function viewPersonalPage(memberUUID) {
 }
 
 // 兼容旧版本的加载函数
-function loadSundayTrackingLegacy(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
+async function loadSundayTrackingLegacy(preserveFilters = false, skipFullReload = false, forceRefresh = false) {
   if (!window.utils || !window.utils.SundayTrackingManager) {
     console.error('主日跟踪管理器未加载');
     alert('主日跟踪功能暂不可用，请刷新页面重试！');
@@ -439,7 +503,7 @@ function loadSundayTrackingLegacy(preserveFilters = false, skipFullReload = fals
     // 如果跳过完整重新加载，只更新统计信息和列表显示
     if (skipFullReload) {
       console.log('跳过完整重新加载，只更新统计信息和列表显示');
-      const trackingList = trackingManager.generateTrackingList();
+      const trackingList = await trackingManager.generateTrackingList();
       updateTrackingSummary(trackingList);
       
       // 重新显示跟踪列表（不重新加载数据）
@@ -476,7 +540,7 @@ function loadSundayTrackingLegacy(preserveFilters = false, skipFullReload = fals
     console.log('排除人员详情:', excludedMembers);
     
     // 生成跟踪列表
-    const trackingList = trackingManager.generateTrackingList();
+    const trackingList = await trackingManager.generateTrackingList();
     console.log('生成的跟踪列表:', trackingList);
     
     // 更新统计信息
@@ -569,13 +633,14 @@ function updateGroupFilterOptions(trackingList) {
 }
 
 // 筛选跟踪列表（优化版：不依赖groupNames映射）
-function filterTrackingList() {
+window.filterTrackingList = function filterTrackingList() {
   if (!groupFilter) return;
   
   const selectedGroup = groupFilter.value;
   const allRows = sundayTrackingList.querySelectorAll('tr');
   
-  console.log(`🔍 筛选小组: ${selectedGroup}`);
+  let visibleCount = 0;
+  let hiddenCount = 0;
   
   allRows.forEach(row => {
     if (row.querySelector('td')) {
@@ -585,10 +650,16 @@ function filterTrackingList() {
         // 优化：直接比较小组名称，不依赖groupNames映射
         const shouldShow = !selectedGroup || groupName === selectedGroup;
         row.style.display = shouldShow ? '' : 'none';
-        console.log(`  ${groupName}: ${shouldShow ? '显示' : '隐藏'}`);
+        if (shouldShow) {
+          visibleCount++;
+        } else {
+          hiddenCount++;
+        }
       }
     }
   });
+  
+  console.log(`🔍 筛选小组: ${selectedGroup || '全部'}, 显示: ${visibleCount}个, 隐藏: ${hiddenCount}个`);
   
   // 更新统计信息
   updateFilteredCount();
@@ -681,8 +752,8 @@ function generateExportContent(groupedData) {
   return content;
 }
 
-  // 显示跟踪列表
-  function displayTrackingList(trackingList) {
+// 显示跟踪列表（内部函数，供其他函数调用）
+function displayTrackingList(trackingList) {
     if (!sundayTrackingList) {
       console.error('主日跟踪列表元素未找到');
       return;
@@ -698,3 +769,74 @@ function generateExportContent(groupedData) {
     }
     
     // 排序：第一关键词组别，第二关键词连续缺勤次数（降序），第三关键词姓名
+    const sortedList = trackingList.sort((a, b) => {
+      // 第一关键词：组别
+      if (a.group !== b.group) {
+        // 确保"group0"排在第一
+        if (a.group === 'group0') return -1;
+        if (b.group === 'group0') return 1;
+        return a.group.localeCompare(b.group);
+      }
+      
+      // 第二关键词：连续缺勤次数（降序）
+      if (a.consecutiveAbsences !== b.consecutiveAbsences) {
+        return b.consecutiveAbsences - a.consecutiveAbsences;
+      }
+      
+      // 第三关键词：姓名
+      return a.memberName.localeCompare(b.memberName);
+    });
+    
+    sortedList.forEach((item, index) => {
+      const row = document.createElement('tr');
+      
+      // 根据事件类型和状态设置不同的样式
+      let rowClass = '';
+      let statusText = '';
+      let buttonHtml = '';
+      
+      if (item.eventType === 'extended_absence') {
+        rowClass = 'extended-absence-row';
+      } else if (item.eventType === 'severe_absence') {
+        rowClass = 'severe-absence-row';
+      } else {
+        rowClass = 'normal-absence-row';
+      }
+      
+      // 根据事件状态设置样式和按钮
+      if (item.status === 'terminated') {
+        rowClass += ' terminated-event';
+        statusText = ' (已终止)';
+        buttonHtml = `
+          <button class="detail-btn" onclick="viewEventDetail('${item.recordId || item.memberUUID}')" title="查看详情">查看详情</button>
+          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')" title="个人页面">个人页面</button>
+          <button class="forward-btn" onclick="forwardToExternalForm('${item.recordId || item.memberUUID}')" title="转发到外部表单">转发</button>
+          <button class="fetch-btn" onclick="fetchExternalFormData('${item.recordId || item.memberUUID}')" title="抓取外部数据">抓取</button>
+        `;
+      } else {
+        buttonHtml = `
+          <button class="detail-btn" onclick="viewEventDetail('${item.recordId || item.memberUUID}')" title="查看详情">查看详情</button>
+          <button class="personal-btn" onclick="viewPersonalPage('${item.memberUUID}')" title="个人页面">个人页面</button>
+          <button class="forward-btn" onclick="forwardToExternalForm('${item.recordId || item.memberUUID}')" title="转发到外部表单">转发</button>
+          <button class="fetch-btn" onclick="fetchExternalFormData('${item.recordId || item.memberUUID}')" title="抓取外部数据">抓取</button>
+        `;
+      }
+      
+      // 计算缺勤周数范围显示
+      const weekRange = getAbsenceWeekRange(item.trackingStartDate, item.consecutiveAbsences);
+      const absenceDisplay = weekRange ? `(${weekRange})` : '';
+      
+      row.className = rowClass;
+      row.innerHTML = `
+        <td>${item.memberName}${statusText}</td>
+        <td>${groupNames[item.originalGroup || item.group] || (item.originalGroup || item.group)}</td>
+        <td>${item.consecutiveAbsences}次 <span class="event-type">${absenceDisplay}</span></td>
+        <td>${item.lastAttendanceDate ? window.utils.formatDateForDisplay(item.lastAttendanceDate) : '无'}</td>
+        <td class="action-buttons">
+          ${buttonHtml}
+        </td>
+      `;
+      
+      sundayTrackingList.appendChild(row);
+    });
+  }

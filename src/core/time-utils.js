@@ -271,14 +271,59 @@ function identifyAbsenceEvents(sundayDates, memberRecords, memberUUID = null) {
   console.log(`🔄 开始计算缺勤事件，总周日数: ${sundayDates.length}`);
   const startTime = performance.now();
   
-  // 第一步: 构建已签到时间集合
+  // 第一步: 构建已签到时间集合（使用本地日期字符串，避免时区问题）
   const signedDateSet = new Set();
-  memberRecords.forEach(record => {
-    if (window.utils.SundayTrackingManager.isSundayAttendance(record)) {
-      const dateStr = new Date(record.time).toISOString().split('T')[0];
+  console.log(`🔍 开始处理 ${memberRecords.length} 条签到记录`);
+  
+  memberRecords.forEach((record, index) => {
+    // 🔧 增强调试：记录每条签到记录的判断过程
+    const isSunday = window.utils.SundayTrackingManager.isSundayAttendance(record);
+    
+    if (isSunday) {
+      // 🔧 修复：使用getLocalDateString获取本地日期字符串，而不是toISOString
+      let dateStr;
+      if (record.date) {
+        // 如果记录有date字段（YYYY-MM-DD格式），直接使用
+        dateStr = record.date;
+      } else if (record.time) {
+        // 如果只有time字段，使用getLocalDateFromISO转换
+        dateStr = window.utils ? (window.utils.getLocalDateFromISO || getLocalDateFromISO)(record.time) : getLocalDateFromISO(record.time);
+      } else {
+        console.warn(`⚠️ 签到记录缺少date和time字段:`, record);
+        return; // 跳过无效记录
+      }
       signedDateSet.add(dateStr);
+      console.log(`✅ 识别为主日签到: ${dateStr} (${record.name || '未知'})`, {
+        time: record.time,
+        date: record.date,
+        name: record.name
+      });
+    } else if (record.time) {
+      // 调试：记录非主日签到的记录（仅记录前几条，避免日志过多）
+      if (index < 5) {
+        const date = new Date(record.time);
+        const dateStr = window.utils ? (window.utils.getLocalDateString || getLocalDateString)(date) : getLocalDateString(date);
+        console.log(`❌ 非主日签到: ${dateStr} (${record.name || '未知'}) 星期${date.getDay()} ${date.getHours()}:${date.getMinutes()}`);
+      }
     }
   });
+  
+  console.log(`✅ 已构建签到日期集合，共 ${signedDateSet.size} 个日期`);
+  if (signedDateSet.size > 0) {
+    const sortedDates = Array.from(signedDateSet).sort();
+    console.log(`📋 所有主日签到日期:`, sortedDates);
+    console.log(`📋 最近5个签到日期:`, sortedDates.slice(-5));
+  } else {
+    console.warn(`⚠️ 警告：未找到任何主日签到记录！`);
+    if (memberRecords.length > 0) {
+      console.warn(`⚠️ 签到记录示例:`, memberRecords.slice(0, 3).map(r => ({
+        name: r.name,
+        time: r.time,
+        date: r.date,
+        dayOfWeek: r.time ? new Date(r.time).getDay() : 'unknown'
+      })));
+    }
+  }
   
   // 第二步: 构建已终止事件时间集合 (只排除已终止事件)
   const eventCoveredDateSet = new Set();
@@ -293,6 +338,8 @@ function identifyAbsenceEvents(sundayDates, memberRecords, memberUUID = null) {
       }
     });
   }
+  
+  console.log(`✅ 已构建已终止事件覆盖日期集合，共 ${eventCoveredDateSet.size} 个日期`);
   
   // 第三步: 识别连续的缺勤时间段
   const absenceEvents = identifyConsecutiveAbsencePeriods(sundayDates, signedDateSet, eventCoveredDateSet, memberRecords);
@@ -311,7 +358,8 @@ function identifyConsecutiveAbsencePeriods(sundayDates, signedDateSet, eventCove
   
   for (let i = 0; i < sundayDates.length; i++) {
     const sundayDate = sundayDates[i];
-    const dateStr = sundayDate.toISOString().split('T')[0];
+    // 🔧 修复：使用getLocalDateString获取本地日期字符串，而不是toISOString
+    const dateStr = window.utils ? (window.utils.getLocalDateString || getLocalDateString)(sundayDate) : getLocalDateString(sundayDate);
     
     // 检查这个周日是否缺勤（未签到且未被已终止事件覆盖）
     const isAbsent = !signedDateSet.has(dateStr) && !eventCoveredDateSet.has(dateStr);
@@ -412,16 +460,19 @@ function getEventCoveredSundays(event) {
     const minDate = new Date('2025-08-03');
     const actualStartDate = startDate < minDate ? minDate : startDate;
     
-    // 计算已终止事件覆盖的所有周日
+    // 计算已终止事件覆盖的所有周日（使用本地日期字符串，避免时区问题）
     let currentDate = new Date(actualStartDate);
     while (currentDate <= endDate) {
       if (currentDate.getDay() === 0) { // 周日
-        coveredSundays.push(currentDate.toISOString().split('T')[0]);
+        // 🔧 修复：使用getLocalDateString获取本地日期字符串，而不是toISOString
+        const dateStr = window.utils ? (window.utils.getLocalDateString || getLocalDateString)(currentDate) : getLocalDateString(currentDate);
+        coveredSundays.push(dateStr);
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    console.log(`已终止事件 ${event.recordId} 覆盖周日: ${coveredSundays.length}个 (结束时间: ${endDate.toISOString().split('T')[0]})`);
+    const endDateStr = window.utils ? (window.utils.getLocalDateString || getLocalDateString)(endDate) : getLocalDateString(endDate);
+    console.log(`已终止事件 ${event.recordId} 覆盖周日: ${coveredSundays.length}个 (结束时间: ${endDateStr})`);
   } else {
     // 未结束事件不排除任何时间，让签到记录和事件分割逻辑来处理
     console.log(`活跃事件 ${event.recordId} 不排除时间，让事件分割逻辑处理`);

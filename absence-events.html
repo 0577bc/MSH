@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>事件管理</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .controls {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    button, .toggle-button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: white;
+    }
+    button:hover, .toggle-button:hover {
+      background: #0056b3;
+    }
+    button:disabled, .toggle-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+    th {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    tr:hover {
+      background: #f0f0f0;
+    }
+    .count-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      min-width: 30px;
+      text-align: center;
+    }
+    .count-2 {
+      background: #ffc107;
+      color: #000;
+    }
+    .count-3 {
+      background: #ff9800;
+      color: #fff;
+    }
+    .count-high {
+      background: #f44336;
+      color: #fff;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+    .status-active {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .filter {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    select {
+      padding: 8px 12px;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      min-width: 150px;
+    }
+    .toggle-button {
+      background: #6c757d;
+    }
+    .toggle-button.active {
+      background: #17a2b8;
+    }
+    .status-closed {
+      color: #6c757d;
+      font-weight: bold;
+    }
+    .action-cell button {
+      background: #dc3545;
+    }
+    .action-cell button:hover {
+      background: #b52a37;
+    }
+  </style>
+</head>
+<body>
+  <h1>事件管理</h1>
+  
+  <div class="controls">
+    <button onclick="window.location.href='summary.html'">返回汇总</button>
+    <button onclick="window.location.href='absence-tracking.html'">📊 缺勤记录</button>
+    <button onclick="loadEvents()">刷新</button>
+    <button id="toggleClosedBtn" class="toggle-button" onclick="toggleClosedEvents()">显示已关闭事件</button>
+    
+    <div class="filter">
+      <label for="groupFilter">筛选小组:</label>
+      <select id="groupFilter" onchange="filterEvents()" aria-label="选择小组筛选">
+        <option value="">全部小组</option>
+      </select>
+    </div>
+    
+    <span style="margin-left: auto;">
+      共 <strong id="eventCount">0</strong> 个事件
+    </span>
+  </div>
+  
+  <table id="eventTable">
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>组别</th>
+        <th>缺勤次数</th>
+        <th>缺勤周</th>
+        <th>状态</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="eventList">
+      <tr>
+        <td colspan="6" class="empty-state">加载中...</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <script src="./src/smart-config-loader.js"></script>
+  <script>
+    let db;
+    let allEvents = [];
+    let closedEvents = [];
+    let groupNames = {};
+    let showClosed = false;
+    
+    // 初始化Firebase
+    async function initFirebase() {
+      let attempts = 0;
+      while (!window.firebaseConfig && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!window.firebaseConfig) {
+        throw new Error('Firebase配置加载超时');
+      }
+      
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.firebaseConfig);
+      }
+      db = firebase.database();
+      console.log('Firebase初始化成功');
+    }
+    
+    // 加载小组名称
+    async function loadGroupNames() {
+      const snapshot = await db.ref('groupNames').once('value');
+      groupNames = snapshot.val() || {};
+      
+      // 填充筛选下拉框
+      const select = document.getElementById('groupFilter');
+      Object.entries(groupNames).forEach(([key, name]) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+    }
+    
+    // 加载事件列表
+    async function loadEvents() {
+      try {
+        const snapshot = await db.ref('absenceEvents').once('value');
+        const events = snapshot.val() || {};
+        
+        const mappedEvents = Object.entries(events)
+          .map(([id, event]) => ({ id, ...event }))
+          .sort((a, b) => {
+            if (a.group !== b.group) return (a.group || '').localeCompare(b.group || '');
+            return (b.count || 0) - (a.count || 0);
+          });
+        
+        allEvents = mappedEvents.filter(event => event.status === 'active');
+        closedEvents = mappedEvents.filter(event => event.status !== 'active');
+        
+        const eventsToDisplay = showClosed ? closedEvents : allEvents;
+        displayEvents(eventsToDisplay);
+        document.getElementById('eventCount').textContent = eventsToDisplay.length;
+        
+      } catch (error) {
+        console.error('加载事件失败:', error);
+        alert('加载事件失败: ' + error.message);
+      }
+    }
+    
+    function formatWeekLabel(dateStr) {
+      if (!dateStr) return '未知';
+      const date = new Date(dateStr);
+      if (Number.isNaN(date.getTime())) return dateStr;
+      const month = date.getMonth() + 1;
+      const week = Math.ceil(date.getDate() / 7);
+      return `${month}月${week}周`;
+    }
+
+    function formatWeekRange(event) {
+      if (event.weeks && Array.isArray(event.weeks) && event.weeks.length > 0) {
+        const sortedWeeks = [...new Set(event.weeks)].sort();
+        const startLabel = formatWeekLabel(sortedWeeks[0]);
+        const endLabel = formatWeekLabel(sortedWeeks[sortedWeeks.length - 1]);
+        return startLabel === endLabel ? startLabel : `${startLabel}-${endLabel}`;
+      }
+      // 回退到startDate/endDate
+      const startLabel = formatWeekLabel(event.startDate);
+      const endLabel = formatWeekLabel(event.endDate);
+      if (!endLabel || endLabel === '未知') {
+        return startLabel;
+      }
+      return startLabel === endLabel ? startLabel : `${startLabel}-${endLabel}`;
+    }
+
+    // 显示事件列表
+    function displayEvents(events) {
+      const tbody = document.getElementById('eventList');
+      
+      if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无跟踪事件</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = events.map(event => {
+        const groupName = groupNames[event.group] || event.group;
+        const countClass = event.count === 2 ? 'count-2' : (event.count === 3 ? 'count-3' : 'count-high');
+        const weekRange = formatWeekRange(event);
+        
+        const isActive = event.status === 'active';
+        const statusClass = isActive ? 'status-active' : 'status-closed';
+        const statusLabel = isActive ? '活跃' : '已关闭';
+        const actionCell = isActive ? `<button onclick="closeEvent('${event.id}')">关闭</button>` : '--';
+        
+        return `
+          <tr data-group="${event.group}">
+            <td>${event.memberName}</td>
+            <td>${groupName}</td>
+            <td><span class="count-badge ${countClass}">${event.count}次</span></td>
+            <td>${weekRange}</td>
+            <td><span class="${statusClass}">${statusLabel}</span></td>
+            <td class="action-cell">${actionCell}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // 筛选事件
+    function filterEvents() {
+      const selectedGroup = document.getElementById('groupFilter').value;
+      const source = showClosed ? closedEvents : allEvents;
+      
+      if (!selectedGroup) {
+        displayEvents(source);
+        document.getElementById('eventCount').textContent = source.length;
+        return;
+      }
+      
+      const filtered = source.filter(event => event.group === selectedGroup);
+      displayEvents(filtered);
+      document.getElementById('eventCount').textContent = filtered.length;
+    }
+    
+    async function closeEvent(eventId) {
+      const targetEvent = allEvents.find(event => event.id === eventId);
+      if (!targetEvent) {
+        alert('未找到事件记录，无法关闭');
+        return;
+      }
+      
+      const confirmClose = confirm(`确认关闭 ${targetEvent.memberName} 的缺勤事件吗？`);
+      if (!confirmClose) {
+        return;
+      }
+      
+      try {
+        const today = new Date();
+        const resolvedDate = today.toISOString().split('T')[0];
+        await db.ref(`absenceEvents/${eventId}`).update({
+          status: 'resolved',
+          resolvedDate,
+          updatedAt: new Date().toISOString()
+        });
+        alert('事件已关闭');
+        await loadEvents();
+      } catch (error) {
+        console.error('关闭事件失败:', error);
+        alert('关闭事件失败: ' + error.message);
+      }
+    }
+    
+    function toggleClosedEvents() {
+      showClosed = !showClosed;
+      const toggleBtn = document.getElementById('toggleClosedBtn');
+      if (showClosed) {
+        toggleBtn.textContent = '隐藏已关闭事件';
+        toggleBtn.classList.add('active');
+        displayEvents(closedEvents);
+        document.getElementById('eventCount').textContent = closedEvents.length;
+      } else {
+        toggleBtn.textContent = '显示已关闭事件';
+        toggleBtn.classList.remove('active');
+        displayEvents(allEvents);
+        document.getElementById('eventCount').textContent = allEvents.length;
+      }
+      document.getElementById('groupFilter').value = '';
+    }
+    
+    // 页面加载
+    window.addEventListener('load', async () => {
+      await initFirebase();
+      await loadGroupNames();
+      await loadEvents();
+    });
+  </script>
+</body>
+</html>
+

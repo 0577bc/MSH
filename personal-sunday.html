@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人主日签到信息</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .controls {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    .query-row {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    label {
+      font-weight: 500;
+      color: #333;
+    }
+    select, input {
+      padding: 8px 12px;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      min-width: 150px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: white;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .query-btn {
+      background: #28a745;
+      padding: 10px 30px;
+    }
+    .query-btn:hover {
+      background: #218838;
+    }
+    .calendar {
+      margin-top: 20px;
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .calendar-header {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      margin-bottom: 10px;
+    }
+    .calendar-day-name {
+      text-align: center;
+      padding: 10px;
+      font-weight: bold;
+      color: #666;
+      background: #f5f5f5;
+    }
+    .calendar-body {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: #e0e0e0;
+      border: 1px solid #e0e0e0;
+    }
+    .calendar-cell {
+      background: white;
+      padding: 15px;
+      min-height: 80px;
+      position: relative;
+    }
+    .calendar-cell.other-month {
+      background: #fafafa;
+      color: #ccc;
+    }
+    .calendar-cell.sunday {
+      background: #fff3e0;
+    }
+    .calendar-cell.signed {
+      background: #c8e6c9;
+    }
+    .calendar-cell.absent {
+      background: #ffcdd2;
+    }
+    .date-number {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+    }
+    .badge-signed {
+      background: #4caf50;
+    }
+    .badge-absent {
+      background: #f44336;
+    }
+    .sign-time {
+      font-size: 11px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .info-panel {
+      margin: 20px 0;
+      padding: 15px;
+      background: #e3f2fd;
+      border-radius: 8px;
+      border-left: 4px solid #2196f3;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>个人主日签到信息</h1>
+  
+  <div class="controls">
+    <button onclick="window.location.href='summary.html'">返回汇总</button>
+    
+    <div class="query-row">
+      <label for="memberInput">选择成员:</label>
+      <input type="text" id="memberInput" list="memberList" placeholder="输入姓名搜索..." aria-label="选择成员" style="min-width: 250px;">
+      <datalist id="memberList"></datalist>
+      
+      <label for="monthSelect">选择月份:</label>
+      <input type="month" id="monthSelect" aria-label="选择月份">
+      
+      <button class="query-btn" onclick="queryData()">查询</button>
+    </div>
+  </div>
+  
+  <div id="infoPanel" class="info-panel" style="display:none;">
+    <div id="infoContent"></div>
+  </div>
+  
+  <div id="calendarContainer"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <script src="./src/smart-config-loader.js"></script>
+  <script>
+    let db;
+    let groupNames = {};
+    let allMembers = [];
+    
+    // 初始化Firebase
+    async function initFirebase() {
+      let attempts = 0;
+      while (!window.firebaseConfig && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!window.firebaseConfig) {
+        throw new Error('Firebase配置加载超时');
+      }
+      
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.firebaseConfig);
+      }
+      db = firebase.database();
+      console.log('Firebase初始化成功');
+    }
+    
+    // 加载小组和成员
+    async function loadMembers() {
+      const groupsSnapshot = await db.ref('groups').once('value');
+      const groups = groupsSnapshot.val() || {};
+      
+      const groupNamesSnapshot = await db.ref('groupNames').once('value');
+      groupNames = groupNamesSnapshot.val() || {};
+      
+      allMembers = [];
+      Object.entries(groups).forEach(([groupKey, groupMembers]) => {
+        groupMembers.forEach(member => {
+          if (!member.excluded) {
+            allMembers.push({
+              uuid: member.uuid || member.name,
+              name: member.name,
+              group: groupKey,
+              groupName: groupNames[groupKey] || groupKey
+            });
+          }
+        });
+      });
+      
+      // 按姓名排序
+      allMembers.sort((a, b) => a.name.localeCompare(b.name));
+      
+      // 填充datalist（可搜索下拉框）
+      const datalist = document.getElementById('memberList');
+      allMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = `${member.name} (${member.groupName})`;
+        option.setAttribute('data-uuid', member.uuid);
+        datalist.appendChild(option);
+      });
+    }
+    
+    // 查询数据
+    async function queryData() {
+      const memberInput = document.getElementById('memberInput').value.trim();
+      const monthStr = document.getElementById('monthSelect').value;
+      
+      if (!memberInput) {
+        alert('请选择成员！');
+        return;
+      }
+      
+      if (!monthStr) {
+        alert('请选择月份！');
+        return;
+      }
+      
+      try {
+        // 从输入中提取成员名称
+        const nameMatch = memberInput.match(/^(.+?)\s*\(/);
+        const memberName = nameMatch ? nameMatch[1] : memberInput;
+        
+        // 查找成员
+        const member = allMembers.find(m => m.name === memberName || memberInput.includes(m.name));
+        if (!member) {
+          alert('未找到该成员！请从下拉列表中选择。');
+          return;
+        }
+        
+        const memberUUID = member.uuid;
+        
+        console.log('查询:', member.name, monthStr);
+        
+        // 解析月份
+        const [year, month] = monthStr.split('-').map(Number);
+        
+        // 获取该月所有主日
+        const sundays = getSundaysInMonth(year, month);
+        console.log('该月主日:', sundays);
+        
+        // 获取签到记录
+        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+        
+        const attendanceSnapshot = await db.ref('attendanceRecords')
+          .orderByChild('memberUUID')
+          .equalTo(memberUUID)
+          .once('value');
+        
+        const allRecords = [];
+        if (attendanceSnapshot.exists()) {
+          attendanceSnapshot.forEach(child => {
+            allRecords.push(child.val());
+          });
+        }
+        
+        // 筛选该月的记录
+        const monthRecords = allRecords.filter(r => {
+          const recordDate = r.date;
+          return recordDate >= startDate && recordDate <= endDate;
+        });
+        
+        console.log('该月签到记录:', monthRecords.length);
+        
+        // 显示信息面板
+        displayInfo(member, year, month, sundays, monthRecords);
+        
+        // 显示日历
+        displayCalendar(year, month, sundays, monthRecords);
+        
+      } catch (error) {
+        console.error('查询失败:', error);
+        alert('查询失败: ' + error.message);
+      }
+    }
+    
+    // 获取某月的所有主日
+    function getSundaysInMonth(year, month) {
+      const sundays = [];
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      
+      for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0) {
+          sundays.push(d.toISOString().split('T')[0]);
+        }
+      }
+      
+      return sundays;
+    }
+    
+    // 显示信息面板
+    function displayInfo(member, year, month, sundays, records) {
+      const sundayRecords = records.filter(r => {
+        const date = new Date(r.date);
+        return date.getDay() === 0;
+      });
+      
+      const signedSundays = sundayRecords.length;
+      const totalSundays = sundays.length;
+      const rate = totalSundays > 0 ? Math.round(signedSundays / totalSundays * 100) : 0;
+      
+      const html = `
+        <p><strong>成员：</strong>${member.name} (${member.groupName})</p>
+        <p><strong>月份：</strong>${year}年${month}月</p>
+        <p><strong>主日总数：</strong>${totalSundays} 个</p>
+        <p><strong>签到主日：</strong>${signedSundays} 个</p>
+        <p><strong>缺勤主日：</strong>${totalSundays - signedSundays} 个</p>
+        <p><strong>签到率：</strong>${rate}%</p>
+      `;
+      
+      document.getElementById('infoContent').innerHTML = html;
+      document.getElementById('infoPanel').style.display = 'block';
+    }
+    
+    // 显示日历
+    function displayCalendar(year, month, sundays, records) {
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      const daysInMonth = lastDay.getDate();
+      const firstDayOfWeek = firstDay.getDay();
+      
+      // 创建签到日期集合
+      const signedDates = new Set(records.map(r => r.date));
+      const sundaySet = new Set(sundays);
+      
+      // 创建签到记录映射
+      const recordMap = {};
+      records.forEach(r => {
+        recordMap[r.date] = r;
+      });
+      
+      let html = `
+        <div class="calendar">
+          <h2 style="text-align: center; margin-bottom: 20px;">${year}年${month}月</h2>
+          <div class="calendar-header">
+            <div class="calendar-day-name">日</div>
+            <div class="calendar-day-name">一</div>
+            <div class="calendar-day-name">二</div>
+            <div class="calendar-day-name">三</div>
+            <div class="calendar-day-name">四</div>
+            <div class="calendar-day-name">五</div>
+            <div class="calendar-day-name">六</div>
+          </div>
+          <div class="calendar-body">
+      `;
+      
+      // 填充上月日期
+      const prevMonthDays = new Date(year, month - 1, 0).getDate();
+      for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+        const day = prevMonthDays - i;
+        html += `<div class="calendar-cell other-month"><div class="date-number">${day}</div></div>`;
+      }
+      
+      // 填充本月日期
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const date = new Date(year, month - 1, day);
+        const isSunday = date.getDay() === 0;
+        const isSigned = signedDates.has(dateStr);
+        
+        let cellClass = 'calendar-cell';
+        let content = `<div class="date-number">${day}</div>`;
+        
+        if (isSunday) {
+          if (isSigned) {
+            cellClass += ' signed';
+            const record = recordMap[dateStr];
+            const time = record.time ? new Date(record.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+            content += `
+              <div class="status-badge badge-signed">已签到</div>
+              ${time ? `<div class="sign-time">${time}</div>` : ''}
+            `;
+          } else {
+            cellClass += ' absent';
+            content += '<div class="status-badge badge-absent">缺勤</div>';
+          }
+        } else if (isSunday) {
+          cellClass += ' sunday';
+        }
+        
+        html += `<div class="${cellClass}">${content}</div>`;
+      }
+      
+      // 填充下月日期
+      const remainingCells = 42 - (firstDayOfWeek + daysInMonth);
+      for (let day = 1; day <= remainingCells; day++) {
+        html += `<div class="calendar-cell other-month"><div class="date-number">${day}</div></div>`;
+      }
+      
+      html += `
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('calendarContainer').innerHTML = html;
+    }
+    
+    // 页面加载
+    window.addEventListener('load', async () => {
+      await initFirebase();
+      await loadMembers();
+      
+      // 设置默认月份为当前月
+      const today = new Date();
+      const monthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('monthSelect').value = monthStr;
+      
+      // 显示提示
+      document.getElementById('calendarContainer').innerHTML = '<div class="empty-state">请选择成员和月份，然后点击"查询"按钮</div>';
+    });
+  </script>
+</body>
+</html>
+

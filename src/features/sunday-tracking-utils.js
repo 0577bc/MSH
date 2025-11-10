@@ -17,18 +17,19 @@ const SundayTrackingManager = {
     lastFirebaseSync: null // 记录最后Firebase同步时间
   },
   
+  // 互斥锁：防止并发调用
+  _generating: false,
+  _generatingPromise: null,
+  
   // 生成数据哈希值，用于检测数据变化
+  // 注意：只检查会影响计算结果的数据（排除人员、成员），不检查签到记录和跟踪记录
+  // 因为签到记录的变化只会影响增量计算，跟踪记录的变化是计算结果的一部分
   _generateDataHash: function() {
     const groupsStr = JSON.stringify(window.groups || {});
-    const attendanceStr = JSON.stringify(window.attendanceRecords || []);
     const excludedStr = JSON.stringify(window.excludedMembers || {});
     
-    // 包含跟踪记录，确保状态变化时缓存失效
-    const trackingRecords = this.getTrackingRecords();
-    const trackingStr = JSON.stringify(trackingRecords || []);
-    
     // 使用encodeURIComponent处理中文字符，然后使用btoa
-    const combinedStr = groupsStr + attendanceStr + excludedStr + trackingStr;
+    const combinedStr = groupsStr + excludedStr;
     const encodedStr = encodeURIComponent(combinedStr);
     return btoa(encodedStr).slice(0, 16);
   },
@@ -55,7 +56,7 @@ const SundayTrackingManager = {
       return false;
     }
     
-    // 检查Firebase同步状态
+    // 检查Firebase同步状态（可选，如果Firebase未初始化则跳过）
     if (this._cache.lastFirebaseSync && window.db) {
       // 如果Firebase同步时间早于缓存时间，可能需要更新
       if (this._cache.lastFirebaseSync < this._cache.lastUpdateTime) {
@@ -64,13 +65,9 @@ const SundayTrackingManager = {
       }
     }
     
-    // 检查是否有终止状态的记录，如果有则强制重新生成
-    const trackingRecords = this.getTrackingRecords();
-    const hasTerminatedRecords = trackingRecords.some(record => record.status === 'terminated');
-    if (hasTerminatedRecords) {
-      console.log('📋 检测到终止记录，强制重新生成跟踪列表');
-      return false;
-    }
+    // 优化：移除终止记录检查，因为终止记录不会影响活跃事件列表的生成
+    // 如果需要显示终止记录，应该通过其他方式处理，而不是在这里强制重新生成
+    // 这样可以避免每次缓存检查都读取localStorage
     
     console.log('✅ 缓存有效，使用缓存数据');
     return true;
@@ -137,18 +134,30 @@ const SundayTrackingManager = {
         return false;
       }
       
-      const dayOfWeek = date.getDay(); // 0=周日, 1=周一, ...
-      const hour = date.getHours();
-      const minute = date.getMinutes();
+      // 🔧 修复：使用本地时间的日期信息，确保时区转换正确
+      const dayOfWeek = date.getDay(); // 0=周日, 1=周一, ... (本地时间的星期几)
+      const hour = date.getHours(); // 本地时间的小时
+      const minute = date.getMinutes(); // 本地时间的分钟
       
-      // 判断是否为周日
-      if (dayOfWeek !== 0) return false;
+      // 判断是否为周日（本地时间）
+      if (dayOfWeek !== 0) {
+        // 调试：记录非周日的记录
+        const dateStr = window.utils ? (window.utils.getLocalDateString || ((d) => {
+          const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+          return localDate.toISOString().split('T')[0];
+        }))(date) : date.toISOString().split('T')[0];
+        console.log(`📅 非周日签到记录: ${dateStr} (星期${dayOfWeek})`, record);
+        return false;
+      }
       
-      // 判断时间范围：9:00之前到10:40
-      if (hour < 9) return true; // 9点之前可以签到
+      // 判断时间范围：主日签到时间范围（0:00-10:40，或下午签到11:00后）
+      // 注意：主日签到可能在主日上午（0:00-10:40）或下午（11:00后）
+      if (hour < 9) return true; // 9点之前可以签到（早到）
       if (hour === 9) return true; // 9点整可以签到
       if (hour === 10 && minute <= 40) return true; // 10:40之前可以签到
+      if (hour >= 11) return true; // 11点后可以签到（下午签到也算主日签到）
       
+      // 10:40-11:00之间禁止签到，不算主日签到
       return false;
     } catch (error) {
       console.log(`⚠️ 解析记录time字段出错，判定为未签到:`, record, error);
@@ -197,6 +206,59 @@ const SundayTrackingManager = {
     return next;
   },
   
+  // 获取上一个主日日期
+  getPreviousSunday: function(currentDate) {
+    const prev = new Date(currentDate);
+    const daysFromSunday = prev.getDay();
+    // 如果当前是周日，返回上一周；否则返回本周的周日
+    prev.setDate(prev.getDate() - (daysFromSunday === 0 ? 7 : daysFromSunday));
+    return prev;
+  },
+  
+  // 获取日期字符串（YYYY-MM-DD格式）
+  getDateString: function(date) {
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
+  },
+  
+  // 获取最新的主日日期（不包括今天）
+  getLatestSundayDate: function() {
+    const today = new Date();
+    const latestSunday = this.getPreviousSunday(today);
+    // 如果今天是周日，返回上一周
+    if (today.getDay() === 0) {
+      latestSunday.setDate(latestSunday.getDate() - 7);
+    }
+    return this.getDateString(latestSunday);
+  },
+  
+  // 获取两个日期之间的所有主日日期
+  getSundayDatesBetween: function(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const sundayDates = [];
+    
+    // 确保从周日开始
+    let current = new Date(start);
+    while (current.getDay() !== 0) {
+      current.setDate(current.getDate() + 1);
+    }
+    
+    // 收集所有周日（不包括今天）
+    const today = new Date();
+    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    while (current <= end) {
+      const currentDateOnly = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+      if (currentDateOnly < todayDateOnly) {
+        sundayDates.push(this.getDateString(current));
+      }
+      current.setDate(current.getDate() + 7);
+    }
+    
+    return sundayDates;
+  },
+  
   // 判断两个日期是否为同一天
   isSameDate: function(date1, date2) {
     const d1 = new Date(date1);
@@ -206,8 +268,8 @@ const SundayTrackingManager = {
            d1.getDate() === d2.getDate();
   },
   
-  // 计算连续缺勤情况（新版本 - 支持多事件管理和实时更新）
-  calculateConsecutiveAbsences: function(memberUUID) {
+  // 计算连续缺勤情况（优化版 - 优先使用周级计算结果）
+  calculateConsecutiveAbsences: async function(memberUUID) {
     // 检查成员计算缓存
     const cacheKey = memberUUID;
     if (this._cache.memberCalculations.has(cacheKey)) {
@@ -223,6 +285,61 @@ const SundayTrackingManager = {
     
     console.log(`计算连续缺勤 - UUID: ${memberUUID}`);
     const startTime = performance.now();
+    
+    // 🆕 优先从周级计算结果获取（最快）
+    try {
+      const latestSundayDate = this.getLatestSundayDate();
+      const weeklyCalculations = await this.loadWeeklyCalculations(latestSundayDate);
+      
+      if (weeklyCalculations && weeklyCalculations[memberUUID]) {
+        const calculation = weeklyCalculations[memberUUID];
+        console.log(`✅ 从周级计算结果获取缺勤数据 - UUID: ${memberUUID}`);
+        
+        // 查找缺勤开始日期
+        const startDate = await this.findAbsenceStartDateFromWeekly(memberUUID, latestSundayDate);
+        
+        // 构建返回结果（兼容现有格式）
+        const result = {
+          consecutiveAbsences: calculation.consecutiveAbsences || 0,
+          lastAttendanceDate: calculation.status === 'present' ? latestSundayDate : null,
+          checkStartDate: new Date('2025-08-03'),
+          trackingStartDate: calculation.status === 'absent' && calculation.consecutiveAbsences >= 2 ? startDate : null,
+          absenceEvents: calculation.status === 'absent' && calculation.consecutiveAbsences >= 2 ? [{
+            startDate: startDate,
+            consecutiveAbsences: calculation.consecutiveAbsences,
+            endDate: null
+          }] : []
+        };
+        
+        // 保存到缓存
+        this._cache.memberCalculations.set(cacheKey, {
+          data: result,
+          timestamp: Date.now()
+        });
+        
+        const endTime = performance.now();
+        console.log(`从周级计算结果获取耗时: ${(endTime - startTime).toFixed(2)}ms`);
+        return result;
+      }
+    } catch (error) {
+      console.warn('从周级计算结果获取失败，回退到 daily-reports 计算:', error);
+    }
+    
+    // 🆕 回退到 daily-reports 计算
+    try {
+      const dailyReportResult = await this.calculateAbsenceFromDailyReports(memberUUID);
+      if (dailyReportResult) {
+        console.log(`✅ 从 daily-reports 获取缺勤数据 - UUID: ${memberUUID}`);
+        const endTime = performance.now();
+        console.log(`从 daily-reports 计算耗时: ${(endTime - startTime).toFixed(2)}ms`);
+        return dailyReportResult;
+      }
+    } catch (error) {
+      console.warn('从 daily-reports 计算失败，回退到实时计算:', error);
+    }
+    
+    // 最后回退到实时计算（从 attendanceRecords 计算）
+    console.log(`🔄 使用实时计算获取缺勤数据 - UUID: ${memberUUID}`);
     
     // 获取该人员的所有跟踪记录，确定上次解决后的检查起点
     const memberTrackingRecords = this.getMemberTrackingRecords(memberUUID);
@@ -444,13 +561,13 @@ const SundayTrackingManager = {
   saveModifiedData: function() {
     try {
       // 保存成员数据（包含新生成的UUID）
+      // 注意：UUID迁移时，如果groups没有变化，不需要同步到Firebase
+      // 这里只更新localStorage，不进行Firebase同步，避免覆盖
       if (window.groups) {
         localStorage.setItem('msh_groups', JSON.stringify(window.groups));
-        if (window.db) {
-          window.db.ref('groups').set(window.groups).catch(error => {
-            console.error('同步成员数据到Firebase失败:', error);
-          });
-        }
+        // UUID迁移不触发Firebase同步，避免覆盖数据
+        // 如果需要同步，应该使用专门的同步机制
+        console.log('✅ UUID迁移完成，数据已保存到localStorage');
       }
       
       // 保存签到记录数据（包含新添加的memberUUID）
@@ -616,9 +733,17 @@ const SundayTrackingManager = {
       console.log(`💾 保存到localStorage，记录数量: ${records.length}`);
       localStorage.setItem('msh_sunday_tracking', JSON.stringify(records));
       
-      // 同步到Firebase
+      // 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (window.db) {
-        window.db.ref('sundayTracking').set(records).catch(error => {
+        // 将数组转换为对象格式，使用recordId作为key
+        const recordsObj = {};
+        records.forEach(record => {
+          if (record.recordId) {
+            recordsObj[record.recordId] = record;
+          }
+        });
+        
+        window.db.ref('trackingRecords').update(recordsObj).catch(error => {
           console.error('同步跟踪记录到Firebase失败:', error);
         });
         console.log(`☁️ 已同步到Firebase`);
@@ -632,169 +757,95 @@ const SundayTrackingManager = {
     }
   },
   
-  // 生成跟踪列表
-  generateTrackingList: function() {
+  // 生成跟踪列表（使用周级增量计算）
+  generateTrackingList: async function() {
     // 检查缓存是否有效
     if (this._isCacheValid()) {
       console.log('📦 使用缓存的跟踪列表，跳过重新计算');
       return this._cache.trackingList;
     }
     
-    console.log('🔄 开始生成新的跟踪列表...');
+    // 防止并发调用：如果正在生成，等待正在进行的生成完成
+    if (this._generating && this._generatingPromise) {
+      console.log('⏳ 检测到正在生成中，等待完成...');
+      return await this._generatingPromise;
+    }
+    
+    // 设置互斥锁
+    this._generating = true;
+    this._generatingPromise = (async () => {
+      try {
+        console.log('🔄 开始生成新的跟踪列表（使用周级增量计算）...');
     const startTime = performance.now();
-    const trackingList = [];
     
     // 首先执行数据迁移，确保所有数据都有UUID
     this.migrateDataWithUUID();
     
-    // 获取所有现有的事件记录
-    const existingEvents = this.getTrackingRecords();
-    console.log(`现有事件记录: ${existingEvents.length} 个`);
-    
-    // 获取所有人员（排除未签到不统计的人员）
-    const allMembers = this.getAllMembers();
-    
-    console.log(`🔍 排除人员检查: 总人员${allMembers.length}个`);
-    
-    allMembers.forEach(member => {
-      // 检查是否在排除列表中（新版本：直接检查成员标记）
-      if (this.isMemberExcluded(member)) {
-        console.log(`🚫 排除成员: ${member.name}(${member.group}) - 不生成跟踪事件`);
-        return;
+        // 使用周级增量计算生成事件列表
+        const trackingList = await this.generateTrackingListFromWeeklyCalculations();
+        
+        // 保存修改后的数据（包含新生成的UUID和memberUUID）
+        this.saveModifiedData();
+        
+        // 保存到缓存
+        this._cache.trackingList = trackingList;
+        this._cache.lastUpdateTime = Date.now();
+        this._cache.dataHash = this._generateDataHash();
+        
+        const endTime = performance.now();
+        const processingTime = endTime - startTime;
+        console.log(`✅ 跟踪列表生成完成（周级增量计算），耗时: ${processingTime.toFixed(2)}ms，事件数量: ${trackingList.length}`);
+        
+        // 后台异步初始化历史数据（如果还没有初始化）
+        this.initializeHistoricalDataAsyncIfNeeded();
+        
+        return trackingList;
+      } finally {
+        // 释放互斥锁
+        this._generating = false;
+        this._generatingPromise = null;
       }
-      
-      // 获取该成员的所有跟踪记录（用于后续更新）
-      const memberTrackingRecords = this.getMemberTrackingRecords(member.uuid);
-      
-      // 注释：移除"已有进行中跟踪记录"的检查，允许系统重新计算缺勤情况
-      // 这样符合"手动终止事件"的设计原则，用户可以手动终止事件
-      // 系统会重新计算并更新跟踪记录
-      
-      // 计算连续缺勤情况
-      const { consecutiveAbsences, lastAttendanceDate, checkStartDate, trackingStartDate, absenceEvents } = 
-        this.calculateConsecutiveAbsences(member.uuid);
-      
-      // 调试信息
-      console.log(`成员 ${member.name} (${member.uuid}): 识别到 ${absenceEvents.length} 个缺勤事件`);
-      
-      // 为每个缺勤事件创建跟踪记录
-      absenceEvents.forEach((event, eventIndex) => {
-        const eventConsecutiveAbsences = event.consecutiveAbsences;
-        console.log(`成员 ${member.name} 事件${eventIndex + 1}: 连续缺勤 ${eventConsecutiveAbsences} 次`);
-        
-        // 生成事件唯一编码：{memberUUID}_{startDate}_{eventIndex}
-        let startDate = event.startDate;
-        if (startDate instanceof Date) {
-          startDate = startDate.toISOString().split('T')[0];
-        } else if (!startDate || startDate === 'undefined') {
-          startDate = '2025-08-03'; // 默认值
-        }
-        const eventUniqueId = `${member.uuid}_${startDate}_${eventIndex + 1}`;
-        
-        // 检查是否已有该事件的跟踪记录
-        const existingEventRecord = this.getTrackingRecord(eventUniqueId);
-        
-        // 调试：显示查找过程
-        if (eventIndex === 0) { // 只对第一个事件显示详细调试
-          console.log(`🔍 查找事件记录: ${eventUniqueId}`);
-          const allRecords = this.getTrackingRecords();
-          console.log(`📋 所有记录数量: ${allRecords.length}`);
-          const matchingRecords = allRecords.filter(r => r.recordId === eventUniqueId);
-          console.log(`🔍 匹配的记录数量: ${matchingRecords.length}`);
-          if (matchingRecords.length > 0) {
-            console.log(`🔍 匹配的记录状态: ${matchingRecords[0].status}`);
-          }
-        }
-        
-        // 如果已有记录，检查状态
-        if (existingEventRecord) {
-          console.log(`成员 ${member.name} 事件${eventIndex + 1}: 使用现有记录，状态: ${existingEventRecord.status}`);
-          // 修复：保留所有现有记录（包括已终止事件），不重新生成
-          trackingList.push(existingEventRecord);
-          console.log(`成员 ${member.name} 事件${eventIndex + 1}: 保留现有记录，状态: ${existingEventRecord.status}`);
+    })();
+    
+    return await this._generatingPromise;
+  },
+  
+  // 后台异步初始化历史数据（如果需要）
+  initializeHistoricalDataAsyncIfNeeded: function() {
+    // 检查是否正在初始化
+    if (this._historicalDataInitializing) {
+      console.log('⏳ 历史数据正在初始化中，跳过');
           return;
         }
         
-        // 检查是否应该生成新事件（基于时间节点判断）
-        const currentDate = new Date();
-        if (!shouldGenerateEvent(event, currentDate, member.uuid, eventIndex)) {
-          console.log(`成员 ${member.name} 事件${eventIndex + 1}: 不满足生成条件，跳过`);
+    // 检查是否已经初始化过
+    const lastInitTime = localStorage.getItem('msh_weekly_calc_last_init');
+    const now = Date.now();
+    if (lastInitTime && (now - parseInt(lastInitTime)) < 24 * 60 * 60 * 1000) {
+      // 24小时内已经初始化过，跳过
+      console.log('⏭️ 历史数据已在24小时内初始化过，跳过');
           return;
         }
         
-        // 确定事件类型和描述
-        let eventType = 'tracking';
-        let eventDescription = `连续缺勤 ${eventConsecutiveAbsences} 次`;
-        
-        if (eventConsecutiveAbsences >= 4) {
-          eventType = 'extended_absence';
-          eventDescription = `连续缺勤 ${eventConsecutiveAbsences} 次（4周以上）`;
-        } else if (eventConsecutiveAbsences >= 3) {
-          eventType = 'severe_absence';
-          eventDescription = `连续缺勤 ${eventConsecutiveAbsences} 次（3周以上）`;
-        }
-        
-        // 创建新的事件跟踪记录（优化版：包含完整快照信息）
-        const newEventRecord = {
-          memberUUID: member.uuid,
-          recordId: eventUniqueId, // 使用唯一编码
-          memberName: member.name,
-          group: member.group,
-          originalGroup: member.group,
-          // 优化：快照时保存小组显示名称，使用groupNames映射
-          groupDisplayName: (window.groupNames && window.groupNames[member.group]) ? window.groupNames[member.group] : member.group,
-          consecutiveAbsences: eventConsecutiveAbsences,
-          lastAttendanceDate: event.endDate || lastAttendanceDate,
-          checkStartDate: checkStartDate,
-          trackingStartDate: startDate,
-          status: 'active', // 新事件默认为活跃状态
-          eventType: eventType,
-          eventDescription: eventDescription,
-          eventIndex: eventIndex + 1,
-          totalEvents: absenceEvents.length,
-          // 优化：快照时保存成员完整信息，避免依赖基础数据
-          memberSnapshot: {
-            uuid: member.uuid,
-            name: member.name,
-            group: member.group,
-            // 可以添加更多成员信息快照
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        // 如果事件已结束，设置结束信息
-        if (event.endDate) {
-          newEventRecord.status = 'resolved';
-          newEventRecord.endDate = event.endDate;
-          newEventRecord.endedBy = event.endedBy;
-          newEventRecord.endReason = event.endReason;
-        }
-        
-        // 保存新记录
-        this.saveTrackingRecord(newEventRecord);
-        
-        trackingList.push(newEventRecord);
-      });
+    // 开始异步初始化
+    this._historicalDataInitializing = true;
+    console.log('🔄 开始后台异步初始化历史数据...');
+    
+    // 从2025-08-03开始到当前日期
+    const startDate = '2025-08-03';
+    const endDate = this.getLatestSundayDate();
+    
+    this.initializeHistoricalDataAsync(startDate, endDate, (progress) => {
+      if (progress.current === progress.total) {
+        // 初始化完成
+        this._historicalDataInitializing = false;
+        localStorage.setItem('msh_weekly_calc_last_init', now.toString());
+        console.log(`✅ 历史数据初始化完成: ${progress.completed}/${progress.total}`);
+      }
+    }).catch(error => {
+      console.error('❌ 历史数据初始化失败:', error);
+      this._historicalDataInitializing = false;
     });
-    
-    // 保存修改后的数据（包含新生成的UUID和memberUUID）
-    this.saveModifiedData();
-    
-    // 修复：保留所有事件（包括已终止事件），不进行过滤
-    // 已终止事件应该被保留，不应该被覆盖或删除
-    console.log(`📊 跟踪列表生成完成，保留所有事件: ${trackingList.length}个`);
-    
-    // 保存到缓存
-    this._cache.trackingList = trackingList;
-    this._cache.lastUpdateTime = Date.now();
-    this._cache.dataHash = this._generateDataHash();
-    
-    const endTime = performance.now();
-    const processingTime = endTime - startTime;
-    console.log(`✅ 跟踪列表生成完成，耗时: ${processingTime.toFixed(2)}ms，事件数量: ${trackingList.length} (保留所有事件，包括已终止事件)`);
-    
-    return trackingList;
   },
   
   // 获取所有人员
@@ -885,14 +936,23 @@ const SundayTrackingManager = {
       // 保存更新后的数据
       localStorage.setItem('msh_groups', JSON.stringify(groups));
       
-      // 同步到Firebase
+      // 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
         const db = firebase.database();
-        db.ref('groups').set(groups).then(() => {
-          console.log('✅ 排除状态已同步到Firebase');
+        // 只更新变化的小组，不覆盖整个groups对象
+        const groupKey = Object.keys(groups).find(key => {
+          const member = groups[key]?.find(m => m.uuid === memberUUID);
+          return member !== undefined;
+        });
+        if (groupKey) {
+          const updateData = {};
+          updateData[groupKey] = groups[groupKey];
+          db.ref('groups').update(updateData).then(() => {
+            console.log(`✅ 排除状态已同步到Firebase: ${groupKey}`);
         }).catch(error => {
           console.error('❌ 同步到Firebase失败:', error);
         });
+        }
       }
       
       // 更新全局变量
@@ -973,14 +1033,26 @@ const SundayTrackingManager = {
       // 保存更新后的数据
       localStorage.setItem('msh_groups', JSON.stringify(groups));
       
-      // 同步到Firebase
+      // 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
         const db = firebase.database();
-        db.ref('groups').set(groups).then(() => {
-          console.log('✅ 排除人员标记已同步到Firebase');
+        // 只更新变化的小组，不覆盖整个groups对象
+        const updatedGroups = {};
+        Object.keys(groups).forEach(groupKey => {
+          const hasUpdatedMember = groups[groupKey].some(member => 
+            member.excludedAt && new Date(member.excludedAt) > new Date(Date.now() - 1000) // 最近1秒内更新的
+          );
+          if (hasUpdatedMember) {
+            updatedGroups[groupKey] = groups[groupKey];
+          }
+        });
+        if (Object.keys(updatedGroups).length > 0) {
+          db.ref('groups').update(updatedGroups).then(() => {
+            console.log(`✅ 排除人员标记已同步到Firebase: ${Object.keys(updatedGroups).join(', ')}`);
         }).catch(error => {
           console.error('❌ 同步到Firebase失败:', error);
         });
+        }
       }
       
       // 备份旧的排除人员数据
@@ -1126,12 +1198,13 @@ const SundayTrackingManager = {
         return false;
       }
       
-      // 2. 同步到Firebase（使用与saveTrackingRecord一致的路径）
+      // 2. 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (window.db) {
         try {
-          // 获取完整的跟踪记录数组并同步
-          const allRecords = this.getTrackingRecords();
-          await window.db.ref('sundayTracking').set(allRecords);
+          // 使用update()只更新该记录，不覆盖全部数据
+          const recordObj = {};
+          recordObj[recordId] = record;
+          await window.db.ref('trackingRecords').update(recordObj);
           console.log(`✅ 事件终止已同步到Firebase: ${recordId}`);
           // 记录Firebase同步时间
           this._cache.lastFirebaseSync = Date.now();
@@ -1199,10 +1272,13 @@ const SundayTrackingManager = {
         return false;
       }
       
-      // 2. 同步到Firebase
+      // 2. 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (window.db) {
         try {
-          await window.db.ref(`trackingRecords/${recordId}`).set(trackingRecord);
+          // 使用update()只更新该记录，不覆盖全部数据
+          const recordObj = {};
+          recordObj[recordId] = trackingRecord;
+          await window.db.ref('trackingRecords').update(recordObj);
           console.log(`✅ 事件重启已同步到Firebase: ${recordId}`);
           // 记录Firebase同步时间
           this._cache.lastFirebaseSync = Date.now();
@@ -1270,10 +1346,13 @@ const SundayTrackingManager = {
       localStorage.setItem(key, JSON.stringify(records));
       console.log(`✅ 个人跟踪记录已保存到localStorage: ${memberUUID}`);
       
-      // 2. 同步到Firebase (数据持久化)
+      // 2. 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (window.db) {
         try {
-          await window.db.ref(`personalTracking/${memberUUID}`).set(records);
+          // 使用update()只更新该成员的数据
+          const updateData = {};
+          updateData[memberUUID] = records;
+          await window.db.ref('personalTracking').update(updateData);
           console.log(`✅ 个人跟踪记录已同步到Firebase: ${memberUUID}`);
           // 记录Firebase同步时间
           this._cache.lastFirebaseSync = Date.now();
@@ -1307,9 +1386,17 @@ const SundayTrackingManager = {
       
       localStorage.setItem('msh_sunday_tracking', JSON.stringify(updatedRecords));
       
-      // 同步到Firebase
+      // 同步到Firebase（使用update()增量更新，符合数据安全规则）
       if (window.db) {
-        window.db.ref('sundayTracking').set(updatedRecords).catch(error => {
+        // 将数组转换为对象格式，使用recordId作为key
+        const recordsObj = {};
+        updatedRecords.forEach(record => {
+          if (record.recordId) {
+            recordsObj[record.recordId] = record;
+          }
+        });
+        
+        window.db.ref('trackingRecords').update(recordsObj).catch(error => {
           console.error('同步跟踪记录到Firebase失败:', error);
         });
       }
@@ -1385,6 +1472,1098 @@ const SundayTrackingManager = {
         this.autoDeleteOldRecords();
       }, 24 * 60 * 60 * 1000);
     }, timeUntilTomorrow);
+  },
+  
+  // ==================== 周级增量计算功能 ====================
+  
+  // 加载周级计算结果
+  loadWeeklyCalculations: async function(sundayDate) {
+    if (!window.db) {
+      console.warn('Firebase未初始化，无法加载周级计算结果');
+      return null;
+    }
+    
+    try {
+      const snapshot = await window.db.ref(`sundayTrackingWeekly/${sundayDate}`).once('value');
+      if (snapshot.exists()) {
+        return snapshot.val();
+      }
+      return null;
+    } catch (error) {
+      console.error(`加载周级计算结果失败 - ${sundayDate}:`, error);
+      return null;
+    }
+  },
+  
+  // 保存周级计算结果
+  saveWeeklyCalculations: async function(sundayDate, calculations, skipCleanup = false) {
+    if (!window.db) {
+      console.warn('Firebase未初始化，无法保存周级计算结果');
+      return false;
+    }
+    
+    try {
+      // 1. 保存当前周的计算结果
+      await window.db.ref(`sundayTrackingWeekly/${sundayDate}`).update(calculations);
+      console.log(`✅ 已保存周级计算结果 - ${sundayDate}`);
+      
+      // 2. 清理旧数据（只保留最新10周，仅在数据量超过10周时执行）
+      // 注意：skipCleanup=true时跳过清理（用于批量计算），清理应在批量计算完成后统一执行
+      if (!skipCleanup) {
+        const snapshot = await window.db.ref('sundayTrackingWeekly').once('value');
+        if (snapshot.exists()) {
+          const allCalculations = snapshot.val();
+          const sundayDates = Object.keys(allCalculations);
+          if (sundayDates.length > 10) {
+            await this.cleanupOldWeeklyCalculations(10);
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`保存周级计算结果失败 - ${sundayDate}:`, error);
+      return false;
+    }
+  },
+  
+  // 清理旧的周级计算结果（只保留最新N周）
+  cleanupOldWeeklyCalculations: async function(keepWeeks = 10) {
+    if (!window.db) {
+      console.warn('Firebase未初始化，无法清理旧数据');
+      return;
+    }
+    
+    try {
+      // 1. 获取所有周级计算结果
+      const snapshot = await window.db.ref('sundayTrackingWeekly').once('value');
+      if (!snapshot.exists()) {
+        console.log('📋 没有周级计算结果，无需清理');
+        return;
+      }
+      
+      const allCalculations = snapshot.val();
+      const sundayDates = Object.keys(allCalculations);
+      
+      if (sundayDates.length <= keepWeeks) {
+        console.log(`📋 当前有 ${sundayDates.length} 周数据，不超过 ${keepWeeks} 周，无需清理`);
+        return;
+      }
+      
+      // 2. 按日期排序（从新到旧）
+      sundayDates.sort((a, b) => b.localeCompare(a));
+      
+      // 3. 获取需要保留的日期（最新的N周）
+      const keepDates = sundayDates.slice(0, keepWeeks);
+      const deleteDates = sundayDates.slice(keepWeeks);
+      
+      console.log(`🧹 清理旧数据：保留 ${keepDates.length} 周，删除 ${deleteDates.length} 周`);
+      
+      // 4. 删除旧数据
+      const updates = {};
+      deleteDates.forEach(date => {
+        updates[`sundayTrackingWeekly/${date}`] = null;
+      });
+      
+      if (Object.keys(updates).length > 0) {
+        await window.db.ref().update(updates);
+        console.log(`✅ 已删除 ${deleteDates.length} 周的旧数据`);
+      }
+    } catch (error) {
+      console.error('❌ 清理旧数据失败:', error);
+    }
+  },
+  
+  // 查找最新的已计算周（从最新一周向前查找）
+  findLatestCalculatedSunday: async function(startDate, maxWeeks = 52) {
+    // 从指定日期向前查找，最多查找52周（1年）
+    let currentDate = new Date(startDate);
+    let checkedWeeks = 0;
+    
+    while (checkedWeeks < maxWeeks) {
+      const sundayDate = this.getDateString(currentDate);
+      const calculations = await this.loadWeeklyCalculations(sundayDate);
+      
+      if (calculations) {
+        console.log(`✅ 找到已计算的周: ${sundayDate}`);
+        return sundayDate;
+      }
+      
+      // 向前查找上一周
+      currentDate = this.getPreviousSunday(currentDate);
+      checkedWeeks++;
+    }
+    
+    console.log(`📋 未找到已计算的周（已检查 ${checkedWeeks} 周）`);
+    return null;
+  },
+  
+  // 检查是否有任何历史计算结果
+  hasHistoricalCalculations: async function() {
+    // 从最新一周向前查找，如果找到任何计算结果，说明有历史数据
+    const latestSundayDate = this.getLatestSundayDate();
+    const latestCalculated = await this.findLatestCalculatedSunday(latestSundayDate, 52);
+    return latestCalculated !== null;
+  },
+  
+  // 获取dailyReport数据
+  getDailyReport: async function(sundayDate) {
+    if (!window.db) {
+      console.warn('Firebase未初始化，无法获取dailyReport');
+      return null;
+    }
+    
+    try {
+      const snapshot = await window.db.ref(`dailyReports/${sundayDate}`).once('value');
+      if (snapshot.exists()) {
+        return snapshot.val();
+      }
+      return null;
+    } catch (error) {
+      console.error(`获取dailyReport失败 - ${sundayDate}:`, error);
+      return null;
+    }
+  },
+  
+  // 首次计算（全量计算）
+  calculateFirstWeek: async function(sundayDate, skipCleanup = false) {
+    console.log(`🔄 首次计算 - ${sundayDate}`);
+    
+    // 1. 获取该周的dailyReports数据
+    const dailyReport = await this.getDailyReport(sundayDate);
+    
+    // 2. 如果没有dailyReport，跳过计算（需要在工具页面生成）
+    if (!dailyReport) {
+      console.warn(`⚠️ ${sundayDate} 没有dailyReport数据，跳过计算。请使用工具页面生成dailyReport后再计算`);
+      return null;
+    }
+    
+    // 3. 获取所有成员（排除排除人员）
+    const allMembers = this.getAllMembers();
+    console.log(`📋 总成员数: ${allMembers.length}`);
+    
+    // 3. 提取已签到的成员UUID列表
+    const signedUUIDs = new Set();
+    if (dailyReport.signedMembers && Array.isArray(dailyReport.signedMembers)) {
+      dailyReport.signedMembers.forEach(member => {
+        const uuid = member.uuid || member.name;
+        if (uuid) signedUUIDs.add(uuid);
+      });
+    }
+    
+    // 4. 计算每个成员的缺勤情况
+    const calculations = {};
+    
+    for (const member of allMembers) {
+      // 排除的人员跳过
+      if (this.isMemberExcluded(member)) {
+        continue;
+      }
+      
+      const memberUUID = member.uuid || member.name;
+      if (signedUUIDs.has(memberUUID)) {
+        // 有签到 → 缺勤次数为0
+        calculations[memberUUID] = {
+          consecutiveAbsences: 0,
+          status: 'present',
+          calculatedAt: new Date().toISOString()
+        };
+      } else {
+        // 缺勤 → 缺勤次数为1
+        calculations[memberUUID] = {
+          consecutiveAbsences: 1,
+          status: 'absent',
+          calculatedAt: new Date().toISOString()
+        };
+      }
+    }
+    
+    // 5. 保存到Firebase（skipCleanup用于批量计算时跳过清理）
+    await this.saveWeeklyCalculations(sundayDate, calculations, skipCleanup);
+    
+    console.log(`✅ 首次计算完成 - ${sundayDate}，计算了 ${Object.keys(calculations).length} 个成员`);
+    return calculations;
+  },
+  
+  // 增量计算（基于上一周）
+  calculateIncrementalWeek: async function(currentSundayDate, skipCleanup = false) {
+    console.log(`🔄 增量计算 - ${currentSundayDate}`);
+    
+    // 1. 获取上一周的日期
+    const previousSundayDate = this.getDateString(
+      this.getPreviousSunday(new Date(currentSundayDate))
+    );
+    
+    // 2. 加载上一周的计算结果
+    const previousCalculations = await this.loadWeeklyCalculations(previousSundayDate);
+    if (!previousCalculations) {
+      // 如果上一周没有数据，执行首次计算
+      console.warn(`⚠️ 上一周（${previousSundayDate}）没有数据，执行首次计算`);
+      return await this.calculateFirstWeek(currentSundayDate, skipCleanup);
+    }
+    
+    // 3. 获取当前周的dailyReports数据
+    const currentDailyReport = await this.getDailyReport(currentSundayDate);
+    
+    // 如果没有dailyReport，跳过计算（需要在工具页面生成）
+    if (!currentDailyReport) {
+      console.warn(`⚠️ ${currentSundayDate} 没有dailyReport数据，跳过计算。请使用工具页面生成dailyReport后再计算`);
+      return null;
+    }
+    
+    // 4. 提取已签到的成员UUID列表
+    const signedUUIDs = new Set();
+    if (currentDailyReport.signedMembers && Array.isArray(currentDailyReport.signedMembers)) {
+      currentDailyReport.signedMembers.forEach(member => {
+        const uuid = member.uuid || member.name;
+        if (uuid) signedUUIDs.add(uuid);
+      });
+    }
+    
+    // 5. 获取所有成员（排除排除人员）
+    const allMembers = this.getAllMembers();
+    
+    // 6. 计算当前周的缺勤情况
+    const currentCalculations = {};
+    
+    for (const member of allMembers) {
+      // 排除的人员跳过
+      if (this.isMemberExcluded(member)) {
+        continue;
+      }
+      
+      const memberUUID = member.uuid || member.name;
+      
+      // 获取上一周的缺勤次数
+      const previousResult = previousCalculations[memberUUID];
+      const previousAbsences = previousResult ? previousResult.consecutiveAbsences : 0;
+      
+      if (signedUUIDs.has(memberUUID)) {
+        // 当前周有签到 → 缺勤次数重置为0
+        currentCalculations[memberUUID] = {
+          consecutiveAbsences: 0,
+          status: 'present',
+          calculatedAt: new Date().toISOString(),
+          previousWeek: previousSundayDate
+        };
+      } else {
+        // 当前周缺勤 → 缺勤次数 = 上一周 + 1
+        currentCalculations[memberUUID] = {
+          consecutiveAbsences: previousAbsences + 1,
+          status: 'absent',
+          calculatedAt: new Date().toISOString(),
+          previousWeek: previousSundayDate
+        };
+      }
+    }
+    
+    // 7. 保存到Firebase（skipCleanup用于批量计算时跳过清理）
+    await this.saveWeeklyCalculations(currentSundayDate, currentCalculations, skipCleanup);
+    
+    console.log(`✅ 增量计算完成 - ${currentSundayDate}，计算了 ${Object.keys(currentCalculations).length} 个成员`);
+    return currentCalculations;
+  },
+  
+  // 数据校验
+  validateWeeklyCalculations: async function(sundayDate) {
+    const calculation = await this.loadWeeklyCalculations(sundayDate);
+    if (!calculation) {
+      return { valid: false, reason: '计算结果不存在' };
+    }
+    
+    const previousSundayDate = this.getDateString(
+      this.getPreviousSunday(new Date(sundayDate))
+    );
+    const previousCalculation = await this.loadWeeklyCalculations(previousSundayDate);
+    
+    // 如果上一周有数据，检查连续性
+    if (previousCalculation) {
+      for (const [memberUUID, currentResult] of Object.entries(calculation)) {
+        const previousResult = previousCalculation[memberUUID];
+        if (previousResult) {
+          const previousAbsences = previousResult.consecutiveAbsences;
+          const currentAbsences = currentResult.consecutiveAbsences;
+          
+          // 如果当前周有签到，缺勤次数应该为0
+          if (currentResult.status === 'present') {
+            if (currentAbsences !== 0) {
+              return {
+                valid: false,
+                reason: `${memberUUID} 有签到但缺勤次数不为0`,
+                memberUUID,
+                currentAbsences,
+                expected: 0
+              };
+            }
+          } else if (currentResult.status === 'absent') {
+            // 如果当前周缺勤，缺勤次数应该为 previousAbsences + 1
+            if (currentAbsences !== previousAbsences + 1) {
+              return {
+                valid: false,
+                reason: `${memberUUID} 缺勤次数不正确`,
+                memberUUID,
+                currentAbsences,
+                expected: previousAbsences + 1,
+                previousAbsences
+              };
+            }
+          }
+        }
+      }
+    }
+    
+    return { valid: true };
+  },
+  
+  // 修复数据
+  repairWeeklyCalculations: async function(sundayDate) {
+    console.log(`🔧 开始修复数据 - ${sundayDate}`);
+    
+    // 先校验数据
+    const validation = await this.validateWeeklyCalculations(sundayDate);
+    if (validation.valid) {
+      console.log(`✅ 数据校验通过，无需修复`);
+      return true;
+    }
+    
+    console.log(`⚠️ 数据校验失败: ${validation.reason}，开始修复...`);
+    
+    // 重新计算该周的数据
+    const previousSundayDate = this.getDateString(
+      this.getPreviousSunday(new Date(sundayDate))
+    );
+    const previousCalculation = await this.loadWeeklyCalculations(previousSundayDate);
+    
+    if (!previousCalculation) {
+      // 如果上一周没有数据，执行首次计算
+      await this.calculateFirstWeek(sundayDate);
+    } else {
+      // 如果上一周有数据，执行增量计算
+      await this.calculateIncrementalWeek(sundayDate);
+    }
+    
+    // 再次校验
+    const revalidation = await this.validateWeeklyCalculations(sundayDate);
+    if (revalidation.valid) {
+      console.log(`✅ 数据修复成功`);
+      return true;
+    } else {
+      console.error(`❌ 数据修复失败: ${revalidation.reason}`);
+      return false;
+    }
+  },
+  
+  // 从周级计算结果查找缺勤事件开始日期（使用缓存优化版本）
+  findAbsenceStartDateFromWeeklyWithCache: async function(memberUUID, currentSundayDate, weeklyCalculationsCache) {
+    // 从当前周向前追溯，找到缺勤开始的那一周
+    let currentDate = new Date(currentSundayDate);
+    let consecutiveAbsences = 0;
+    
+    // 从缓存获取当前周的缺勤次数
+    const currentCalculation = weeklyCalculationsCache.get(currentSundayDate);
+    if (currentCalculation && currentCalculation[memberUUID]) {
+      consecutiveAbsences = currentCalculation[memberUUID].consecutiveAbsences;
+    } else {
+      return currentSundayDate; // 如果没有数据，返回当前日期
+    }
+    
+    // 如果缺勤次数为0或1，返回当前日期
+    if (consecutiveAbsences <= 1) {
+      return currentSundayDate;
+    }
+    
+    // 向前追溯，直到找到缺勤次数为1的那一周（缺勤开始）
+    let targetDate = currentDate;
+    for (let i = 0; i < consecutiveAbsences - 1; i++) {
+      const previousDate = this.getDateString(this.getPreviousSunday(targetDate));
+      
+      // 优先从缓存获取，如果缓存中没有，再从Firebase加载
+      let previousCalculation = weeklyCalculationsCache.get(previousDate);
+      if (!previousCalculation) {
+        previousCalculation = await this.loadWeeklyCalculations(previousDate);
+        if (previousCalculation) {
+          weeklyCalculationsCache.set(previousDate, previousCalculation);
+        }
+      }
+      
+      if (previousCalculation && previousCalculation[memberUUID]) {
+        const previousAbsences = previousCalculation[memberUUID].consecutiveAbsences;
+        if (previousAbsences === 1) {
+          // 找到了缺勤开始的那一周
+          return previousDate;
+        }
+        targetDate = new Date(previousDate);
+      } else {
+        // 没有历史数据，使用当前日期减去缺勤周数
+        const startDate = new Date(currentDate);
+        startDate.setDate(startDate.getDate() - (consecutiveAbsences - 1) * 7);
+        return this.getDateString(startDate);
+      }
+    }
+    
+    // 如果找不到，使用当前日期减去缺勤周数
+    const startDate = new Date(currentDate);
+    startDate.setDate(startDate.getDate() - (consecutiveAbsences - 1) * 7);
+    return this.getDateString(startDate);
+  },
+  
+  // 从周级计算结果查找缺勤事件开始日期（原版本，保留作为回退）
+  findAbsenceStartDateFromWeekly: async function(memberUUID, currentSundayDate) {
+    // 从当前周向前追溯，找到缺勤开始的那一周
+    let currentDate = new Date(currentSundayDate);
+    let consecutiveAbsences = 0;
+    
+    // 获取当前周的缺勤次数
+    const currentCalculation = await this.loadWeeklyCalculations(currentSundayDate);
+    if (currentCalculation && currentCalculation[memberUUID]) {
+      consecutiveAbsences = currentCalculation[memberUUID].consecutiveAbsences;
+    } else {
+      return currentSundayDate; // 如果没有数据，返回当前日期
+    }
+    
+    // 如果缺勤次数为0或1，返回当前日期
+    if (consecutiveAbsences <= 1) {
+      return currentSundayDate;
+    }
+    
+    // 向前追溯，直到找到缺勤次数为1的那一周（缺勤开始）
+    let targetDate = currentDate;
+    for (let i = 0; i < consecutiveAbsences - 1; i++) {
+      const previousDate = this.getDateString(this.getPreviousSunday(targetDate));
+      const previousCalculation = await this.loadWeeklyCalculations(previousDate);
+      
+      if (previousCalculation && previousCalculation[memberUUID]) {
+        const previousAbsences = previousCalculation[memberUUID].consecutiveAbsences;
+        if (previousAbsences === 1) {
+          // 找到了缺勤开始的那一周
+          return previousDate;
+        }
+        targetDate = new Date(previousDate);
+      } else {
+        // 没有历史数据，使用当前日期减去缺勤周数
+        const startDate = new Date(currentDate);
+        startDate.setDate(startDate.getDate() - (consecutiveAbsences - 1) * 7);
+        return this.getDateString(startDate);
+      }
+    }
+    
+    // 如果找不到，使用当前日期减去缺勤周数
+    const startDate = new Date(currentDate);
+    startDate.setDate(startDate.getDate() - (consecutiveAbsences - 1) * 7);
+    return this.getDateString(startDate);
+  },
+  
+  // 从周级计算结果生成事件列表
+  generateTrackingListFromWeeklyCalculations: async function() {
+    console.log('🔄 从周级计算结果生成事件列表...');
+    
+    // 0. 首先检查缓存（避免重复计算）
+    if (this._isCacheValid()) {
+      console.log('📦 缓存有效，直接使用缓存的跟踪列表');
+      return this._cache.trackingList;
+    }
+    
+    // 1. 获取最新一周的日期
+    const latestSundayDate = this.getLatestSundayDate();
+    console.log(`📅 最新主日日期: ${latestSundayDate}`);
+    
+    // 2. 检查最新一周是否已有计算结果
+    let latestCalculations = await this.loadWeeklyCalculations(latestSundayDate);
+    
+    // 3. 初始化重新计算标志
+    let needsRecalculation = false;
+    
+    // 4. 如果最新周已有计算结果，检查数据是否有变化
+    if (latestCalculations) {
+      console.log(`✅ 最新一周（${latestSundayDate}）已有计算结果`);
+      
+      // 检查数据是否有变化（排除人员、成员变动）
+      const lastCalcInfo = localStorage.getItem('msh_last_weekly_calc_info');
+      
+      if (lastCalcInfo) {
+        try {
+          const calcInfo = JSON.parse(lastCalcInfo);
+          const lastSundayDate = calcInfo.latestSundayDate;
+          const lastDataHash = calcInfo.dataHash;
+          
+          // 检查是否跨周
+          if (lastSundayDate !== latestSundayDate) {
+            console.log(`📅 检测到跨周：上次计算周=${lastSundayDate}，当前最新周=${latestSundayDate}，需要增量计算`);
+            needsRecalculation = true;
+          } else {
+            // 检查数据是否有变化
+            const currentDataHash = this._generateDataHash();
+            if (lastDataHash !== currentDataHash) {
+              console.log(`📋 检测到数据变化（排除人员或成员变动），需要重新计算`);
+              needsRecalculation = true;
+            } else {
+              // 数据无变化，直接使用现有事件列表
+              console.log(`✅ 数据无变化，直接使用现有事件列表`);
+              const existingEvents = this.getTrackingRecords();
+              // 只返回活跃状态的事件
+              const activeEvents = existingEvents.filter(e => e.status === 'active');
+              console.log(`📦 直接返回现有事件列表，共 ${activeEvents.length} 个活跃事件`);
+              return activeEvents;
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ 解析上次计算信息失败，执行重新计算:', error);
+          needsRecalculation = true;
+        }
+      } else {
+        // 没有上次计算信息，检查现有事件列表是否可用
+        console.log(`📋 没有缓存信息，检查现有事件列表...`);
+        const existingEvents = this.getTrackingRecords();
+        const activeEvents = existingEvents.filter(e => e.status === 'active');
+        
+        // 如果已有活跃事件，且最新周的计算结果存在，说明数据完整，可以直接使用
+        if (activeEvents.length > 0) {
+          console.log(`✅ 发现现有事件列表（${activeEvents.length}个活跃事件），且最新周计算结果存在，直接使用`);
+          // 保存计算信息，用于下次检查
+          const calcInfo = {
+            latestSundayDate: latestSundayDate,
+            dataHash: this._generateDataHash(),
+            timestamp: Date.now()
+          };
+          localStorage.setItem('msh_last_weekly_calc_info', JSON.stringify(calcInfo));
+          return activeEvents;
+        } else {
+          // 没有活跃事件，需要生成事件列表
+          console.log(`📋 没有活跃事件，需要生成事件列表`);
+          needsRecalculation = true;
+        }
+      }
+      
+      // 如果不需要重新计算，直接返回现有事件列表
+      if (!needsRecalculation) {
+        const existingEvents = this.getTrackingRecords();
+        const activeEvents = existingEvents.filter(e => e.status === 'active');
+        console.log(`📦 直接返回现有事件列表，共 ${activeEvents.length} 个活跃事件`);
+        return activeEvents;
+      }
+    }
+    
+    // 5. 如果没有最新周的计算结果或需要重新计算，执行计算
+    if (!latestCalculations || needsRecalculation) {
+      if (!latestCalculations) {
+        console.log(`⚠️ 最新一周（${latestSundayDate}）没有数据，开始计算...`);
+      } else {
+        console.log(`🔄 需要重新计算最新一周（${latestSundayDate}）...`);
+      }
+      
+      // 检查是否有任何历史计算结果
+      const hasHistoricalData = await this.hasHistoricalCalculations();
+      
+      if (hasHistoricalData && !latestCalculations) {
+        // 如果有历史数据，说明不是首次，应该基于最新已计算的周进行增量计算
+        console.log(`📋 检测到历史计算结果，执行增量计算...`);
+        const latestCalculatedSunday = await this.findLatestCalculatedSunday(latestSundayDate, 52);
+        
+        if (latestCalculatedSunday) {
+          // 如果最新已计算的周就是最新一周，说明已经计算过了，直接使用
+          if (latestCalculatedSunday === latestSundayDate) {
+            console.log(`✅ 最新一周（${latestSundayDate}）已计算，直接使用`);
+            latestCalculations = await this.loadWeeklyCalculations(latestSundayDate);
+          } else {
+            // 从最新已计算的周的下一周开始，逐周计算到最新一周
+            let currentDate = new Date(latestCalculatedSunday);
+            let nextSundayDate = this.getDateString(
+              this.getNextSunday(currentDate)
+            );
+            
+            // 逐周计算，直到达到最新一周
+            while (nextSundayDate <= latestSundayDate) {
+              console.log(`🔄 计算周: ${nextSundayDate}（基于上一周 ${this.getDateString(currentDate)}）`);
+              const result = await this.calculateIncrementalWeek(nextSundayDate);
+              if (!result) {
+                console.warn(`⚠️ 计算周 ${nextSundayDate} 失败，跳过后续计算`);
+                break;
+              }
+              
+              // 移动到下一周
+              currentDate = new Date(nextSundayDate);
+              nextSundayDate = this.getDateString(
+                this.getNextSunday(currentDate)
+              );
+            }
+            
+            // 重新加载最新一周的计算结果
+            latestCalculations = await this.loadWeeklyCalculations(latestSundayDate);
+          }
+        } else {
+          // 虽然hasHistoricalData为true，但找不到已计算的周，可能是数据异常
+          console.warn('⚠️ 检测到历史数据标志，但找不到已计算的周，执行首次计算');
+          latestCalculations = await this.calculateFirstWeek(latestSundayDate);
+        }
+      } else {
+        // 如果没有历史数据或需要重新计算，执行首次计算
+        if (needsRecalculation && latestCalculations) {
+          // 如果已有计算结果但需要重新计算（数据变更），执行首次计算
+          console.log(`📋 数据有变更，重新计算最新一周（${latestSundayDate}）...`);
+        } else {
+          console.log(`📋 首次计算（没有历史计算结果）`);
+        }
+        latestCalculations = await this.calculateFirstWeek(latestSundayDate);
+      }
+      
+      if (!latestCalculations) {
+        console.error('❌ 无法计算最新一周的数据');
+        return [];
+      }
+      
+      // 更新计算信息（保存到localStorage，用于下次检查）
+      const calcInfo = {
+        latestSundayDate: latestSundayDate,
+        dataHash: this._generateDataHash(),
+        timestamp: Date.now()
+      };
+      localStorage.setItem('msh_last_weekly_calc_info', JSON.stringify(calcInfo));
+    }
+    
+    // 6. 数据校验（可选，如果校验失败会自动修复）
+    // 注意：如果是首次计算（没有上一周数据），跳过校验
+    const previousSundayDate = this.getDateString(
+      this.getPreviousSunday(new Date(latestSundayDate))
+    );
+    const hasPreviousWeek = await this.loadWeeklyCalculations(previousSundayDate);
+    
+    if (hasPreviousWeek) {
+      // 只有在上周有数据时才进行校验
+      const validation = await this.validateWeeklyCalculations(latestSundayDate);
+      if (!validation.valid) {
+        console.warn(`⚠️ 数据校验失败: ${validation.reason}，开始修复...`);
+        await this.repairWeeklyCalculations(latestSundayDate);
+        // 重新加载修复后的数据
+        latestCalculations = await this.loadWeeklyCalculations(latestSundayDate);
+      }
+    } else {
+      console.log(`📋 首次计算，跳过数据校验`);
+    }
+    
+    // 7. 获取所有现有的事件记录
+    const existingEvents = this.getTrackingRecords();
+    console.log(`📋 现有事件记录: ${existingEvents.length} 个`);
+    
+    // 8. 批量预加载周级计算结果（优化性能：避免在循环中多次查询Firebase）
+    // 预加载最近10周的数据（足够覆盖大部分缺勤事件）
+    const weeklyCalculationsCache = new Map();
+    weeklyCalculationsCache.set(latestSundayDate, latestCalculations);
+    
+    // 预加载最近10周的数据
+    let preloadDate = new Date(latestSundayDate);
+    for (let i = 0; i < 10; i++) {
+      preloadDate = this.getPreviousSunday(preloadDate);
+      const dateStr = this.getDateString(preloadDate);
+      const calc = await this.loadWeeklyCalculations(dateStr);
+      if (calc) {
+        weeklyCalculationsCache.set(dateStr, calc);
+      }
+    }
+    console.log(`📦 预加载了 ${weeklyCalculationsCache.size} 周的周级计算结果`);
+    
+    // 5. 生成事件列表（只包含缺勤次数 >= 2 的成员）
+    const trackingList = [];
+    const allMembers = this.getAllMembers();
+    
+    for (const member of allMembers) {
+      // 排除的人员跳过
+      if (this.isMemberExcluded(member)) {
+        continue;
+      }
+      
+      const memberUUID = member.uuid || member.name;
+      const calculation = latestCalculations[memberUUID];
+      
+      if (!calculation) {
+        continue;
+      }
+      
+      // 检查缺勤次数并更新事件状态
+      if (calculation.status === 'absent' && calculation.consecutiveAbsences >= 2) {
+        // 需要生成事件
+        // 查找缺勤事件开始日期（使用缓存的周级计算结果）
+        const startDate = await this.findAbsenceStartDateFromWeeklyWithCache(memberUUID, latestSundayDate, weeklyCalculationsCache);
+        
+        // 生成事件唯一编码
+        const eventUniqueId = `${memberUUID}_${startDate}_1`;
+        
+        // 检查是否已有该事件的跟踪记录
+        const existingEventRecord = this.getTrackingRecord(eventUniqueId);
+        
+        if (existingEventRecord) {
+          // 已有记录，检查是否需要更新
+          let needsUpdate = false;
+          
+          if (existingEventRecord.status === 'active') {
+            // 检查缺勤次数是否有变化
+            if (existingEventRecord.consecutiveAbsences !== calculation.consecutiveAbsences) {
+              needsUpdate = true;
+              existingEventRecord.consecutiveAbsences = calculation.consecutiveAbsences;
+              
+              // 更新事件类型和描述
+              if (calculation.consecutiveAbsences >= 4) {
+                existingEventRecord.eventType = 'extended_absence';
+                existingEventRecord.eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次（4周以上）`;
+              } else if (calculation.consecutiveAbsences >= 3) {
+                existingEventRecord.eventType = 'severe_absence';
+                existingEventRecord.eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次（3周以上）`;
+              } else {
+                existingEventRecord.eventType = 'tracking';
+                existingEventRecord.eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次`;
+              }
+              
+              existingEventRecord.updatedAt = new Date().toISOString();
+            }
+          } else if (existingEventRecord.status === 'resolved' || existingEventRecord.status === 'terminated') {
+            // 如果事件已解决或终止，但缺勤次数又增加了，重新激活事件
+            if (calculation.consecutiveAbsences >= 2) {
+              needsUpdate = true;
+              existingEventRecord.status = 'active';
+              existingEventRecord.consecutiveAbsences = calculation.consecutiveAbsences;
+              existingEventRecord.updatedAt = new Date().toISOString();
+              // 清除结束信息
+              delete existingEventRecord.endDate;
+              delete existingEventRecord.endedBy;
+              delete existingEventRecord.endReason;
+            }
+          }
+          
+          // 只在有变化时保存（避免不必要的写入）
+          if (needsUpdate) {
+            this.saveTrackingRecord(existingEventRecord);
+          }
+          
+          trackingList.push(existingEventRecord);
+        } else {
+          // 没有记录，创建新事件
+          // 检查是否应该生成新事件
+          const currentDate = new Date();
+          const event = {
+            startDate: startDate,
+            consecutiveAbsences: calculation.consecutiveAbsences,
+            endDate: null
+          };
+          
+          if (!shouldGenerateEvent(event, currentDate, memberUUID, 0)) {
+            console.log(`成员 ${member.name} 事件: 不满足生成条件，跳过`);
+            continue;
+          }
+          
+          // 确定事件类型和描述
+          let eventType = 'tracking';
+          let eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次`;
+          
+          if (calculation.consecutiveAbsences >= 4) {
+            eventType = 'extended_absence';
+            eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次（4周以上）`;
+          } else if (calculation.consecutiveAbsences >= 3) {
+            eventType = 'severe_absence';
+            eventDescription = `连续缺勤 ${calculation.consecutiveAbsences} 次（3周以上）`;
+          }
+          
+          // 创建新的事件跟踪记录
+          const newEventRecord = {
+            memberUUID: memberUUID,
+            recordId: eventUniqueId,
+            memberName: member.name,
+            group: member.group,
+            originalGroup: member.group,
+            groupDisplayName: (window.groupNames && window.groupNames[member.group]) ? window.groupNames[member.group] : member.group,
+            consecutiveAbsences: calculation.consecutiveAbsences,
+            trackingStartDate: startDate,
+            status: 'active',
+            eventType: eventType,
+            eventDescription: eventDescription,
+            eventIndex: 1,
+            totalEvents: 1,
+            memberSnapshot: {
+              uuid: memberUUID,
+              name: member.name,
+              group: member.group
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          // 保存新记录
+          this.saveTrackingRecord(newEventRecord);
+          trackingList.push(newEventRecord);
+        }
+      } else {
+        // 缺勤次数 < 2 或已签到，检查是否有已存在的事件需要标记为resolved
+        const existingEvent = existingEvents.find(e => 
+          e.memberUUID === memberUUID && 
+          (e.status === 'active' || e.status === 'resolved')
+        );
+        
+        if (existingEvent && existingEvent.status === 'active') {
+          // 事件已解决（缺勤次数 < 2 或已签到）
+          existingEvent.status = 'resolved';
+          existingEvent.resolvedAt = new Date().toISOString();
+          existingEvent.updatedAt = new Date().toISOString();
+          
+          // 如果已签到，设置结束日期为最新主日
+          if (calculation.status === 'present') {
+            existingEvent.endDate = latestSundayDate;
+            existingEvent.endedBy = 'system';
+            existingEvent.endReason = '成员已恢复签到';
+          }
+          
+          // 保存更新
+          this.saveTrackingRecord(existingEvent);
+          trackingList.push(existingEvent);
+        }
+      }
+    }
+    
+    console.log(`✅ 从周级计算结果生成事件列表完成，共 ${trackingList.length} 个事件`);
+    
+    // 保存本次计算信息，用于下次检查是否需要重新计算
+    const calcInfo = {
+      latestSundayDate: latestSundayDate,
+      dataHash: this._generateDataHash(),
+      timestamp: Date.now()
+    };
+    localStorage.setItem('msh_last_weekly_calc_info', JSON.stringify(calcInfo));
+    console.log(`💾 已保存计算信息: 最新周=${latestSundayDate}`);
+    
+    return trackingList;
+  },
+  
+  // 后台异步初始化历史数据
+  initializeHistoricalDataAsync: async function(startDate, endDate, onProgress) {
+    console.log(`🔄 开始后台异步初始化历史数据: ${startDate} 到 ${endDate}`);
+    
+    // 获取所有主日日期
+    const sundayDates = this.getSundayDatesBetween(startDate, endDate);
+    console.log(`📋 需要计算 ${sundayDates.length} 周的数据`);
+    
+    let completed = 0;
+    let failed = 0;
+    
+    for (let i = 0; i < sundayDates.length; i++) {
+      const sundayDate = sundayDates[i];
+      
+      try {
+        // 检查是否已经计算过
+        const existing = await this.loadWeeklyCalculations(sundayDate);
+        if (existing) {
+          console.log(`⏭️ ${sundayDate} 已存在，跳过`);
+          completed++;
+          if (onProgress) {
+            onProgress({
+              current: i + 1,
+              total: sundayDates.length,
+              completed,
+              failed,
+              currentDate: sundayDate,
+              status: 'skipped'
+            });
+          }
+          continue;
+        }
+        
+        if (i === 0) {
+          // 第一周：全量计算（批量计算时跳过清理）
+          await this.calculateFirstWeek(sundayDate, true);
+        } else {
+          // 后续周：增量计算（批量计算时跳过清理）
+          await this.calculateIncrementalWeek(sundayDate, true);
+        }
+        
+        completed++;
+        console.log(`✅ ${sundayDate} 计算完成 (${i + 1}/${sundayDates.length})`);
+        
+        if (onProgress) {
+          onProgress({
+            current: i + 1,
+            total: sundayDates.length,
+            completed,
+            failed,
+            currentDate: sundayDate,
+            status: 'completed'
+          });
+        }
+        
+        // 添加小延迟，避免对Firebase造成过大压力
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        failed++;
+        console.error(`❌ ${sundayDate} 计算失败:`, error);
+        if (onProgress) {
+          onProgress({
+            current: i + 1,
+            total: sundayDates.length,
+            completed,
+            failed,
+            currentDate: sundayDate,
+            status: 'failed',
+            error: error.message
+          });
+        }
+      }
+    }
+    
+    // 批量计算完成后，统一执行清理（只保留最新10周）
+    console.log(`🧹 批量计算完成，执行清理操作...`);
+    await this.cleanupOldWeeklyCalculations(10);
+    
+    console.log(`✅ 历史数据初始化完成: 成功 ${completed} 周，失败 ${failed} 周`);
+    return { completed, failed, total: sundayDates.length };
+  },
+  
+  // 🆕 从 daily-reports 计算缺勤事件（优化版）
+  calculateAbsenceFromDailyReports: async function(memberUUID) {
+    try {
+      console.log(`🔄 从 daily-reports 计算缺勤 - UUID: ${memberUUID}`);
+      
+      if (!window.db) {
+        console.warn('Firebase未初始化，无法从 daily-reports 计算');
+        return null;
+      }
+      
+      // 获取检查起点
+      const memberTrackingRecords = this.getMemberTrackingRecords(memberUUID);
+      let checkStartDate = null;
+      
+      const latestResolvedRecord = memberTrackingRecords
+        .filter(record => record.status === 'resolved' || record.status === 'terminated')
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))[0];
+      
+      if (latestResolvedRecord && latestResolvedRecord.nextCheckDate) {
+        checkStartDate = new Date(latestResolvedRecord.nextCheckDate);
+      } else {
+        checkStartDate = new Date('2025-08-03');
+      }
+      
+      // 获取主日日期列表
+      const currentDate = new Date();
+      const sundayDates = this.getSundayDatesFromStart(checkStartDate, currentDate);
+      
+      if (sundayDates.length === 0) {
+        console.log('没有主日日期，无法计算');
+        return null;
+      }
+      
+      // 批量获取 daily-reports
+      const reportPromises = sundayDates.map(date => {
+        const dateStr = date.toISOString().split('T')[0];
+        return window.db.ref(`dailyReports/${dateStr}`).once('value');
+      });
+      
+      const reportSnapshots = await Promise.all(reportPromises);
+      
+      // 提取该成员的缺勤日期
+      const absenceDates = [];
+      const signedDates = [];
+      
+      reportSnapshots.forEach((snapshot, index) => {
+        if (snapshot.exists()) {
+          const report = snapshot.val();
+          const dateStr = sundayDates[index].toISOString().split('T')[0];
+          
+          // 检查是否在未签到名单中
+          const isAbsent = report.unsignedMembers?.some(m => (m.uuid || m.name) === memberUUID);
+          const isSigned = report.signedMembers?.some(m => (m.uuid || m.name) === memberUUID);
+          
+          if (isAbsent) {
+            absenceDates.push(new Date(sundayDates[index]));
+          } else if (isSigned) {
+            signedDates.push(new Date(sundayDates[index]));
+          }
+        }
+      });
+      
+      if (absenceDates.length === 0) {
+        console.log('没有缺勤记录');
+        const lastAttendanceDate = signedDates.length > 0 ? signedDates[signedDates.length - 1] : null;
+        return {
+          consecutiveAbsences: 0,
+          lastAttendanceDate,
+          checkStartDate,
+          trackingStartDate: null,
+          absenceEvents: []
+        };
+      }
+      
+      // 识别连续缺勤事件
+      const absenceEvents = [];
+      let currentEvent = null;
+      
+      absenceDates.forEach((date, index) => {
+        if (index === 0 || date.getTime() - absenceDates[index - 1].getTime() > 7 * 24 * 60 * 60 * 1000) {
+          // 新的缺勤事件开始
+          if (currentEvent && currentEvent.consecutiveAbsences >= 2) {
+            absenceEvents.push(currentEvent);
+          }
+          currentEvent = {
+            startDate: date,
+            consecutiveAbsences: 1,
+            endDate: date
+          };
+        } else {
+          // 连续缺勤
+          currentEvent.consecutiveAbsences++;
+          currentEvent.endDate = date;
+        }
+      });
+      
+      // 添加最后一个事件
+      if (currentEvent && currentEvent.consecutiveAbsences >= 2) {
+        absenceEvents.push(currentEvent);
+      }
+      
+      // 获取最新事件
+      const latestEvent = absenceEvents.length > 0 ? absenceEvents[absenceEvents.length - 1] : null;
+      const lastAttendanceDate = signedDates.length > 0 ? signedDates[signedDates.length - 1] : null;
+      
+      // 🔧 修复：对于最后一个缺勤事件，如果最后缺勤日期是最近的（最近2周内），不设置endDate
+      // 表示事件还在进行中，可以生成新的跟踪记录
+      if (latestEvent && latestEvent.endDate) {
+        const lastAbsenceDate = new Date(latestEvent.endDate);
+        const currentDate = new Date();
+        const daysDiff = (currentDate - lastAbsenceDate) / (1000 * 60 * 60 * 24);
+        
+        // 如果最后缺勤日期在最近2周内，且后续没有签到，说明事件还在进行中
+        if (daysDiff <= 14 && (!lastAttendanceDate || new Date(lastAttendanceDate) < lastAbsenceDate)) {
+          latestEvent.endDate = null; // 移除endDate，表示事件还在进行中
+          console.log(`📅 事件还在进行中，移除endDate - 最后缺勤: ${lastAbsenceDate.toISOString().split('T')[0]}`);
+        }
+      }
+      
+      const result = {
+        consecutiveAbsences: latestEvent ? latestEvent.consecutiveAbsences : 0,
+        lastAttendanceDate,
+        checkStartDate,
+        trackingStartDate: latestEvent ? latestEvent.startDate : null,
+        absenceEvents: absenceEvents.map(event => {
+          // 如果是最后一个事件且已移除endDate，映射时也要移除
+          if (event === latestEvent && latestEvent.endDate === null) {
+            return {
+              startDate: event.startDate,
+              consecutiveAbsences: event.consecutiveAbsences,
+              endDate: null
+            };
+          }
+          return {
+            startDate: event.startDate,
+            consecutiveAbsences: event.consecutiveAbsences,
+            endDate: event.endDate
+          };
+        })
+      };
+      
+      console.log(`✅ 从 daily-reports 计算完成:`, {
+        absenceEvents: absenceEvents.length,
+        consecutiveAbsences: result.consecutiveAbsences
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error('从 daily-reports 计算缺勤失败:', error);
+      return null;
+    }
   }
 };
 

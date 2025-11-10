@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>缺勤计算工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .controls {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: white;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    .log-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .log-success {
+      color: green;
+    }
+    .log-error {
+      color: red;
+    }
+    .log-info {
+      color: blue;
+    }
+    .progress {
+      margin: 10px 0;
+      padding: 10px;
+      background: #e9ecef;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>缺勤计算工具</h1>
+  
+  <div class="controls">
+    <button id="startBtn" onclick="startCalculation()">开始计算（9月至今）</button>
+    <button id="backBtn" onclick="window.history.back()">返回</button>
+    <div class="progress" id="progress" style="display:none;"></div>
+  </div>
+  
+  <div class="controls">
+    <label for="sundayDate">查看特定主日:</label>
+    <input type="date" id="sundayDate" />
+    <button onclick="viewSpecificSunday()">查看缺勤数据</button>
+  </div>
+  
+  <div id="specificResult" style="display:none; margin: 20px 0; padding: 20px; background: #e3f2fd; border-radius: 8px;">
+    <h3>📊 缺勤数据详情</h3>
+    <div id="resultContent"></div>
+  </div>
+  
+  <div class="log" id="log"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <script src="../../src/smart-config-loader.js"></script>
+  <script>
+    let db;
+    
+    // 初始化Firebase
+    async function initFirebase() {
+      // 等待配置加载
+      let attempts = 0;
+      while (!window.firebaseConfig && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!window.firebaseConfig) {
+        throw new Error('Firebase配置加载超时');
+      }
+      
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.firebaseConfig);
+      }
+      db = firebase.database();
+      log('Firebase初始化成功', 'success');
+    }
+    
+    // 日志函数
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const item = document.createElement('div');
+      item.className = `log-item log-${type}`;
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(item);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+    
+    // 更新进度
+    function updateProgress(current, total) {
+      const progressDiv = document.getElementById('progress');
+      progressDiv.style.display = 'block';
+      progressDiv.textContent = `进度: ${current}/${total} (${Math.round(current/total*100)}%)`;
+    }
+    
+    // 获取所有主日日期（从startDate到今天）
+    function getSundayDates(startDate, endDate) {
+      const sundays = [];
+      let current = new Date(startDate);
+      const end = new Date(endDate);
+      
+      while (current <= end) {
+        if (current.getDay() === 0) { // 周日
+          sundays.push(current.toISOString().split('T')[0]);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      
+      return sundays;
+    }
+    
+    // 获取某周的主日签到数据
+    async function getWeekAttendance(sundayDate) {
+      log(`查询 ${sundayDate} 签到数据...`, 'info');
+      
+      // 🔴 修复：使用date字段查询（YYYY-MM-DD格式），而不是timestamp
+      const snapshot = await db.ref('attendanceRecords')
+        .orderByChild('date')
+        .equalTo(sundayDate)
+        .once('value');
+      
+      const records = [];
+      if (snapshot.exists()) {
+        snapshot.forEach(child => {
+          const record = child.val();
+          records.push(record);
+        });
+      }
+      
+      if (records.length > 0) {
+        log(`找到 ${records.length} 条签到记录`, 'success');
+      } else {
+        log('未找到签到记录', 'info');
+      }
+      
+      return records;
+    }
+    
+    // 获取所有成员（排除排除人员）
+    async function getAllMembers() {
+      const snapshot = await db.ref('groups').once('value');
+      const groups = snapshot.val() || {};
+      
+      const members = [];
+      Object.entries(groups).forEach(([groupKey, groupMembers]) => {
+        groupMembers.forEach(member => {
+          // 排除标记为excluded的成员
+          if (!member.excluded) {
+            members.push({
+              uuid: member.uuid || member.name,
+              name: member.name,
+              group: groupKey
+            });
+          }
+        });
+      });
+      
+      return members;
+    }
+    
+    // 计算某周的缺勤情况
+    async function calculateWeek(sundayDate, prevCalcResult) {
+      log(`========== 计算 ${sundayDate} ==========`, 'info');
+      
+      // 1. 获取本周签到数据
+      const attendance = await getWeekAttendance(sundayDate);
+      const memberMap = await buildMemberMap();
+      const signedUUIDs = new Set();
+      const unresolvedRecords = [];
+      const missingUuidLogs = [];
+
+      attendance.forEach(record => {
+        const resolvedUUID = resolveRecordUUID(record, memberMap);
+        if (resolvedUUID) {
+          signedUUIDs.add(resolvedUUID);
+          if (!record.memberUUID && (record.memberName || record.name)) {
+            missingUuidLogs.push(resolvedUUID);
+          }
+        } else {
+          unresolvedRecords.push(record);
+        }
+      });
+
+      if (missingUuidLogs.length > 0) {
+        log(`提示：本周有 ${missingUuidLogs.length} 条签到记录通过名称匹配补齐UUID。`, 'info');
+      }
+      if (unresolvedRecords.length > 0) {
+        const unresolvedPreview = unresolvedRecords.slice(0, 5).map(record => record.memberName || record.name || record.memberSnapshot?.name || JSON.stringify(record));
+        log(`⚠️ 有 ${unresolvedRecords.length} 条签到记录无法匹配到成员UUID（示例: ${unresolvedPreview.join(', ')}）`, 'error');
+      }
+
+      // 2. 清除本周已签到人员的缺勤标记
+      if (prevCalcResult) {
+        signedUUIDs.forEach(uuid => {
+          if (prevCalcResult[uuid]) {
+            const member = memberMap.uuidToMember[uuid];
+            const displayName = member ? member.name : uuid;
+            log(`${displayName} 本周已签到，清除缺勤标记（之前${prevCalcResult[uuid].count}次）`, 'info');
+          }
+        });
+      }
+
+      // 3. 计算缺勤（仅按标记逻辑）
+      const currentCalc = {};
+      const allMembers = memberMap.members;
+
+      for (const member of allMembers) {
+        const uuid = member.uuid;
+        
+        if (signedUUIDs.has(uuid)) {
+          await resolveMemberActiveEventsIfNeeded(member, sundayDate);
+          continue;
+        }
+        
+        const prevCount = prevCalcResult && prevCalcResult[uuid] ? prevCalcResult[uuid].count : 0;
+        const newCount = prevCount + 1;
+        if (prevCount === 0) {
+          log(`${member.name} 首次缺勤，标记为1次`, 'info');
+        } else {
+          log(`${member.name} 连续缺勤，次数 ${prevCount} → ${newCount}`, 'info');
+        }
+        
+        currentCalc[uuid] = {
+          count: newCount,
+          name: member.name,
+          group: member.group,
+          date: sundayDate
+        };
+      }
+      
+      // 4. 保存计算结果到Firebase
+      // 🔴 关键：使用set()覆盖整周数据，这样签到的人不会保留上周的标记
+      const absenceCount = Object.keys(currentCalc).length;
+      
+      if (absenceCount > 0) {
+        await db.ref(`absenceCalc/${sundayDate}`).set(currentCalc);
+        log(`✅ 保存计算结果：${absenceCount} 人缺勤`, 'success');
+      } else {
+        await db.ref(`absenceCalc/${sundayDate}`).set({});
+        log('✅ 保存计算结果：本周全员签到', 'success');
+      }
+      
+      // 5. 生成/更新事件（标记>=2）
+      await processEvents(sundayDate, currentCalc, prevCalcResult);
+      await closeResolvedEvents(signedUUIDs, prevCalcResult, sundayDate, memberMap.uuidToMember);
+      
+      return currentCalc;
+    }
+    
+    // 处理事件生成和更新
+    async function processEvents(sundayDate, currentCalc, prevCalcResult) {
+      const eventsToSave = {};
+      
+      for (const [uuid, data] of Object.entries(currentCalc)) {
+        if (data.count >= 2) {
+          // 需要生成或更新事件
+          const prevCount = prevCalcResult && prevCalcResult[uuid] ? prevCalcResult[uuid].count : 0;
+          
+          if (prevCount === 1 && data.count === 2) {
+            // 新事件：从标记1变为标记2
+            const eventId = `${uuid}_${sundayDate}`;
+            
+            // 计算开始周（上一周）
+            const startDate = new Date(sundayDate);
+            startDate.setDate(startDate.getDate() - 7);
+            const startWeek = startDate.toISOString().split('T')[0];
+            
+            eventsToSave[eventId] = {
+              memberUUID: uuid,
+              memberName: data.name,
+              group: data.group,
+              startDate: startWeek,
+              endDate: sundayDate,
+              count: data.count,
+              weeks: [startWeek, sundayDate],
+              status: 'active',
+              createdAt: new Date().toISOString()
+            };
+            
+            log(`生成事件: ${data.name} (${data.group}) - ${startWeek}至${sundayDate}`, 'success');
+          } else if (prevCount >= 2) {
+            // 更新现有事件
+            // 找到该成员的事件
+            const eventsSnapshot = await db.ref('absenceEvents')
+              .orderByChild('memberUUID')
+              .equalTo(uuid)
+              .once('value');
+            
+            if (eventsSnapshot.exists()) {
+              eventsSnapshot.forEach(child => {
+                const eventId = child.key;
+                const event = child.val();
+                
+                // 只更新活跃事件
+                if (event.status === 'active') {
+                  eventsToSave[eventId] = {
+                    ...event,
+                    endDate: sundayDate,
+                    count: data.count,
+                    weeks: [...(event.weeks || []), sundayDate].filter((v, i, a) => a.indexOf(v) === i), // 去重
+                    updatedAt: new Date().toISOString()
+                  };
+                  
+                  log(`更新事件: ${data.name} - 缺勤${data.count}次`, 'info');
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      // 批量保存事件
+      if (Object.keys(eventsToSave).length > 0) {
+        await db.ref('absenceEvents').update(eventsToSave);
+      }
+    }
+
+    async function closeResolvedEvents(signedUUIDs, prevCalcResult, sundayDate, uuidToMember) {
+      if (!prevCalcResult) {
+        return;
+      }
+      const updates = {};
+      for (const uuid of signedUUIDs) {
+        if (!prevCalcResult[uuid]) {
+          continue;
+        }
+        const member = uuidToMember[uuid];
+        const displayName = member ? member.name : uuid;
+        const eventsSnapshot = await db.ref('absenceEvents')
+          .orderByChild('memberUUID')
+          .equalTo(uuid)
+          .once('value');
+        if (!eventsSnapshot.exists()) {
+          continue;
+        }
+        eventsSnapshot.forEach(child => {
+          const event = child.val();
+          const eventId = child.key;
+          if (event.status === 'active') {
+            updates[eventId] = {
+              ...event,
+              status: 'resolved',
+              resolvedDate: sundayDate,
+              updatedAt: new Date().toISOString()
+            };
+            log(`✅ 关闭事件: ${displayName} - 缺勤结束于 ${sundayDate}`, 'success');
+          }
+        });
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.ref('absenceEvents').update(updates);
+      }
+    }
+
+    async function resolveMemberActiveEventsIfNeeded(member, sundayDate) {
+      const memberUUID = member.uuid;
+      if (!memberUUID) {
+        return;
+      }
+      const eventsSnapshot = await db.ref('absenceEvents')
+        .orderByChild('memberUUID')
+        .equalTo(memberUUID)
+        .once('value');
+      if (!eventsSnapshot.exists()) {
+        return;
+      }
+      const updates = {};
+      eventsSnapshot.forEach(child => {
+        const event = child.val();
+        const eventId = child.key;
+        if (event.status === 'active' && (!event.weeks || !event.weeks.includes(sundayDate))) {
+          updates[eventId] = {
+            ...event,
+            status: 'resolved',
+            resolvedDate: sundayDate,
+            updatedAt: new Date().toISOString()
+          };
+          log(`✅ 成员重新签到，关闭事件: ${member.name} (${member.group})`, 'success');
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        await db.ref('absenceEvents').update(updates);
+      }
+    }
+
+    async function buildMemberMap() {
+      const members = await getAllMembers();
+      const nameToUuid = {};
+      const uuidToMember = {};
+      members.forEach(member => {
+        if (member.name) {
+          nameToUuid[member.name] = member.uuid;
+        }
+        if (member.uuid) {
+          uuidToMember[member.uuid] = member;
+        }
+      });
+      return {
+        members,
+        nameToUuid,
+        uuidToMember
+      };
+    }
+
+    function resolveRecordUUID(record, memberMap) {
+      if (record.memberUUID) {
+        return record.memberUUID;
+      }
+      if (record.memberSnapshot && record.memberSnapshot.uuid) {
+        return record.memberSnapshot.uuid;
+      }
+      if (record.memberName && memberMap.nameToUuid[record.memberName]) {
+        return memberMap.nameToUuid[record.memberName];
+      }
+      if (record.name && memberMap.nameToUuid[record.name]) {
+        return memberMap.nameToUuid[record.name];
+      }
+      if (record.memberSnapshot && record.memberSnapshot.name && memberMap.nameToUuid[record.memberSnapshot.name]) {
+        return memberMap.nameToUuid[record.memberSnapshot.name];
+      }
+      return null;
+    }
+    
+    // 主计算流程
+    async function startCalculation() {
+      const startBtn = document.getElementById('startBtn');
+      startBtn.disabled = true;
+      
+      try {
+        log('开始初始化...', 'info');
+        await initFirebase();
+        
+        // 获取所有主日日期（从2025-09-01到今天）
+        const today = new Date().toISOString().split('T')[0];
+        const sundays = getSundayDates('2025-09-01', today);
+        log(`找到 ${sundays.length} 个主日需要计算`, 'info');
+        
+        let prevCalcResult = null;
+        
+        for (let i = 0; i < sundays.length; i++) {
+          const sunday = sundays[i];
+          updateProgress(i + 1, sundays.length);
+          
+          // 计算本周
+          prevCalcResult = await calculateWeek(sunday, prevCalcResult);
+          
+          // 延迟，避免Firebase压力过大
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        log('==============================', 'success');
+        log('计算完成！', 'success');
+        log(`共计算 ${sundays.length} 周数据`, 'success');
+        
+      } catch (error) {
+        log(`错误: ${error.message}`, 'error');
+        console.error(error);
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+    
+    // 查看特定主日的缺勤数据
+    async function viewSpecificSunday() {
+      const dateInput = document.getElementById('sundayDate');
+      const sundayDate = dateInput.value;
+      
+      if (!sundayDate) {
+        alert('请选择日期！');
+        return;
+      }
+      
+      // 检查是否为周日
+      const date = new Date(sundayDate);
+      if (date.getDay() !== 0) {
+        alert('请选择周日！');
+        return;
+      }
+      
+      try {
+        // 初始化Firebase
+        if (!db) {
+          await initFirebase();
+        }
+        
+        log(`========== 查看 ${sundayDate} 的缺勤数据 ==========`, 'info');
+        
+        // 1. 获取该周的签到数据
+        const attendance = await getWeekAttendance(sundayDate);
+        const memberMap = await buildMemberMap();
+        const signedUUIDs = new Set();
+        const unresolvedRecords = [];
+        const duplicateTracker = {};
+        attendance.forEach(record => {
+          const resolvedUUID = resolveRecordUUID(record, memberMap);
+          if (resolvedUUID) {
+            signedUUIDs.add(resolvedUUID);
+            if (!duplicateTracker[resolvedUUID]) {
+              duplicateTracker[resolvedUUID] = {
+                count: 0,
+                names: new Set()
+              };
+            }
+            duplicateTracker[resolvedUUID].count += 1;
+            const displayName = record.memberName || record.name || memberMap.uuidToMember[resolvedUUID]?.name || resolvedUUID;
+            duplicateTracker[resolvedUUID].names.add(displayName);
+          } else {
+            unresolvedRecords.push(record);
+          }
+        });
+        
+        log(`本周签到人数: ${signedUUIDs.size}`, 'success');
+        if (Object.keys(duplicateTracker).length > 0) {
+          const duplicates = Object.values(duplicateTracker).filter(item => item.count > 1);
+          if (duplicates.length > 0) {
+            const duplicateMessages = duplicates.slice(0, 10).map(item => `${Array.from(item.names).join('/')}: ${item.count} 条记录`);
+            log(`发现 ${duplicates.length} 位成员存在多条签到记录，前10项：${duplicateMessages.join('; ')}`, 'info');
+          }
+        }
+        if (unresolvedRecords.length > 0) {
+          const unresolvedPreview = unresolvedRecords.slice(0, 10).map(record => record.memberName || record.name || record.memberSnapshot?.name || JSON.stringify(record));
+          log(`⚠️ 有 ${unresolvedRecords.length} 条签到记录无法匹配到成员UUID，前10条：${unresolvedPreview.join(', ')}`, 'error');
+        }
+        
+        // 2. 获取所有成员
+        const allMembers = memberMap.members;
+        log(`总成员数（排除后）: ${allMembers.length}`, 'info');
+        
+        // 3. 计算缺勤人员
+        const absenceMembers = [];
+        for (const member of allMembers) {
+          if (!signedUUIDs.has(member.uuid)) {
+            absenceMembers.push(member);
+          }
+        }
+        
+        log(`缺勤人数: ${absenceMembers.length}`, 'info');
+        
+        // 4. 获取Firebase中的计算结果（如果有）
+        const calcSnapshot = await db.ref(`absenceCalc/${sundayDate}`).once('value');
+        const savedCalc = calcSnapshot.val() || {};
+        
+        // 5. 显示结果
+        const resultDiv = document.getElementById('specificResult');
+        const contentDiv = document.getElementById('resultContent');
+        
+        let html = `
+          <p><strong>日期：</strong>${sundayDate}</p>
+          <p><strong>签到人数：</strong>${signedUUIDs.size} 人</p>
+          <p><strong>缺勤人数：</strong>${absenceMembers.length} 人</p>
+          <p><strong>总成员数：</strong>${allMembers.length} 人</p>
+          <p><strong>Firebase中保存的缺勤记录：</strong>${Object.keys(savedCalc).length} 条</p>
+          <hr>
+          <h4>签到成员列表（前10人）：</h4>
+          <ul>
+        `;
+        
+        const signedMembers = allMembers.filter(m => signedUUIDs.has(m.uuid));
+        signedMembers.slice(0, 10).forEach(m => {
+          html += `<li>${m.name} (${m.group})</li>`;
+        });
+        if (signedMembers.length > 10) {
+          html += `<li>...还有 ${signedMembers.length - 10} 人</li>`;
+        }
+        html += '</ul>';
+        
+        html += '<h4>缺勤成员列表（前20人）：</h4><ul>';
+        absenceMembers.slice(0, 20).forEach(m => {
+          const savedData = savedCalc[m.uuid];
+          const count = savedData ? savedData.count : '未保存';
+          html += `<li>${m.name} (${m.group}) - 缺勤标记: ${count}</li>`;
+        });
+        if (absenceMembers.length > 20) {
+          html += `<li>...还有 ${absenceMembers.length - 20} 人</li>`;
+        }
+        html += '</ul>';
+        
+        contentDiv.innerHTML = html;
+        resultDiv.style.display = 'block';
+        
+        log('查看完成！', 'success');
+        
+      } catch (error) {
+        log(`错误: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+    
+    // 页面加载完成
+    window.addEventListener('load', () => {
+      log('页面加载完成，点击"开始计算"按钮开始', 'info');
+      
+      // 设置日期选择器的默认日期为最近的主日
+      const today = new Date();
+      const day = today.getDay();
+      const diff = day === 0 ? 0 : -day;
+      const lastSunday = new Date(today);
+      lastSunday.setDate(today.getDate() + diff);
+      document.getElementById('sundayDate').value = lastSunday.toISOString().split('T')[0];
+    });
+  </script>
+</body>
+</html>
+

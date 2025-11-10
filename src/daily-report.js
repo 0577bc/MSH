@@ -25,6 +25,7 @@ const HISTORICAL_GROUP_NAMES = {
 // DOM元素引用
 let signedList, unsignedList, newcomersList;
 let totalSigned, totalNewcomers, backButton;
+let dateInput, viewDailyReportBtn; // 日期选择控件
 
 // ==================== Firebase初始化 ====================
 async function initializeFirebase() {
@@ -60,12 +61,17 @@ function initializeDOMElements() {
   totalSigned = document.getElementById('totalSigned');
   totalNewcomers = document.getElementById('totalNewcomers');
   backButton = document.getElementById('backButton');
+  dateInput = document.getElementById('dateInput');
+  viewDailyReportBtn = document.getElementById('viewDailyReportBtn');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   
   // 初始化DOM元素
   initializeDOMElements();
+  
+  // 初始化Firebase（确保数据库可用）
+  await initializeFirebase();
   
   // 初始化页面同步管理器
   initializePageSyncManager();
@@ -93,6 +99,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('🔄 重新加载数据:', dateInput.value);
       const records = await loadAttendanceRecordsForDate(dateInput.value);
       generateDailyReport(records);
+    } else {
+      // 如果没有选择日期，使用今天的日期
+      const today = window.utils.getLocalDateString();
+      if (dateInput) {
+        dateInput.value = today;
+      }
+      const records = await loadAttendanceRecordsForDate(today);
+      generateDailyReport(records);
     }
   });
   
@@ -115,17 +129,25 @@ async function loadBasicDataAndToday() {
     // 1. 加载基础数据
     await loadBasicData();
     
-    // 2. 只加载今天的签到记录
+    // 2. 初始化日期选择控件（如果存在）
+    if (dateInput) {
+      const today = window.utils.getLocalDateString();
+      dateInput.value = today;
+    }
+    
+    // 3. 加载默认日期（今天）的签到记录
     const today = window.utils.getLocalDateString();
-    const todayRecords = await loadAttendanceRecordsForDate(today);
+    const selectedDate = dateInput && dateInput.value ? dateInput.value : today;
+    const todayRecords = await loadAttendanceRecordsForDate(selectedDate);
     
     console.log("🔍 日报表页面数据加载:", {
       groups: Object.keys(groups).length,
       groupNames: Object.keys(groupNames).length,
+      selectedDate: selectedDate,
       todayRecords: todayRecords.length
     });
     
-    // 3. 生成日报表
+    // 4. 生成日报表
     generateDailyReport(todayRecords);
     
   } catch (error) {
@@ -310,8 +332,182 @@ function initializeEventListeners() {
       }
     });
   }
+  
+  // 🆕 日期选择控件事件
+  if (dateInput) {
+    // 设置默认日期为今天
+    const today = window.utils.getLocalDateString();
+    dateInput.value = today;
+    
+    // 日期变更事件（可选：自动加载）
+    dateInput.addEventListener('change', async () => {
+      const selectedDate = dateInput.value;
+      if (selectedDate) {
+        console.log('📅 日期已变更:', selectedDate);
+        // 可选：自动加载，或者等待用户点击按钮
+      }
+    });
+  }
+  
+  // 🆕 查看日报表按钮事件
+  if (viewDailyReportBtn) {
+    viewDailyReportBtn.addEventListener('click', async () => {
+      const selectedDate = dateInput ? dateInput.value : window.utils.getLocalDateString();
+      if (!selectedDate) {
+        alert('请选择日期！');
+        return;
+      }
+      
+      console.log('📅 查看日报表，日期:', selectedDate);
+      
+      try {
+        // 显示加载状态
+        viewDailyReportBtn.disabled = true;
+        viewDailyReportBtn.textContent = '加载中...';
+        
+        // 加载指定日期的签到数据
+        const records = await loadAttendanceRecordsForDate(selectedDate);
+        
+        // 生成日报表
+        generateDailyReport(records);
+        
+        // 恢复按钮状态
+        viewDailyReportBtn.disabled = false;
+        viewDailyReportBtn.textContent = '查看日报表';
+        
+        console.log('✅ 日报表加载完成');
+      } catch (error) {
+        console.error('❌ 加载日报表失败:', error);
+        alert('加载日报表失败，请重试');
+        viewDailyReportBtn.disabled = false;
+        viewDailyReportBtn.textContent = '查看日报表';
+      }
+    });
+  }
 
   // 数据同步监听器已在DOMContentLoaded中初始化
+}
+
+// ==================== 保存主日数据到 Firebase（用于缺勤计算优化）====================
+/**
+ * 如果是主日，保存日报表数据到 Firebase
+ * @param {string} date - 日期字符串 YYYY-MM-DD
+ * @param {Array} records - 签到记录数组
+ * @param {Object} groups - 小组数据
+ * @param {Object} groupNames - 小组名称映射
+ */
+async function saveDailyReportToFirebaseIfSunday(date, records, groups, groupNames) {
+  try {
+    // 检查是否是主日
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 1 = Monday, ...
+    
+    if (dayOfWeek !== 0) {
+      // 不是主日，不保存
+      return;
+    }
+    
+    console.log(`📅 检测到主日 (${date})，准备保存日报表数据到Firebase`);
+    
+    // 🔧 修复：确保 Firebase 已初始化
+    let firebaseDb = db || window.db;
+    if (!firebaseDb) {
+      // 尝试初始化 Firebase
+      const result = window.utils.initializeFirebase();
+      if (result.success && result.db) {
+        firebaseDb = result.db;
+        db = firebaseDb;
+        window.db = firebaseDb;
+        console.log('✅ Firebase已初始化，可以保存数据');
+      } else {
+        console.warn('⚠️ Firebase未初始化，跳过保存主日数据');
+        return;
+      }
+    }
+    
+    // 统计已签到成员（使用UUID）
+    const signedUUIDs = new Set();
+    const signedMembers = [];
+    
+    records.forEach(record => {
+      const identifier = record.memberUUID || record.name;
+      if (!signedUUIDs.has(identifier)) {
+        signedUUIDs.add(identifier);
+        signedMembers.push({
+          uuid: record.memberUUID || record.name,
+          name: record.name,
+          group: record.group,
+          time: record.time,
+          memberSnapshot: record.memberSnapshot,
+          groupSnapshot: record.groupSnapshot
+        });
+      }
+    });
+    
+    // 统计所有成员（排除排除人员）
+    const allMembers = Object.keys(groups).flatMap(group => 
+      groups[group]
+        .filter(member => member.excluded !== true && member.excluded !== 'true')
+        .map(member => ({ 
+          group, 
+          name: member.name,
+          uuid: member.uuid || member.name
+        }))
+    );
+    
+    // 计算未签到成员
+    const unsignedMembers = allMembers.filter(member => 
+      !signedUUIDs.has(member.uuid)
+    );
+    
+    // 构建日报表数据
+    const dailyReportData = {
+      date: date,
+      signedMembers: signedMembers,
+      unsignedMembers: unsignedMembers,
+      totalSigned: signedMembers.length,
+      totalUnsigned: unsignedMembers.length,
+      totalMembers: allMembers.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    // 保存到 Firebase（使用update()增量更新，符合数据安全规则）
+    const dateKey = date; // 使用 YYYY-MM-DD 格式作为key
+    // 直接在指定路径使用update()，只更新/创建该日期的数据，不影响其他日期
+    try {
+      await firebaseDb.ref(`dailyReports/${dateKey}`).update(dailyReportData);
+      console.log(`✅ 已保存主日数据到 Firebase: dailyReports/${dateKey}`, {
+        signed: signedMembers.length,
+        unsigned: unsignedMembers.length,
+        total: allMembers.length
+      });
+    } catch (firebaseError) {
+      // Firebase权限错误处理
+      if (firebaseError.code === 'PERMISSION_DENIED' || firebaseError.message.includes('permission_denied')) {
+        console.warn('⚠️ Firebase权限不足，无法保存到 dailyReports 路径');
+        console.warn('💡 提示：请在Firebase控制台的Realtime Database安全规则中添加以下规则：');
+        console.warn('   "dailyReports": { ".read": true, ".write": true }');
+        console.warn('   或者使用更严格的规则，例如：');
+        console.warn('   "dailyReports": { ".read": "auth != null", ".write": "auth != null" }');
+        
+        // 作为临时方案，保存到本地存储
+        try {
+          const localKey = `msh_dailyReport_${dateKey}`;
+          localStorage.setItem(localKey, JSON.stringify(dailyReportData));
+          console.log(`✅ 已保存主日数据到本地存储: ${localKey}`);
+        } catch (localError) {
+          console.error('❌ 保存到本地存储也失败:', localError);
+        }
+      } else {
+        throw firebaseError; // 重新抛出其他错误
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ 保存主日数据失败:', error);
+    // 不抛出错误，避免影响日报表显示
+  }
 }
 
 // ==================== 数据加载函数 ====================
@@ -488,6 +684,13 @@ function initializeEventListeners() {
     
     // 更新统计数据
     updateStatistics(todayRecords);
+    
+    // 🆕 保存主日数据到 Firebase（用于缺勤计算优化）
+    // 使用选择的日期（如果有），否则使用今天的日期
+    const reportDate = dateInput && dateInput.value ? dateInput.value : window.utils.getLocalDateString();
+    saveDailyReportToFirebaseIfSunday(reportDate, todayRecords, groups, groupNames).catch(err => {
+      console.error('保存主日数据到Firebase失败:', err);
+    });
   }
   
   // 更新统计数据的函数

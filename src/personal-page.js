@@ -93,6 +93,12 @@ function initializeEventListeners() {
 async function loadData() {
   try {
     console.log('个人页面正在连接Firebase数据库...');
+    
+    if (!currentMemberUUID) {
+      console.error('成员UUID未设置，无法加载数据');
+      throw new Error('缺少成员UUID参数');
+    }
+    
     await loadDataFromFirebase();
   } catch (error) {
     console.error('Error loading data from Firebase:', error);
@@ -107,6 +113,11 @@ async function loadDataFromFirebase() {
     return;
   }
 
+  if (!currentMemberUUID) {
+    console.error('成员UUID未设置，无法加载签到记录');
+    return;
+  }
+
   try {
     // 加载小组数据
     const groupsSnapshot = await db.ref('groups').once('value');
@@ -116,16 +127,71 @@ async function loadDataFromFirebase() {
     const groupNamesSnapshot = await db.ref('groupNames').once('value');
     groupNames = groupNamesSnapshot.val() || {};
     
-    // 🚨 修复：个人页面只加载当天签到记录，不拉取全部历史数据
-    const today = new Date().toISOString().split('T')[0];
-    const attendanceSnapshot = await db.ref('attendanceRecords')
-      .orderByChild('date')
-      .equalTo(today)
-      .once('value');
-    const todayData = attendanceSnapshot.val();
-    attendanceRecords = todayData ? Object.values(todayData) : [];
+    // 🔧 优化：直接从Firebase加载该成员的所有签到记录，不依赖全局数据
+    // 原因：全局数据可能不完整（只包含当天数据），个人页面需要显示完整历史记录
+    console.log(`🔍 从Firebase加载成员签到记录（UUID: ${currentMemberUUID}）`);
+    
+    // 先获取成员信息，用于兼容旧数据（没有memberUUID的情况）
+    const member = findMemberByUUID(currentMemberUUID);
+    console.log('📋 成员信息:', member ? { name: member.name, uuid: currentMemberUUID } : '未找到');
+    
+    // 尝试按memberUUID查询（优先方式）
+    try {
+      const attendanceSnapshot = await db.ref('attendanceRecords')
+        .orderByChild('memberUUID')
+        .equalTo(currentMemberUUID)
+        .once('value');
+      const memberData = attendanceSnapshot.val();
+      attendanceRecords = memberData ? Object.values(memberData) : [];
+      console.log(`✅ 按memberUUID查询到 ${attendanceRecords.length} 条记录`);
+      
+      // 如果没有通过memberUUID找到记录，且成员有name，尝试通过name匹配
+      if (attendanceRecords.length === 0 && member && member.name) {
+        console.log(`⚠️ 未找到memberUUID匹配的记录，尝试通过name匹配: ${member.name}`);
+        // 加载所有记录后通过name过滤
+        const allSnapshot = await db.ref('attendanceRecords').once('value');
+        const allData = allSnapshot.val();
+        const allRecords = allData ? Object.values(allData) : [];
+        console.log(`📊 总共有 ${allRecords.length} 条签到记录`);
+        
+        // 通过name匹配
+        attendanceRecords = allRecords.filter(record => {
+          return record.name === member.name;
+        });
+        console.log(`✅ 通过name匹配到 ${attendanceRecords.length} 条记录`);
+        
+        // 调试：显示前几条记录的memberUUID和name
+        if (allRecords.length > 0) {
+          console.log('🔍 调试：前3条记录的memberUUID和name:', 
+            allRecords.slice(0, 3).map(r => ({ 
+              name: r.name, 
+              memberUUID: r.memberUUID,
+              hasUUID: !!r.memberUUID
+            }))
+          );
+        }
+      }
+    } catch (queryError) {
+      console.warn('⚠️ 按memberUUID查询失败（可能没有索引），尝试加载所有记录后过滤:', queryError.message);
+      // 回退方案：加载所有记录后过滤
+      const allSnapshot = await db.ref('attendanceRecords').once('value');
+      const allData = allSnapshot.val();
+      const allRecords = allData ? Object.values(allData) : [];
+      console.log(`📊 从Firebase加载了 ${allRecords.length} 条总记录`);
+      
+      // 过滤出当前成员的记录
+      attendanceRecords = allRecords.filter(record => {
+        if (record.memberUUID === currentMemberUUID) return true;
+        // 兼容：如果没有memberUUID，尝试通过name匹配
+        if (!record.memberUUID && member && member.name && record.name === member.name) {
+          return true;
+        }
+        return false;
+      });
+      console.log(`✅ 从全部记录中过滤出成员签到记录 ${attendanceRecords.length} 条`);
+    }
 
-    console.log('个人页面数据加载成功');
+    console.log('✅ 个人页面数据加载成功');
   } catch (error) {
     console.error('Error loading data from Firebase:', error);
     throw error;
@@ -137,15 +203,37 @@ function loadDataFromLocalStorage() {
     // 从本地存储加载数据
     const storedGroups = localStorage.getItem('msh_groups');
     const storedGroupNames = localStorage.getItem('msh_group_names');
-    const storedAttendance = localStorage.getItem('msh_attendance_records');
+    const storedAttendance = localStorage.getItem('msh_attendanceRecords');
 
     if (storedGroups) groups = JSON.parse(storedGroups);
     if (storedGroupNames) groupNames = JSON.parse(storedGroupNames);
-    if (storedAttendance) attendanceRecords = JSON.parse(storedAttendance);
+    
+    // 🔧 优化：如果有全局签到记录，只加载当前成员的记录
+    if (storedAttendance && currentMemberUUID) {
+      const allRecords = JSON.parse(storedAttendance);
+      if (Array.isArray(allRecords)) {
+        // 过滤出当前成员的记录
+        const member = findMemberByUUID(currentMemberUUID);
+        attendanceRecords = allRecords.filter(record => {
+          if (record.memberUUID === currentMemberUUID) return true;
+          // 兼容：如果没有memberUUID，尝试通过name匹配
+          if (!record.memberUUID && member && member.name && record.name === member.name) {
+            return true;
+          }
+          return false;
+        });
+        console.log(`✅ 从本地存储过滤出成员签到记录 ${attendanceRecords.length} 条`);
+      } else {
+        attendanceRecords = [];
+      }
+    } else if (storedAttendance) {
+      attendanceRecords = JSON.parse(storedAttendance);
+    }
 
-    console.log('个人页面数据从本地存储加载成功');
+    console.log('✅ 个人页面数据从本地存储加载成功');
   } catch (error) {
     console.error('从本地存储加载数据失败:', error);
+    attendanceRecords = [];
   }
 }
 
@@ -159,27 +247,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 初始化事件监听器
   initializeEventListeners();
   
-  // 初始化Firebase
-  await initializeFirebase();
-  
-  // 加载数据
-  await loadData();
-  
-  // 从URL参数获取成员UUID
+  // 从URL参数获取成员UUID（需要在loadData之前获取）
   const urlParams = new URLSearchParams(window.location.search);
   currentMemberUUID = urlParams.get('uuid');
   
-  if (currentMemberUUID) {
-    // 显示个人信息、签到日历和跟踪记录
-    displayPersonalInfo();
-    displayAttendanceCalendar();
-    displayTrackingRecords();
-  } else {
+  if (!currentMemberUUID) {
     console.error('未找到成员UUID参数');
     alert('页面参数错误，请从主日跟踪页面进入');
+    return;
   }
   
-  console.log('个人页面初始化完成');
+  // 初始化Firebase
+  await initializeFirebase();
+  
+  // 加载数据（loadData内部会使用currentMemberUUID）
+  await loadData();
+  
+  // 显示个人信息、签到日历和跟踪记录
+  displayPersonalInfo();
+  displayAttendanceCalendar();
+  displayTrackingRecords();
+  
+  console.log('✅ 个人页面初始化完成');
 });
 
 // ==================== 显示个人信息 ====================
@@ -399,8 +488,9 @@ function generateDayHTML(day, dayDate, isOtherMonth, attendanceRecords) {
   const isToday = isSameDate(dayDate, today);
   const isSunday = dayDate.getDay() === 0;
   
-  // 检查是否有签到记录
-  const hasAttendance = checkAttendanceForDate(dayDate, attendanceRecords);
+  // 检查是否有签到记录，并获取签到详情
+  const attendanceRecord = getAttendanceRecordForDate(dayDate, attendanceRecords);
+  const hasAttendance = !!attendanceRecord;
   
   let dayClasses = ['calendar-day'];
   let dayInfo = '';
@@ -417,16 +507,25 @@ function generateDayHTML(day, dayDate, isOtherMonth, attendanceRecords) {
     dayClasses.push('sunday');
   }
   
-  if (hasAttendance) {
+  // 构建日期信息显示
+  if (hasAttendance && attendanceRecord) {
     dayClasses.push('present');
-    dayInfo = '<div class="day-info present">已签到</div>';
-  } else if (isSunday) {
+    // 格式化签到时间
+    const timeStr = attendanceRecord.time ? 
+      new Date(attendanceRecord.time).toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }) : '';
+    dayInfo = `<div class="day-info present">✓ ${timeStr || '已签到'}</div>`;
+  } else if (isSunday && !isOtherMonth) {
+    // 只对当月的主日显示未签到
     dayClasses.push('absent');
-    dayInfo = '<div class="day-info absent">未签到</div>';
+    dayInfo = '<div class="day-info absent">✗ 未签到</div>';
   }
   
   return `
-    <div class="${dayClasses.join(' ')}" data-date="${dayDate.toISOString().split('T')[0]}">
+    <div class="${dayClasses.join(' ')}" data-date="${dayDate.toISOString().split('T')[0]}" 
+         title="${isSunday ? '主日' : ''} ${hasAttendance ? '已签到' : isSunday && !isOtherMonth ? '未签到' : ''}">
       <div class="day-number">${day}</div>
       ${dayInfo}
     </div>
@@ -435,9 +534,16 @@ function generateDayHTML(day, dayDate, isOtherMonth, attendanceRecords) {
 
 // ==================== 检查指定日期的签到情况 ====================
 function checkAttendanceForDate(date, attendanceRecords) {
-  if (!attendanceRecords || !Array.isArray(attendanceRecords)) return false;
+  const record = getAttendanceRecordForDate(date, attendanceRecords);
+  return !!record;
+}
+
+// ==================== 获取指定日期的签到记录 ====================
+function getAttendanceRecordForDate(date, attendanceRecords) {
+  if (!attendanceRecords || !Array.isArray(attendanceRecords)) return null;
   
-  return attendanceRecords.some(record => {
+  // 查找匹配的记录
+  const record = attendanceRecords.find(record => {
     if (!record.time) return false;
     
     try {
@@ -447,6 +553,8 @@ function checkAttendanceForDate(date, attendanceRecords) {
       return false;
     }
   });
+  
+  return record || null;
 }
 
 // ==================== 判断是否为同一天 ====================
