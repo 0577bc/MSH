@@ -104,6 +104,66 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="member-section">
+            <h2>👤 成员 UUID 管理</h2>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="memberTotalCount">0</div>
+                    <div class="stat-label">成员总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="memberMissingUUID">0</div>
+                    <div class="stat-label">缺少UUID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="memberHasUUID">0</div>
+                    <div class="stat-label">已有UUID</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="memberUUIDCoverage">0%</div>
+                    <div class="stat-label">UUID覆盖率</div>
+                </div>
+            </div>
+
+            <div class="filters">
+                <label for="memberGroupFilter">小组筛选：</label>
+                <select id="memberGroupFilter" onchange="filterMembers()">
+                    <option value="">所有小组</option>
+                </select>
+                <label for="memberStatusFilter">UUID状态：</label>
+                <select id="memberStatusFilter" onchange="filterMembers()">
+                    <option value="">全部</option>
+                    <option value="missing">缺少UUID</option>
+                    <option value="has">有UUID</option>
+                </select>
+                <label for="memberKeyword">成员搜索：</label>
+                <input type="text" id="memberKeyword" placeholder="输入姓名或花名" onkeyup="filterMembers()">
+            </div>
+
+            <div class="actions">
+                <button onclick="autoFillMemberUUIDs()" class="success-button">自动填充成员UUID</button>
+                <button onclick="clearMemberFilters()">清除成员筛选</button>
+            </div>
+
+            <div class="table-container">
+                <table id="membersTable">
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>姓名</th>
+                            <th>花名</th>
+                            <th>小组</th>
+                            <th>电话</th>
+                            <th>UUID</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="membersBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
         
         <div class="log" id="log">
             <div>🔧 UUID编辑器已加载</div>
@@ -117,6 +177,11 @@
         let groups = {};
         let groupNames = {};
         let hasChanges = false;
+        let memberEntries = [];
+        let filteredMemberEntries = [];
+        const memberEntryMap = new Map();
+        const changedGroups = new Set();
+        let hasMemberChanges = false;
         
         // 日志函数
         function log(message, type = 'info') {
@@ -244,6 +309,7 @@
                 // 显示所有记录
                 filteredRecords = [...allRecords];
                 displayRecords();
+                prepareMemberData();
                 
                 log(`数据加载完成: ${allRecords.length} 条记录`, 'success');
                 
@@ -353,6 +419,7 @@
                 loadFilterOptions();
                 filteredRecords = [...allRecords];
                 displayRecords();
+                prepareMemberData();
                 
                 log('🎉 从Firebase加载全部数据完成！', 'success');
                 alert('✅ 数据加载成功！\n\n' + 
@@ -377,6 +444,314 @@
             document.getElementById('missingUUID').textContent = missing;
             document.getElementById('hasUUID').textContent = has;
             document.getElementById('coverage').textContent = coverage + '%';
+        }
+
+        // 构建成员数据索引
+        function prepareMemberData() {
+            memberEntries = [];
+            filteredMemberEntries = [];
+            memberEntryMap.clear();
+
+            const groupKeys = Object.keys(groups || {});
+            groupKeys.forEach(groupId => {
+                const memberList = Array.isArray(groups[groupId]) ? groups[groupId] : [];
+                memberList.forEach((member, index) => {
+                    const rowKey = member && member.uuid ? `uuid_${member.uuid}` : `member_${groupId}_${index}`;
+                    const entry = {
+                        rowKey,
+                        groupId,
+                        groupName: groupNames[groupId] || groupId,
+                        memberRef: member,
+                        name: member && member.name ? member.name : '',
+                        nickname: member && member.nickname ? member.nickname : '',
+                        phone: member && member.phone ? member.phone : '',
+                        gender: member && member.gender ? member.gender : '',
+                        uuid: member && member.uuid ? member.uuid : '',
+                        index
+                    };
+                    memberEntries.push(entry);
+                    memberEntryMap.set(rowKey, entry);
+                });
+            });
+
+            filteredMemberEntries = [...memberEntries];
+            populateMemberFilters();
+            updateMemberStats();
+            filterMembers();
+        }
+
+        // 更新成员筛选下拉框
+        function populateMemberFilters() {
+            const groupFilter = document.getElementById('memberGroupFilter');
+            if (!groupFilter) {
+                return;
+            }
+            const previousValue = groupFilter.value;
+
+            groupFilter.innerHTML = '<option value="">所有小组</option>';
+            const uniqueGroupIds = [...new Set(memberEntries.map(entry => entry.groupId))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+            uniqueGroupIds.forEach(groupId => {
+                const option = document.createElement('option');
+                option.value = groupId;
+                option.textContent = groupNames[groupId] || groupId;
+                groupFilter.appendChild(option);
+            });
+
+            if (previousValue && uniqueGroupIds.includes(previousValue)) {
+                groupFilter.value = previousValue;
+            }
+        }
+
+        // 更新成员统计信息
+        function updateMemberStats() {
+            const total = memberEntries.length;
+            const missing = memberEntries.filter(entry => !entry.uuid).length;
+            const has = total - missing;
+            const coverage = total > 0 ? Math.round((has / total) * 100) : 0;
+
+            const totalEl = document.getElementById('memberTotalCount');
+            const missingEl = document.getElementById('memberMissingUUID');
+            const hasEl = document.getElementById('memberHasUUID');
+            const coverageEl = document.getElementById('memberUUIDCoverage');
+
+            if (totalEl) totalEl.textContent = total;
+            if (missingEl) missingEl.textContent = missing;
+            if (hasEl) hasEl.textContent = has;
+            if (coverageEl) coverageEl.textContent = coverage + '%';
+        }
+
+        // 筛选成员列表
+        function filterMembers() {
+            const groupFilter = document.getElementById('memberGroupFilter');
+            const statusFilter = document.getElementById('memberStatusFilter');
+            const keywordInput = document.getElementById('memberKeyword');
+
+            const groupValue = groupFilter ? groupFilter.value : '';
+            const statusValue = statusFilter ? statusFilter.value : '';
+            const keyword = keywordInput ? keywordInput.value.trim().toLowerCase() : '';
+
+            filteredMemberEntries = memberEntries.filter(entry => {
+                if (groupValue && entry.groupId !== groupValue) {
+                    return false;
+                }
+                if (statusValue === 'missing' && entry.uuid) {
+                    return false;
+                }
+                if (statusValue === 'has' && !entry.uuid) {
+                    return false;
+                }
+                if (keyword) {
+                    const keywordSource = [
+                        entry.name || '',
+                        entry.nickname || '',
+                        entry.phone || ''
+                    ].join(' ').toLowerCase();
+                    if (!keywordSource.includes(keyword)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            renderMemberTable();
+        }
+
+        // 渲染成员表格
+        function renderMemberTable() {
+            const tbody = document.getElementById('membersBody');
+            if (!tbody) {
+                return;
+            }
+
+            tbody.innerHTML = '';
+
+            if (filteredMemberEntries.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = '<td colspan="7" class="no-data">暂无成员数据，请先加载小组成员信息</td>';
+                tbody.appendChild(emptyRow);
+                return;
+            }
+
+            filteredMemberEntries.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                if (!entry.uuid) {
+                    row.classList.add('missing-uuid');
+                }
+
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${entry.name || ''}</td>
+                    <td>${entry.nickname || ''}</td>
+                    <td>${entry.groupName || entry.groupId}</td>
+                    <td>${entry.phone || ''}</td>
+                    <td class="uuid-cell" id="member-uuid-${entry.rowKey}">${entry.uuid || '缺少UUID'}</td>
+                    <td>
+                        <button class="edit-button" onclick="editMemberUUID('${entry.rowKey}')">编辑</button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // 编辑成员UUID
+        function editMemberUUID(rowKey) {
+            const entry = memberEntryMap.get(rowKey);
+            if (!entry) {
+                log(`未找到成员记录: ${rowKey}`, 'error');
+                return;
+            }
+
+            const uuidCell = document.getElementById(`member-uuid-${rowKey}`);
+            if (!uuidCell) {
+                log(`UUID单元格不存在: ${rowKey}`, 'error');
+                return;
+            }
+
+            const row = uuidCell.closest('tr');
+            if (row && row.classList.contains('editing')) {
+                return;
+            }
+            if (row) {
+                row.classList.add('editing');
+            }
+
+            const currentUUID = entry.uuid || '';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'input-field';
+            input.value = currentUUID;
+            input.placeholder = '输入UUID或留空';
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.marginTop = '5px';
+
+            const saveButton = document.createElement('button');
+            saveButton.className = 'save-button';
+            saveButton.textContent = '保存';
+            saveButton.onclick = () => saveMemberUUID(rowKey, input.value);
+
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'cancel-button';
+            cancelButton.textContent = '取消';
+            cancelButton.onclick = () => cancelMemberEdit(rowKey);
+
+            buttonContainer.appendChild(saveButton);
+            buttonContainer.appendChild(cancelButton);
+
+            uuidCell.innerHTML = '';
+            uuidCell.appendChild(input);
+            uuidCell.appendChild(buttonContainer);
+
+            input.focus();
+        }
+
+        // 取消成员编辑
+        function cancelMemberEdit(rowKey) {
+            filterMembers();
+        }
+
+        // 保存成员UUID
+        function saveMemberUUID(rowKey, newUUID) {
+            const entry = memberEntryMap.get(rowKey);
+            if (!entry) {
+                log(`保存失败，未找到成员记录: ${rowKey}`, 'error');
+                return;
+            }
+
+            const trimmedUUID = (newUUID || '').trim();
+            if (trimmedUUID) {
+                if (!validateMemberUUIDFormat(trimmedUUID)) {
+                    alert('UUID格式不正确，请确保为标准UUID格式');
+                    log(`成员 ${entry.name} 的UUID格式校验失败: ${trimmedUUID}`, 'error');
+                    return;
+                }
+
+                const duplicateEntry = memberEntries.find(item => item.rowKey !== rowKey && item.uuid && item.uuid === trimmedUUID);
+                if (duplicateEntry) {
+                    alert(`UUID已被成员 "${duplicateEntry.name}" 使用，请勿重复`);
+                    log(`成员 ${entry.name} 尝试使用重复UUID: ${trimmedUUID}`, 'error');
+                    return;
+                }
+            }
+
+            const previousUUID = entry.uuid || '';
+            if (previousUUID === trimmedUUID) {
+                log(`成员 ${entry.name} 的UUID未发生变化`, 'info');
+                cancelMemberEdit(rowKey);
+                return;
+            }
+
+            if (trimmedUUID) {
+                entry.uuid = trimmedUUID;
+                entry.memberRef.uuid = trimmedUUID;
+            } else {
+                entry.uuid = '';
+                delete entry.memberRef.uuid;
+            }
+
+            markMemberChanged(entry.groupId);
+            updateMemberStats();
+            filterMembers();
+
+            log(`成员 ${entry.name} 的UUID已更新: ${previousUUID || '无'} → ${trimmedUUID || '无'}`, 'success');
+        }
+
+        // 清除成员筛选
+        function clearMemberFilters() {
+            const groupFilter = document.getElementById('memberGroupFilter');
+            const statusFilter = document.getElementById('memberStatusFilter');
+            const keywordInput = document.getElementById('memberKeyword');
+
+            if (groupFilter) groupFilter.value = '';
+            if (statusFilter) statusFilter.value = '';
+            if (keywordInput) keywordInput.value = '';
+
+            filterMembers();
+        }
+
+        // 自动填充成员UUID
+        function autoFillMemberUUIDs() {
+            if (!window.utils || !window.utils.generateUUID) {
+                log('UUID生成工具未加载，无法自动填充成员UUID', 'error');
+                return;
+            }
+
+            let filledCount = 0;
+            memberEntries.forEach(entry => {
+                if (!entry.uuid) {
+                    let newUUID = window.utils.generateUUID();
+                    while (memberEntries.some(item => item.uuid === newUUID)) {
+                        newUUID = window.utils.generateUUID();
+                    }
+                    entry.uuid = newUUID;
+                    entry.memberRef.uuid = newUUID;
+                    markMemberChanged(entry.groupId);
+                    filledCount++;
+                }
+            });
+
+            if (filledCount === 0) {
+                log('没有需要自动生成UUID的成员', 'info');
+            } else {
+                updateMemberStats();
+                filterMembers();
+                log(`自动为 ${filledCount} 名成员生成UUID`, 'success');
+            }
+        }
+
+        // 校验UUID格式
+        function validateMemberUUIDFormat(uuid) {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(uuid);
+        }
+
+        // 标记成员所属小组已经发生变化
+        function markMemberChanged(groupId) {
+            changedGroups.add(groupId);
+            hasMemberChanges = true;
+            showSaveWarning();
         }
         
         // 加载筛选器选项
@@ -720,7 +1095,7 @@
         
         // 保存所有更改 - 使用直接Firebase同步机制
         async function saveAllChanges() {
-            if (!hasChanges) {
+            if (!hasChanges && !hasMemberChanges) {
                 log('没有需要保存的更改', 'info');
                 return;
             }
@@ -728,40 +1103,88 @@
             try {
                 log('开始直接同步所有更改到Firebase...');
                 
+                const attendanceChanged = hasChanges;
+                const memberChanged = hasMemberChanges;
+                const changedGroupCount = changedGroups.size;
+
                 // 1. 保存到本地存储
-                localStorage.setItem('msh_attendanceRecords', JSON.stringify(allRecords));
-                localStorage.setItem('msh_attendanceRecords_timestamp', Date.now().toString());
-                log('✅ 数据已保存到本地存储');
+                if (attendanceChanged) {
+                    localStorage.setItem('msh_attendanceRecords', JSON.stringify(allRecords));
+                    localStorage.setItem('msh_attendanceRecords_timestamp', Date.now().toString());
+                    log('✅ 签到数据已保存到本地存储');
+                }
+                if (memberChanged) {
+                    localStorage.setItem('msh_groups', JSON.stringify(groups));
+                    localStorage.setItem('msh_groups_timestamp', Date.now().toString());
+                    log('✅ 成员数据已保存到本地存储');
+                }
                 
                 // 2. 更新全局变量
-                window.attendanceRecords = allRecords;
-                log('✅ 全局变量已更新');
+                if (attendanceChanged) {
+                    window.attendanceRecords = allRecords;
+                    log('✅ 签到记录全局变量已更新');
+                }
+                if (memberChanged) {
+                    window.groups = groups;
+                    log('✅ 成员数据全局变量已更新');
+                }
                 
-                // 3. 直接Firebase同步
-                if (window.db) {
-                    try {
-                        log('🔄 正在直接同步到Firebase...');
-                        await window.db.ref('attendanceRecords').set(allRecords);
-                        log('✅ 数据已直接同步到Firebase', 'success');
-                    } catch (firebaseError) {
-                        log(`❌ Firebase同步失败: ${firebaseError.message}`, 'error');
-                        throw firebaseError;
-                    }
-                } else {
+                // 3. 同步到Firebase
+                if (!window.db) {
                     log('❌ Firebase未初始化，无法同步', 'error');
                     throw new Error('Firebase未初始化');
+                }
+
+                if (attendanceChanged) {
+                    try {
+                        log('🔄 正在同步签到记录到Firebase...');
+                        await window.db.ref('attendanceRecords').set(allRecords);
+                        log('✅ 签到记录已同步到Firebase', 'success');
+                    } catch (firebaseError) {
+                        log(`❌ 签到记录同步失败: ${firebaseError.message}`, 'error');
+                        throw firebaseError;
+                    }
+                }
+
+                if (memberChanged && changedGroupCount > 0) {
+                    try {
+                        log(`🔄 正在同步 ${changedGroupCount} 个小组的成员数据到Firebase...`);
+                        const updates = {};
+                        changedGroups.forEach(groupId => {
+                            updates[groupId] = groups[groupId] || [];
+                        });
+                        await window.db.ref('groups').update(updates);
+                        log('✅ 成员数据已增量同步到Firebase', 'success');
+                    } catch (groupError) {
+                        log(`❌ 成员数据同步失败: ${groupError.message}`, 'error');
+                        throw groupError;
+                    }
                 }
                 
                 // 4. 清除变更标志
                 hasChanges = false;
+                hasMemberChanges = false;
+                changedGroups.clear();
                 hideSaveWarning();
+                updateMemberStats();
+                filterMembers();
                 log('🎉 所有更改已同步完成！', 'success');
                 
                 // 5. 显示同步成功弹窗提示
+                const successLines = [];
+                if (attendanceChanged) {
+                    successLines.push('✓ 签到记录已同步到Firebase');
+                }
+                if (memberChanged) {
+                    successLines.push(`✓ ${changedGroupCount} 个小组的成员UUID已同步`);
+                }
+                if (successLines.length === 0) {
+                    successLines.push('✓ 无数据改动');
+                }
+
                 alert('✅ UUID修改已保存并同步成功！\n\n' +
-                    '✓ 数据已保存到本地存储\n' +
-                    '✓ 数据已同步到Firebase\n' +
-                    '✓ 全局变量已更新\n\n' +
+                    successLines.join('\n') +
+                    '\n\n' +
                     '所有更改已完成！');
                 
             } catch (error) {
