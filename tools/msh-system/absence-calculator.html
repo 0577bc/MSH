@@ -205,8 +205,6 @@
     // 计算某周的缺勤情况
     async function calculateWeek(sundayDate, prevCalcResult) {
       log(`========== 计算 ${sundayDate} ==========`, 'info');
-      
-      // 1. 获取本周签到数据
       const attendance = await getWeekAttendance(sundayDate);
       const memberMap = await buildMemberMap();
       const signedUUIDs = new Set();
@@ -229,53 +227,75 @@
         log(`提示：本周有 ${missingUuidLogs.length} 条签到记录通过名称匹配补齐UUID。`, 'info');
       }
       if (unresolvedRecords.length > 0) {
-        const unresolvedPreview = unresolvedRecords.slice(0, 5).map(record => record.memberName || record.name || record.memberSnapshot?.name || JSON.stringify(record));
+        const unresolvedPreview = unresolvedRecords
+          .slice(0, 5)
+          .map(record => record.memberName || record.name || record.memberSnapshot?.name || JSON.stringify(record));
         log(`⚠️ 有 ${unresolvedRecords.length} 条签到记录无法匹配到成员UUID（示例: ${unresolvedPreview.join(', ')}）`, 'error');
       }
 
-      // 2. 清除本周已签到人员的缺勤标记
+      const closureRecords = [];
       if (prevCalcResult) {
         signedUUIDs.forEach(uuid => {
-          if (prevCalcResult[uuid]) {
-            const member = memberMap.uuidToMember[uuid];
-            const displayName = member ? member.name : uuid;
-            log(`${displayName} 本周已签到，清除缺勤标记（之前${prevCalcResult[uuid].count}次）`, 'info');
+          if (!prevCalcResult[uuid]) {
+            return;
+          }
+          const prevCount = prevCalcResult[uuid].count || 0;
+          const member = memberMap.uuidToMember[uuid];
+          const displayName = member ? member.name : uuid;
+          if (prevCount > 0) {
+            log(`${displayName} 本周已签到，清除缺勤标记（之前${prevCount}次）`, 'info');
+          }
+          if (prevCount >= 2 && prevCalcResult[uuid].recordId) {
+            closureRecords.push({
+              recordId: prevCalcResult[uuid].recordId,
+              memberUUID: uuid,
+              memberName: displayName,
+              group: member ? member.group : prevCalcResult[uuid].group,
+              resolvedDate: sundayDate
+            });
           }
         });
       }
 
-      // 3. 计算缺勤（仅按标记逻辑）
       const currentCalc = {};
       const allMembers = memberMap.members;
 
       for (const member of allMembers) {
         const uuid = member.uuid;
-        
-        if (signedUUIDs.has(uuid)) {
-          await resolveMemberActiveEventsIfNeeded(member, sundayDate);
+        if (!uuid) {
           continue;
         }
-        
-        const prevCount = prevCalcResult && prevCalcResult[uuid] ? prevCalcResult[uuid].count : 0;
+
+        const prevData = prevCalcResult && prevCalcResult[uuid] ? prevCalcResult[uuid] : null;
+        const prevCount = prevData ? prevData.count || 0 : 0;
+        const prevStartDate = prevData ? (prevData.startDate || prevData.date || sundayDate) : sundayDate;
+        const prevRecordId = prevData ? prevData.recordId || null : null;
+
+        if (signedUUIDs.has(uuid)) {
+          continue;
+        }
+
         const newCount = prevCount + 1;
+        const startDate = prevCount === 0 ? sundayDate : prevStartDate;
+        const recordId = newCount >= 2 ? (prevRecordId || `${uuid}_${startDate}_1`) : (prevRecordId || null);
+
         if (prevCount === 0) {
           log(`${member.name} 首次缺勤，标记为1次`, 'info');
         } else {
           log(`${member.name} 连续缺勤，次数 ${prevCount} → ${newCount}`, 'info');
         }
-        
+
         currentCalc[uuid] = {
           count: newCount,
           name: member.name,
           group: member.group,
-          date: sundayDate
+          date: sundayDate,
+          startDate,
+          recordId
         };
       }
-      
-      // 4. 保存计算结果到Firebase
-      // 🔴 关键：使用set()覆盖整周数据，这样签到的人不会保留上周的标记
+
       const absenceCount = Object.keys(currentCalc).length;
-      
       if (absenceCount > 0) {
         await db.ref(`absenceCalc/${sundayDate}`).set(currentCalc);
         log(`✅ 保存计算结果：${absenceCount} 人缺勤`, 'success');
@@ -283,147 +303,139 @@
         await db.ref(`absenceCalc/${sundayDate}`).set({});
         log('✅ 保存计算结果：本周全员签到', 'success');
       }
-      
-      // 5. 生成/更新事件（标记>=2）
-      await processEvents(sundayDate, currentCalc, prevCalcResult);
-      await closeResolvedEvents(signedUUIDs, prevCalcResult, sundayDate, memberMap.uuidToMember);
-      
+
+      await processEvents(sundayDate, currentCalc, prevCalcResult, memberMap, closureRecords);
+
       return currentCalc;
     }
     
     // 处理事件生成和更新
-    async function processEvents(sundayDate, currentCalc, prevCalcResult) {
-      const eventsToSave = {};
-      
+    async function processEvents(sundayDate, currentCalc, prevCalcResult, memberMap, closureRecords) {
+      const now = new Date().toISOString();
+      const [eventsSnapshot, trackingSnapshot] = await Promise.all([
+        db.ref('absenceEvents').once('value'),
+        db.ref('trackingRecords').once('value')
+      ]);
+      const existingEvents = eventsSnapshot.val() || {};
+      const existingTracking = trackingSnapshot.val() || {};
+      const eventsToUpdate = {};
+      const trackingToUpdate = {};
+
       for (const [uuid, data] of Object.entries(currentCalc)) {
-        if (data.count >= 2) {
-          // 需要生成或更新事件
-          const prevCount = prevCalcResult && prevCalcResult[uuid] ? prevCalcResult[uuid].count : 0;
-          
-          if (prevCount === 1 && data.count === 2) {
-            // 新事件：从标记1变为标记2
-            const eventId = `${uuid}_${sundayDate}`;
-            
-            // 计算开始周（上一周）
-            const startDate = new Date(sundayDate);
-            startDate.setDate(startDate.getDate() - 7);
-            const startWeek = startDate.toISOString().split('T')[0];
-            
-            eventsToSave[eventId] = {
-              memberUUID: uuid,
-              memberName: data.name,
-              group: data.group,
-              startDate: startWeek,
-              endDate: sundayDate,
-              count: data.count,
-              weeks: [startWeek, sundayDate],
-              status: 'active',
-              createdAt: new Date().toISOString()
-            };
-            
-            log(`生成事件: ${data.name} (${data.group}) - ${startWeek}至${sundayDate}`, 'success');
-          } else if (prevCount >= 2) {
-            // 更新现有事件
-            // 找到该成员的事件
-            const eventsSnapshot = await db.ref('absenceEvents')
-              .orderByChild('memberUUID')
-              .equalTo(uuid)
-              .once('value');
-            
-            if (eventsSnapshot.exists()) {
-              eventsSnapshot.forEach(child => {
-                const eventId = child.key;
-                const event = child.val();
-                
-                // 只更新活跃事件
-                if (event.status === 'active') {
-                  eventsToSave[eventId] = {
-                    ...event,
-                    endDate: sundayDate,
-                    count: data.count,
-                    weeks: [...(event.weeks || []), sundayDate].filter((v, i, a) => a.indexOf(v) === i), // 去重
-                    updatedAt: new Date().toISOString()
-                  };
-                  
-                  log(`更新事件: ${data.name} - 缺勤${data.count}次`, 'info');
-                }
-              });
-            }
-          }
-        }
-      }
-      
-      // 批量保存事件
-      if (Object.keys(eventsToSave).length > 0) {
-        await db.ref('absenceEvents').update(eventsToSave);
-      }
-    }
-
-    async function closeResolvedEvents(signedUUIDs, prevCalcResult, sundayDate, uuidToMember) {
-      if (!prevCalcResult) {
-        return;
-      }
-      const updates = {};
-      for (const uuid of signedUUIDs) {
-        if (!prevCalcResult[uuid]) {
+        if (data.count < 2) {
           continue;
         }
-        const member = uuidToMember[uuid];
-        const displayName = member ? member.name : uuid;
-        const eventsSnapshot = await db.ref('absenceEvents')
-          .orderByChild('memberUUID')
-          .equalTo(uuid)
-          .once('value');
-        if (!eventsSnapshot.exists()) {
-          continue;
-        }
-        eventsSnapshot.forEach(child => {
-          const event = child.val();
-          const eventId = child.key;
-          if (event.status === 'active') {
-            updates[eventId] = {
-              ...event,
-              status: 'resolved',
-              resolvedDate: sundayDate,
-              updatedAt: new Date().toISOString()
-            };
-            log(`✅ 关闭事件: ${displayName} - 缺勤结束于 ${sundayDate}`, 'success');
-          }
-        });
-      }
-      if (Object.keys(updates).length > 0) {
-        await db.ref('absenceEvents').update(updates);
-      }
-    }
 
-    async function resolveMemberActiveEventsIfNeeded(member, sundayDate) {
-      const memberUUID = member.uuid;
-      if (!memberUUID) {
-        return;
+        const recordId = data.recordId || `${uuid}_${data.startDate}_1`;
+        const existingEvent = existingEvents[recordId] || {};
+        const existingTrackingRecord = existingTracking[recordId] || {};
+        const weeksSet = new Set();
+
+        if (Array.isArray(existingEvent.weeks)) {
+          existingEvent.weeks.forEach(week => weeksSet.add(week));
+        }
+        if (Array.isArray(existingTrackingRecord.weeks)) {
+          existingTrackingRecord.weeks.forEach(week => weeksSet.add(week));
+        }
+        if (existingEvent.startDate) {
+          weeksSet.add(existingEvent.startDate);
+        }
+        if (existingTrackingRecord.startDate) {
+          weeksSet.add(existingTrackingRecord.startDate);
+        }
+        if (data.startDate) {
+          weeksSet.add(data.startDate);
+        }
+        weeksSet.add(sundayDate);
+
+        const weeks = Array.from(weeksSet).sort();
+        const createdAt = existingEvent.createdAt || existingTrackingRecord.createdAt || now;
+        const latestFollowUp = existingEvent.latestFollowUp || existingTrackingRecord.latestFollowUp || null;
+        const isNewEvent = !existingEvent || !existingEvent.createdAt;
+
+        eventsToUpdate[recordId] = {
+          ...existingEvent,
+          recordId,
+          memberUUID: uuid,
+          memberName: data.name,
+          group: data.group,
+          startDate: data.startDate,
+          endDate: sundayDate,
+          weeks,
+          count: data.count,
+          status: 'active',
+          latestFollowUp,
+          updatedAt: now,
+          createdAt
+        };
+
+        const member = memberMap.uuidToMember[uuid] || {};
+        const trackingCreatedAt = existingTrackingRecord.createdAt || createdAt;
+
+        trackingToUpdate[recordId] = {
+          ...existingTrackingRecord,
+          recordId,
+          memberUUID: uuid,
+          memberName: data.name,
+          group: data.group,
+          trackingStartDate: data.startDate,
+          startDate: data.startDate,
+          endDate: sundayDate,
+          weeks,
+          count: data.count,
+          status: 'active',
+          latestFollowUp,
+          memberSnapshot: existingTrackingRecord.memberSnapshot || member,
+          updatedAt: now,
+          createdAt: trackingCreatedAt
+        };
+
+        if (isNewEvent) {
+          log(`生成事件: ${data.name} (${data.group}) - ${data.startDate}至${sundayDate}`, 'success');
+        } else {
+          log(`更新事件: ${data.name} - 缺勤${data.count}次`, 'info');
+        }
       }
-      const eventsSnapshot = await db.ref('absenceEvents')
-        .orderByChild('memberUUID')
-        .equalTo(memberUUID)
-        .once('value');
-      if (!eventsSnapshot.exists()) {
-        return;
-      }
-      const updates = {};
-      eventsSnapshot.forEach(child => {
-        const event = child.val();
-        const eventId = child.key;
-        if (event.status === 'active' && (!event.weeks || !event.weeks.includes(sundayDate))) {
-          updates[eventId] = {
-            ...event,
+
+      closureRecords.forEach(closure => {
+        const { recordId, memberUUID, memberName, group, resolvedDate } = closure;
+        if (!recordId) {
+          return;
+        }
+        const existingEvent = eventsToUpdate[recordId] || existingEvents[recordId];
+        if (existingEvent) {
+          eventsToUpdate[recordId] = {
+            ...existingEvent,
+            recordId,
+            memberUUID: memberUUID || existingEvent.memberUUID,
+            memberName: memberName || existingEvent.memberName,
+            group: group || existingEvent.group,
             status: 'resolved',
-            resolvedDate: sundayDate,
-            updatedAt: new Date().toISOString()
+            resolvedDate,
+            updatedAt: now
           };
-          log(`✅ 成员重新签到，关闭事件: ${member.name} (${member.group})`, 'success');
+          log(`✅ 关闭事件: ${memberName || existingEvent.memberName} - 缺勤结束于 ${resolvedDate}`, 'success');
+        }
+        const existingTrackingRecord = trackingToUpdate[recordId] || existingTracking[recordId];
+        if (existingTrackingRecord) {
+          trackingToUpdate[recordId] = {
+            ...existingTrackingRecord,
+            recordId,
+            memberUUID: memberUUID || existingTrackingRecord.memberUUID,
+            memberName: memberName || existingTrackingRecord.memberName,
+            group: group || existingTrackingRecord.group,
+            status: 'resolved',
+            resolvedDate,
+            updatedAt: now
+          };
         }
       });
-      if (Object.keys(updates).length > 0) {
-        await db.ref('absenceEvents').update(updates);
+
+      if (Object.keys(eventsToUpdate).length > 0) {
+        await db.ref('absenceEvents').update(eventsToUpdate);
+      }
+      if (Object.keys(trackingToUpdate).length > 0) {
+        await db.ref('trackingRecords').update(trackingToUpdate);
       }
     }
 

@@ -11,11 +11,8 @@ HTML_FILES=(
   "daily-report.html"
   "group-management.html"
   "index.html"
-  "personal-page.html"
   "summary.html"
-  "sunday-tracking.html"
   "test-optimization.html"
-  "tracking-event-detail.html"
 )
 
 # 备份所有HTML文件
@@ -52,12 +49,6 @@ for file in "${HTML_FILES[@]}"; do
   if grep -q '<script src="src/new-data-manager.js"></script>' "$file"; then
     sed -i.tmp 's|<script src="src/new-data-manager.js"></script>|<!-- 数据管理器模块 -->\n    <script src="src/data-manager/index.js"></script>\n    <script src="src/data-manager/data-loader.js"></script>\n    <script src="src/data-manager/data-recovery.js"></script>\n    <script src="src/data-manager/data-sync.js"></script>\n    <script src="src/data-manager/data-operations.js"></script>|' "$file"
     echo "  ✅ 更新 new-data-manager.js 引用"
-  fi
-  
-  # 4. 更新sunday-tracking.js引用为多个模块（仅针对sunday-tracking.html）
-  if [ "$file" == "sunday-tracking.html" ] && grep -q '<script src="src/sunday-tracking.js"></script>' "$file"; then
-    sed -i.tmp 's|<script src="src/sunday-tracking.js"></script>|<!-- 主日跟踪模块 -->\n    <script src="src/sunday-tracking/index.js"></script>\n    <script src="src/sunday-tracking/data-handler.js"></script>\n    <script src="src/sunday-tracking/event-manager.js"></script>\n    <script src="src/sunday-tracking/ui-components.js"></script>|' "$file"
-    echo "  ✅ 更新 sunday-tracking.js 引用"
   fi
   
   # 清理临时文件

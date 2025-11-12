@@ -58,18 +58,17 @@ MSH/
 │   ├── admin.html              # 管理页面
 │   ├── group-management.html   # 成员管理页面
 │   ├── summary.html            # 签到汇总页面
-│   ├── sunday-tracking.html    # 主日跟踪页面
 │   ├── daily-report.html       # 日报页面
 │   ├── attendance-records.html # 签到记录页面
 │   ├── data-verification.html  # 数据核对系统页面
 │   ├── firebase-monitor.html   # Firebase监控页面
-│   └── personal-page.html      # 个人页面
+│   └── personal-page.html      # 个人主日跟踪页面
 ├── 工具页面/
 │   └── tools/
 │       ├── msh-system/         # MSH系统专用工具
 │       │   ├── data-consistency-validator.html # 数据一致性验证工具(含数据源对比)
 │       │   ├── data-conflict-manager.html      # 数据冲突管理工具(含删除管理)
-│       │   ├── diagnose-sunday-tracking.html   # 主日跟踪诊断工具
+│       │   ├── diagnose-sunday-tracking.html   # 主日跟踪诊断工具（历史页面使用，保留调试）
 │       │   └── uuid_editor.html                # UUID编辑器
 │       ├── cloud-forms/        # 外部表单工具
 │       └── cross-system/       # 跨系统工具
@@ -115,6 +114,7 @@ MSH/
 - **数据备份**: 自动备份机制
 - **数据清理**: 删除管理功能
 - **四层数据同步**: Firebase + 本地存储 + 全局变量 + 事件触发
+- **缺勤计算**: 缺勤事件由 `tools/msh-system/absence-calculator.html` 批量生成并写回 `absenceEvents`、`trackingRecords`，旧的实时计算逻辑已退役
 - **数据冲突管理**: 完整的删除签到记录功能，支持多选和批量操作
 
 ### 4. 监控与报告
@@ -208,7 +208,7 @@ MSH/
 
 ---
 
-**最后更新**: 2025-10-04 (数据冲突管理工具完全修复)  
+**最后更新**: 2025-11-12 (缺勤计算流程改为工具驱动)  
 **版本**: 2.1  
 **维护者**: MSH系统开发团队
 

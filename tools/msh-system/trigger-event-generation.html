@@ -77,11 +77,6 @@
     </div>
 
     <script>
-        // Firebase初始化
-        if (!firebase.apps.length) {
-            firebase.initializeApp(window.firebaseConfig);
-        }
-        const db = firebase.database();
         const logElement = document.getElementById('log');
         const summaryElement = document.getElementById('summary');
 
@@ -93,148 +88,33 @@
             logElement.scrollTop = logElement.scrollHeight;
         }
 
+        function showDeprecatedNotice(action) {
+            appendLog(`⚠️ 操作已禁用：${action}。缺勤事件生成已迁移至“缺勤计算工具（absence-calculator.html）”。`, 'warning');
+            summaryElement.innerHTML = `
+                <p><strong>提示：</strong></p>
+                <p>缺勤事件现由 <code>absence-calculator.html</code> 统一计算并写入。</p>
+                <p>请使用新的缺勤计算工具完成相关操作。</p>
+            `;
+        }
+
+        appendLog('⚠️ 此工具已废弃，改由“缺勤计算工具”统一处理缺勤计算与事件生成。', 'warning');
+
         document.getElementById('clearLogButton').addEventListener('click', () => {
             logElement.innerHTML = '';
             summaryElement.innerHTML = '';
             appendLog('日志已清空。', 'info');
         });
 
-        document.getElementById('loadDataButton').addEventListener('click', async () => {
-            appendLog('开始加载基础数据...', 'info');
-            summaryElement.innerHTML = '';
-            
-            try {
-                // 加载签到记录
-                const attendanceSnapshot = await db.ref('attendanceRecords').once('value');
-                const attendanceRecords = attendanceSnapshot.val() || [];
-                const attendanceArray = Array.isArray(attendanceRecords) ? attendanceRecords : Object.values(attendanceRecords);
-                
-                // 加载小组数据
-                const groupsSnapshot = await db.ref('groups').once('value');
-                const groups = groupsSnapshot.val() || {};
-                
-                // 加载小组名称
-                const groupNamesSnapshot = await db.ref('groupNames').once('value');
-                const groupNames = groupNamesSnapshot.val() || {};
-                
-                // 设置全局变量
-                window.attendanceRecords = attendanceArray;
-                window.groups = groups;
-                window.groupNames = groupNames;
-                
-                appendLog(`✅ 签到记录加载完成: ${attendanceArray.length} 条`, 'success');
-                appendLog(`✅ 小组数据加载完成: ${Object.keys(groups).length} 个小组`, 'success');
-                appendLog(`✅ 小组名称加载完成: ${Object.keys(groupNames).length} 个名称`, 'success');
-                
-                summaryElement.innerHTML = `
-                    <p><strong>基础数据加载总结:</strong></p>
-                    <p>签到记录: ${attendanceArray.length} 条</p>
-                    <p>小组数据: ${Object.keys(groups).length} 个</p>
-                    <p>小组名称: ${Object.keys(groupNames).length} 个</p>
-                `;
-                
-            } catch (error) {
-                appendLog(`加载基础数据失败: ${error.message}`, 'error');
-                console.error(error);
-            }
+        document.getElementById('loadDataButton').addEventListener('click', () => {
+            showDeprecatedNotice('加载基础数据');
         });
 
-        document.getElementById('generateEventsButton').addEventListener('click', async () => {
-            appendLog('开始生成跟踪事件...', 'info');
-            summaryElement.innerHTML = '';
-            
-            try {
-                // 检查基础数据
-                if (!window.attendanceRecords || !window.groups) {
-                    appendLog('❌ 基础数据未加载，请先点击"加载基础数据"', 'error');
-                    return;
-                }
-                
-                // 检查SundayTrackingManager是否可用
-                if (!window.utils || !window.utils.SundayTrackingManager) {
-                    appendLog('❌ SundayTrackingManager未加载', 'error');
-                    return;
-                }
-                
-                appendLog('🔄 调用SundayTrackingManager.generateTrackingList()...', 'info');
-                
-                // 生成跟踪列表
-                const trackingList = window.utils.SundayTrackingManager.generateTrackingList();
-                
-                appendLog(`✅ 跟踪事件生成完成: ${trackingList.length} 个事件`, 'success');
-                
-                // 保存到Firebase
-                if (trackingList.length > 0) {
-                    await db.ref('sundayTracking').set(trackingList);
-                    appendLog(`✅ 跟踪事件已保存到Firebase`, 'success');
-                }
-                
-                summaryElement.innerHTML = `
-                    <p><strong>事件生成总结:</strong></p>
-                    <p>生成事件数: ${trackingList.length}</p>
-                    <p>已保存到Firebase: ${trackingList.length > 0 ? '是' : '否'}</p>
-                `;
-                
-            } catch (error) {
-                appendLog(`生成跟踪事件失败: ${error.message}`, 'error');
-                console.error(error);
-            }
+        document.getElementById('generateEventsButton').addEventListener('click', () => {
+            showDeprecatedNotice('生成跟踪事件');
         });
 
-        document.getElementById('simulateSigninButton').addEventListener('click', async () => {
-            appendLog('开始模拟签到触发...', 'info');
-            summaryElement.innerHTML = '';
-            
-            try {
-                // 检查基础数据
-                if (!window.attendanceRecords || !window.groups) {
-                    appendLog('❌ 基础数据未加载，请先点击"加载基础数据"', 'error');
-                    return;
-                }
-                
-                // 检查实时更新管理器
-                if (!window.realTimeUpdateManager) {
-                    appendLog('❌ realTimeUpdateManager未加载', 'error');
-                    return;
-                }
-                
-                // 模拟签到成功事件
-                const testMemberUUID = Object.keys(window.groups)[0] && window.groups[Object.keys(window.groups)[0]][0]?.uuid;
-                if (!testMemberUUID) {
-                    appendLog('❌ 没有找到测试成员UUID', 'error');
-                    return;
-                }
-                
-                const testSigninData = {
-                    memberUUID: testMemberUUID,
-                    time: new Date().toLocaleString('zh-CN'),
-                    timeSlot: 'onTime'
-                };
-                
-                appendLog(`🔄 模拟签到事件: ${testMemberUUID}`, 'info');
-                
-                // 触发签到成功事件
-                window.dispatchEvent(new CustomEvent('signinSuccess', {
-                    detail: {
-                        memberUUID: testMemberUUID,
-                        signinData: testSigninData
-                    }
-                }));
-                
-                appendLog('✅ 签到事件已触发', 'success');
-                appendLog('📢 请检查主日跟踪页面是否更新', 'info');
-                
-                summaryElement.innerHTML = `
-                    <p><strong>模拟签到触发总结:</strong></p>
-                    <p>测试成员UUID: ${testMemberUUID}</p>
-                    <p>签到事件已触发</p>
-                    <p>请检查主日跟踪页面更新</p>
-                `;
-                
-            } catch (error) {
-                appendLog(`模拟签到触发失败: ${error.message}`, 'error');
-                console.error(error);
-            }
+        document.getElementById('simulateSigninButton').addEventListener('click', () => {
+            showDeprecatedNotice('模拟签到触发');
         });
     </script>
 </body>

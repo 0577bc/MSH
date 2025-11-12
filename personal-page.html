@@ -3,48 +3,626 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>个人页面 - MSH签到系统</title>
+  <title>个人事件页面 - MSH管理系统</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
   <!-- 样式模块 -->
     <link rel="stylesheet" href="./src/styles/base.css">
     <link rel="stylesheet" href="./src/styles/components.css">
     <link rel="stylesheet" href="./src/styles/utils.css">
-    <link rel="stylesheet" href="./src/styles/pages/personal-page.css">
-  <!-- 引入配置文件 -->
+
+  <!-- 配置及依赖 -->
   <script src="./src/smart-config-loader.js"></script>
-  <!-- 引入 Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="./src/config-manager.js"></script>
+  <script src="./src/csrf-protection.js"></script>
+  <script src="./src/cache-manager.js"></script>
+  <script src="./src/security.js"></script>
+
+  <!-- 工具函数 -->
+    <script src="./src/core/firebase-utils.js"></script>
+    <script src="./src/core/time-utils.js"></script>
+    <script src="./src/core/security-utils.js"></script>
+    <script src="./src/data/uuid-manager.js"></script>
+    <script src="./src/features/sunday-tracking-utils.js"></script>
+    <script src="./src/data/sync-managers.js"></script>
+  <!-- 数据管理器 -->
+    <script src="./src/new-data-manager.js"></script>
+
+  <style>
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    .header-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .header-meta {
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-start;
+      margin-top: 12px;
+    }
+
+    .sync-container {
+      min-width: 220px;
+      text-align: right;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .filter-card,
+    .event-card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(15, 26, 56, 0.08);
+      border: 1px solid rgba(15, 26, 56, 0.06);
+    }
+
+    .filter-card {
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .filter-row {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      align-items: flex-end;
+    }
+
+    .field-group label {
+      display: block;
+      font-size: 14px;
+      color: #415674;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .field-group select,
+    .field-group input,
+    .field-group textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #d6deeb;
+      padding: 10px 12px;
+      font-size: 14px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .field-group select:focus,
+    .field-group input:focus,
+    .field-group textarea:focus {
+      outline: none;
+      border-color: #2787f5;
+      box-shadow: 0 0 0 3px rgba(39, 135, 245, 0.15);
+    }
+
+    .search-input-wrapper {
+      position: relative;
+    }
+
+    .search-input-wrapper input {
+      padding-right: 36px;
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      opacity: 0.5;
+    }
+
+
+    .event-list {
+      display: grid;
+      gap: 20px;
+    }
+
+    .event-card {
+      padding: 20px 24px;
+    }
+
+    .event-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .event-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #0f1a38;
+      margin: 0;
+    }
+
+    .event-meta {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(246, 249, 255, 0.8);
+      border: 1px solid rgba(15, 26, 56, 0.06);
+    }
+
+    .meta-item span:first-child {
+      font-size: 13px;
+      color: #61738f;
+    }
+
+    .meta-item span:last-child {
+      font-size: 15px;
+      color: #0f1a38;
+      font-weight: 600;
+    }
+
+    .follow-up-block {
+      border: 1px solid rgba(15, 26, 56, 0.08);
+      border-radius: 10px;
+      padding: 16px;
+      background: rgba(249, 252, 255, 0.85);
+      margin-bottom: 12px;
+    }
+
+    .event-card.focused {
+      border: 2px solid rgba(47, 128, 237, 0.6);
+      box-shadow: 0 14px 28px rgba(47, 128, 237, 0.18);
+    }
+
+    .follow-up-block h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      color: #0f1a38;
+    }
+
+    .follow-up-content {
+      margin: 0;
+      font-size: 14px;
+      color: #42506a;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .follow-up-empty {
+      padding: 12px;
+      border-radius: 8px;
+      color: #8591a9;
+      background: rgba(15, 26, 56, 0.04);
+      font-size: 14px;
+    }
+
+    .follow-up-form textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2f80ed, #56ccf2);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(47, 128, 237, 0.25);
+    }
+
+    .btn-primary:disabled {
+      background: #c9d4e5;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-active {
+      background: rgba(46, 196, 182, 0.16);
+      color: #2ec4b6;
+    }
+
+    .badge-resolved {
+      background: rgba(94, 114, 228, 0.15);
+      color: #5e72e4;
+    }
+
+    .badge-terminated {
+      background: rgba(245, 54, 92, 0.15);
+      color: #f5365c;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      border-radius: 12px;
+      border: 1px dashed rgba(15, 26, 56, 0.12);
+      background: rgba(246, 249, 255, 0.6);
+      color: #61738f;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(3px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      font-size: 16px;
+      color: #415674;
+      display: none;
+    }
+
+    .feedback-bar {
+      position: fixed;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      min-width: 280px;
+      max-width: 420px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: #0f1a38;
+      color: #ffffff;
+      font-size: 14px;
+      box-shadow: 0 18px 32px rgba(15, 26, 56, 0.28);
+      display: none;
+      z-index: 1000;
+      text-align: center;
+    }
+
+    .feedback-bar.success {
+      background: #2ec4b6;
+    }
+
+    .feedback-bar.error {
+      background: #f5365c;
+    }
+
+    .manual-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #8591a9;
+    }
+
+    .calendar-card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(15, 26, 56, 0.08);
+      border: 1px solid rgba(15, 26, 56, 0.06);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .calendar-title {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .calendar-title h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #0f1a38;
+    }
+
+    .calendar-title p {
+      margin: 0;
+      font-size: 14px;
+      color: #61738f;
+    }
+
+    .calendar-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(39, 135, 245, 0.1);
+      border-radius: 999px;
+      padding: 6px 12px;
+    }
+
+    .calendar-controls button {
+      border: none;
+      background: transparent;
+      color: #2787f5;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+      padding: 4px 8px;
+    }
+
+    .calendar-controls button:hover {
+      text-decoration: underline;
+    }
+
+    .calendar-month {
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f1a38;
+    }
+
+    .calendar-weekdays {
+      margin-bottom: 6px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .calendar-weekday {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #61738f;
+      padding: 6px 0;
+    }
+
+    .calendar-day {
+      position: relative;
+      border-radius: 10px;
+      padding: 10px 8px;
+      min-height: 80px;
+      background: rgba(246, 249, 255, 0.9);
+      border: 1px solid rgba(15, 26, 56, 0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    .calendar-day:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(15, 26, 56, 0.08);
+    }
+
+    .calendar-day.other-month {
+      background: rgba(244, 246, 250, 0.6);
+      color: #9faabe;
+    }
+
+    .calendar-day.today {
+      border: 1px solid rgba(39, 135, 245, 0.8);
+    }
+
+    .calendar-day.sunday {
+      background: rgba(255, 248, 225, 0.9);
+    }
+
+    .calendar-day.present {
+      background: rgba(46, 196, 182, 0.16);
+      border-color: rgba(46, 196, 182, 0.4);
+    }
+
+    .calendar-day.absent {
+      background: rgba(245, 54, 92, 0.12);
+      border-color: rgba(245, 54, 92, 0.4);
+    }
+
+    .day-number {
+      font-size: 18px;
+      font-weight: 600;
+      color: #0f1a38;
+    }
+
+    .calendar-day.other-month .day-number {
+      color: #9faabe;
+    }
+
+    .day-info {
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 4px 6px;
+      display: inline-block;
+    }
+
+    .day-info.present {
+      background: rgba(46, 196, 182, 0.24);
+      color: #178f81;
+    }
+
+    .day-info.absent {
+      background: rgba(245, 54, 92, 0.18);
+      color: #bf1f45;
+    }
+
+    .calendar-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+      font-size: 12px;
+      color: #61738f;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(15, 26, 56, 0.04);
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .legend-color.present {
+      background: rgba(46, 196, 182, 0.7);
+    }
+
+    .legend-color.absent {
+      background: rgba(245, 54, 92, 0.7);
+    }
+
+    .legend-color.sunday {
+      background: rgba(255, 193, 7, 0.7);
+    }
+
+    .legend-color.today {
+      background: rgba(39, 135, 245, 0.7);
+    }
+
+    .calendar-empty {
+      text-align: center;
+      padding: 40px 0;
+      color: #8591a9;
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .page-container {
+        padding: 16px 12px 32px;
+      }
+
+      .header-main {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .header-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .event-card {
+        padding: 16px 18px;
+      }
+
+    }
+  </style>
 </head>
 <body>
-  <main>
-    <h1>个人页面</h1>
-    
-    <!-- 导航按钮 -->
-    <section class="button-row">
-      <button id="backToTrackingButton" type="button" aria-label="返回主日跟踪">返回主日跟踪</button>
-      <button id="backToSummaryButton" type="button" aria-label="返回汇总页面">返回汇总页面</button>
-      <button id="backToSigninButton" type="button" aria-label="返回签到页面">返回签到页面</button>
-    </section>
-    
-    <!-- 个人信息 -->
-    <section id="personalInfoSection" class="report-section">
-      <h2>个人信息</h2>
-      <div id="personalInfo" class="personal-info">
-        <!-- 动态生成个人信息 -->
+  <div class="loading-overlay" id="loadingOverlay">正在加载，请稍候...</div>
+  <div class="feedback-bar" id="feedbackBar"></div>
+
+  <div class="page-container">
+    <header class="page-header">
+      <div class="header-main">
+        <div>
+          <h1>个人事件页面</h1>
+          <p class="page-subtitle">按成员查看缺勤事件，测试阶段可直接录入回访信息。</p>
+        </div>
+        <div class="header-actions">
+          <button id="backToEvents" type="button" class="btn btn-secondary" aria-label="返回事件管理页面">返回事件管理</button>
+          <button id="backToSummary" type="button" class="btn btn-secondary" aria-label="返回汇总页面">返回汇总页面</button>
+        </div>
       </div>
+      <div class="header-meta">
+        <div id="syncButtonContainer" class="sync-container"></div>
+      </div>
+    </header>
+
+    <section class="filter-card">
+      <div class="filter-row">
+        <div class="field-group">
+          <label for="groupFilter">按小组筛选</label>
+          <select id="groupFilter" aria-label="选择小组">
+            <option value="all">全部小组</option>
+          </select>
+        </div>
+        <div class="field-group search-input-wrapper">
+          <label for="memberInput">成员搜索</label>
+          <input type="text" id="memberInput" list="memberOptions" placeholder="输入姓名或花名，建议从提示中选择" aria-label="搜索成员">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M21 21L15.8 15.8M17 10.5C17 14.09 14.09 17 10.5 17C6.91 17 4 14.09 4 10.5C4 6.91 6.91 4 10.5 4C14.09 4 17 6.91 17 10.5Z" stroke="#415674" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <datalist id="memberOptions"></datalist>
+        </div>
+        <div class="field-group">
+          <label>&nbsp;</label>
+          <button id="clearSelection" type="button" class="btn-secondary" style="width:100%;">清空选择</button>
+        </div>
+      </div>
+      <p class="manual-hint">⚠️ 当前处于测试录入模式：直接在下方事件卡片中填写回访内容，系统会立即保存到 Firebase。</p>
     </section>
     
-    <!-- 签到记录日历 -->
-    <section id="attendanceCalendarSection" class="report-section">
-      <h2>签到记录</h2>
+    <section id="calendarSection" class="calendar-card" style="display:none;">
+      <div class="calendar-header">
+        <div class="calendar-title">
+          <h2>签到日历</h2>
+          <p id="calendarMemberLabel">请选择成员以查看签到状态</p>
+        </div>
       <div class="calendar-controls">
-        <button id="prevMonthButton" type="button" aria-label="上一个月">‹ 上月</button>
-        <span id="currentMonthDisplay" class="month-display">2025年1月</span>
-        <button id="nextMonthButton" type="button" aria-label="下一个月">下月 ›</button>
+          <button id="calendarPrev" type="button" aria-label="上一个月">‹ 上月</button>
+          <span id="calendarCurrent" class="calendar-month"></span>
+          <button id="calendarNext" type="button" aria-label="下一个月">下月 ›</button>
+        </div>
       </div>
-      <div id="attendanceCalendar" class="attendance-calendar">
-        <!-- 动态生成日历 -->
+      <div class="calendar-weekdays calendar-grid">
+        <div class="calendar-weekday">日</div>
+        <div class="calendar-weekday">一</div>
+        <div class="calendar-weekday">二</div>
+        <div class="calendar-weekday">三</div>
+        <div class="calendar-weekday">四</div>
+        <div class="calendar-weekday">五</div>
+        <div class="calendar-weekday">六</div>
       </div>
+      <div id="calendarGrid" class="calendar-grid"></div>
       <div class="calendar-legend">
         <div class="legend-item">
           <span class="legend-color present"></span>
@@ -65,24 +643,874 @@
       </div>
     </section>
     
-    <!-- 跟踪记录 -->
-    <section id="trackingRecordsSection" class="report-section">
-      <h2>跟踪记录</h2>
-      <div id="trackingRecords" class="tracking-records">
-        <!-- 动态生成跟踪记录 -->
+    <section id="eventSection" class="event-list-section">
+      <div id="eventListEmpty" class="empty-state">
+        请选择成员后查看缺勤事件及回访信息。
       </div>
+      <div id="eventList" class="event-list" style="display:none;"></div>
     </section>
-  </main>
-  
-  <!-- 工具函数模块 -->
-    <script src="./src/core/firebase-utils.js"></script>
-    <script src="./src/core/time-utils.js"></script>
-    <script src="./src/core/security-utils.js"></script>
-    <script src="./src/data/uuid-manager.js"></script>
-    <script src="./src/features/sunday-tracking-utils.js"></script>
-    <script src="./src/data/sync-managers.js"></script>
-  <script src="./src/navigation-utils.js"></script>
-  <script src="./src/personal-page.js"></script>
+  </div>
+
+  <script>
+    (function() {
+      const state = {
+        groups: {},
+        groupNames: {},
+        members: [],
+        filteredMembers: [],
+        events: [],
+        selectedGroup: 'all',
+        selectedMemberUUID: null,
+        selectedMember: null,
+        autoHighlightEventId: null,
+        attendanceRecords: [],
+        attendanceRecordsLoaded: false,
+        attendanceRecordsFetchedAt: null,
+        calendarDate: new Date()
+      };
+
+      const elements = {
+        loading: document.getElementById('loadingOverlay'),
+        feedback: document.getElementById('feedbackBar'),
+        groupFilter: document.getElementById('groupFilter'),
+        memberInput: document.getElementById('memberInput'),
+        memberOptions: document.getElementById('memberOptions'),
+        clearSelection: document.getElementById('clearSelection'),
+        eventList: document.getElementById('eventList'),
+        eventListEmpty: document.getElementById('eventListEmpty'),
+        backToEvents: document.getElementById('backToEvents'),
+        backToSummary: document.getElementById('backToSummary'),
+        calendarSection: document.getElementById('calendarSection'),
+        calendarMemberLabel: document.getElementById('calendarMemberLabel'),
+        calendarPrev: document.getElementById('calendarPrev'),
+        calendarNext: document.getElementById('calendarNext'),
+        calendarCurrent: document.getElementById('calendarCurrent'),
+        calendarGrid: document.getElementById('calendarGrid')
+      };
+
+      if (elements.calendarGrid) {
+        elements.calendarGrid.innerHTML = '<div class="calendar-empty">请选择成员后查看签到状态。</div>';
+      }
+
+      const memberLabelMap = new Map();
+
+      function showLoading(show = true) {
+        elements.loading.style.display = show ? 'flex' : 'none';
+      }
+
+      function showFeedback(message, type = 'info', duration = 3200) {
+        elements.feedback.textContent = message;
+        elements.feedback.className = `feedback-bar ${type}`;
+        elements.feedback.style.display = 'block';
+        setTimeout(() => {
+          elements.feedback.style.display = 'none';
+        }, duration);
+      }
+
+      async function waitForFirebaseConfig(maxAttempts = 60, delay = 100) {
+        let attempts = 0;
+        while (!window.firebaseConfig && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempts++;
+        }
+        if (!window.firebaseConfig) {
+          throw new Error('Firebase配置加载超时');
+        }
+      }
+
+      async function initializeFirebase() {
+        await waitForFirebaseConfig();
+        const { app, db, success } = window.utils.initializeFirebase();
+        if (!success) {
+          throw new Error('Firebase初始化失败');
+        }
+        window.firebaseApp = app;
+        window.db = db;
+        console.log('✅ personal-page Firebase 初始化完成');
+      }
+
+      async function ensureNewDataManagerReady() {
+        if (!window.newDataManager) {
+          console.warn('⚠️ newDataManager 未加载，将直接从Firebase读取数据');
+          return;
+        }
+
+        if (!window.newDataManager.isDataLoaded) {
+          try {
+            await window.newDataManager.loadAllDataFromFirebase();
+          } catch (error) {
+            console.warn('⚠️ newDataManager加载失败，降级为直接读取Firebase', error);
+          }
+        }
+        if (typeof window.newDataManager.createSyncButton === 'function') {
+          window.newDataManager.createSyncButton('syncButtonContainer');
+        }
+      }
+
+      async function loadGroupsAndMembers() {
+        let groupsData = window.groups;
+        let groupNameData = window.groupNames;
+
+        if ((!groupsData || Object.keys(groupsData).length === 0) && window.newDataManager) {
+          try {
+            groupsData = await window.newDataManager.loadGroups();
+            groupNameData = await window.newDataManager.loadGroupNames();
+            window.groups = groupsData;
+            window.groupNames = groupNameData;
+          } catch (error) {
+            console.warn('⚠️ 从newDataManager加载小组数据失败，尝试直接读取Firebase', error);
+          }
+        }
+
+        if (!groupsData || Object.keys(groupsData).length === 0) {
+          const groupsSnapshot = await window.db.ref('groups').once('value');
+          groupsData = groupsSnapshot.val() || {};
+          window.groups = groupsData;
+        }
+
+        if (!groupNameData || Object.keys(groupNameData).length === 0) {
+          const groupNamesSnapshot = await window.db.ref('groupNames').once('value');
+          groupNameData = groupNamesSnapshot.val() || {};
+          window.groupNames = groupNameData;
+        }
+
+        state.groups = groupsData;
+        state.groupNames = groupNameData;
+
+        const members = [];
+        Object.entries(groupsData).forEach(([groupKey, memberList]) => {
+          (memberList || []).forEach(member => {
+            if (member && !(member.excluded === true || member.excluded === 'true')) {
+              const displayName = window.utils.getDisplayName(member);
+              members.push({
+                uuid: member.uuid || member.memberUUID || window.utils.generateUUID(),
+                raw: member,
+                groupKey,
+                groupName: groupNameData[groupKey] || groupKey,
+                displayName
+              });
+            }
+          });
+        });
+
+        members.sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh-CN'));
+        state.members = members;
+        rebuildMemberOptions();
+        populateGroupFilter();
+      }
+
+      function populateGroupFilter() {
+        const filter = elements.groupFilter;
+        filter.innerHTML = '<option value="all">全部小组</option>';
+        const groupEntries = Object.entries(state.groupNames);
+        groupEntries.sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'));
+        groupEntries.forEach(([key, value]) => {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = value;
+          filter.appendChild(option);
+        });
+      }
+
+      async function loadAttendanceRecords(options = {}) {
+        const { force = false, minRecords = 1 } = options;
+        try {
+          let recordsSource = null;
+          let fetchedFrom = 'cache';
+
+          const cachedRecords = Array.isArray(window.attendanceRecords)
+            ? window.attendanceRecords
+            : normalizeAttendanceRecords(window.attendanceRecords);
+
+          const hasUsableCache = Array.isArray(cachedRecords) && cachedRecords.length >= minRecords;
+
+          if (!force && hasUsableCache) {
+            recordsSource = cachedRecords;
+          } else if (window.db) {
+            recordsSource = await fetchAttendanceRecordsFromFirebase();
+            fetchedFrom = 'firebase';
+          } else if (Array.isArray(cachedRecords)) {
+            recordsSource = cachedRecords;
+          } else {
+            recordsSource = [];
+          }
+
+          const normalizedRecords = normalizeAttendanceRecords(recordsSource);
+          state.attendanceRecords = normalizedRecords;
+          state.attendanceRecordsLoaded = normalizedRecords.length > 0;
+          state.attendanceRecordsFetchedAt = new Date();
+          window.attendanceRecords = normalizedRecords;
+
+          if (window.utils?.SundayTrackingManager?._clearAttendanceCache) {
+            try {
+              window.utils.SundayTrackingManager._clearAttendanceCache();
+            } catch (clearError) {
+              console.warn('清除SundayTrackingManager考勤缓存失败:', clearError);
+            }
+          } else if (window.utils?.SundayTrackingManager?._clearCache) {
+            try {
+              window.utils.SundayTrackingManager._clearCache();
+            } catch (clearError) {
+              console.warn('清除SundayTrackingManager缓存失败:', clearError);
+            }
+          }
+
+          try {
+            localStorage.setItem('msh_attendance_records', JSON.stringify(normalizedRecords));
+          } catch (storageError) {
+            console.warn('无法将签到记录写入本地存储:', storageError);
+          }
+
+          console.log(`📅 已加载签到记录: ${state.attendanceRecords.length} 条（来源: ${fetchedFrom}）`);
+          return normalizedRecords.length;
+        } catch (error) {
+          console.error('加载签到记录失败:', error);
+          state.attendanceRecords = [];
+          state.attendanceRecordsLoaded = false;
+          return 0;
+        }
+      }
+
+      async function fetchAttendanceRecordsFromFirebase() {
+        if (!window.db) {
+          throw new Error('Firebase数据库未初始化');
+        }
+        console.log('📡 正在从Firebase加载签到记录...');
+        const snapshot = await window.db.ref('attendanceRecords').once('value');
+        const value = snapshot.val();
+        return value || [];
+      }
+
+      function rebuildMemberOptions() {
+        memberLabelMap.clear();
+        elements.memberOptions.innerHTML = '';
+
+        state.filteredMembers = state.members.filter(member => {
+          if (state.selectedGroup === 'all') return true;
+          return member.groupKey === state.selectedGroup;
+        });
+
+        state.filteredMembers.forEach(member => {
+          const label = `${member.displayName}（${member.groupName}）`;
+          memberLabelMap.set(label, member);
+          const option = document.createElement('option');
+          option.value = label;
+          elements.memberOptions.appendChild(option);
+        });
+      }
+
+      async function loadTrackingRecordsFromFirebase() {
+        if (!window.db) {
+          throw new Error('Firebase数据库未初始化');
+        }
+
+        const snapshot = await window.db.ref('trackingRecords').once('value');
+        const recordsObj = snapshot.val() || {};
+
+        const records = Object.keys(recordsObj).map(recordId => {
+          const record = recordsObj[recordId] || {};
+          if (!record.recordId) {
+            record.recordId = recordId;
+          }
+          return record;
+        });
+
+        localStorage.setItem('msh_sunday_tracking', JSON.stringify(records));
+        if (window.utils?.SundayTrackingManager?._clearCache) {
+          window.utils.SundayTrackingManager._clearCache();
+        }
+
+        console.log(`✅ 已从Firebase加载${records.length}条跟踪记录`);
+      }
+
+      async function refreshTrackingData() {
+        state.events = window.utils.SundayTrackingManager.getTrackingRecords() || [];
+        if (!state.events || state.events.length === 0) {
+          await loadTrackingRecordsFromFirebase();
+          state.events = window.utils.SundayTrackingManager.getTrackingRecords() || [];
+        }
+      }
+
+      function clearSelection() {
+        state.selectedMemberUUID = null;
+        state.selectedMember = null;
+        elements.memberInput.value = '';
+        if (elements.calendarSection) {
+          elements.calendarSection.style.display = 'none';
+        }
+        if (elements.calendarMemberLabel) {
+          elements.calendarMemberLabel.textContent = '请选择成员以查看签到状态';
+        }
+        if (elements.calendarCurrent) {
+          elements.calendarCurrent.textContent = '';
+        }
+        if (elements.calendarGrid) {
+          elements.calendarGrid.innerHTML = '<div class="calendar-empty">请选择成员后查看签到状态。</div>';
+        }
+        elements.eventList.style.display = 'none';
+        elements.eventListEmpty.style.display = 'block';
+      }
+
+      function renderEventList() {
+        if (!state.selectedMemberUUID) {
+          elements.eventList.style.display = 'none';
+          elements.eventListEmpty.style.display = 'block';
+          return;
+        }
+
+        const events = state.events
+          .filter(event => event.memberUUID === state.selectedMemberUUID)
+          .sort((a, b) => {
+            const orderMap = { active: 1, resolved: 2, terminated: 3 };
+            const orderA = orderMap[a.status] || 99;
+            const orderB = orderMap[b.status] || 99;
+            if (orderA !== orderB) return orderA - orderB;
+            const startA = a.trackingStartDate || a.startDate || '';
+            const startB = b.trackingStartDate || b.startDate || '';
+            return startB.localeCompare(startA);
+          });
+
+        if (events.length === 0) {
+          elements.eventList.style.display = 'none';
+          elements.eventListEmpty.style.display = 'block';
+          elements.eventListEmpty.textContent = '当前成员没有缺勤事件。';
+          return;
+        }
+
+        elements.eventList.innerHTML = '';
+        events.forEach(event => {
+          const card = document.createElement('article');
+          card.className = 'event-card';
+          card.dataset.eventId = event.recordId;
+
+          const statusBadge = document.createElement('span');
+          statusBadge.className = `badge ${
+            event.status === 'active'
+              ? 'badge-active'
+              : event.status === 'resolved'
+                ? 'badge-resolved'
+                : 'badge-terminated'
+          }`;
+          statusBadge.textContent =
+            event.status === 'active'
+              ? '跟踪中'
+              : event.status === 'resolved'
+                ? '已解决'
+                : '已终止';
+
+          const header = document.createElement('div');
+          header.className = 'event-header';
+          const title = document.createElement('h3');
+          title.className = 'event-title';
+          title.textContent = `${event.eventDescription || '连续缺勤事件'}`;
+          header.appendChild(title);
+          header.appendChild(statusBadge);
+          card.appendChild(header);
+
+          const meta = document.createElement('div');
+          meta.className = 'event-meta';
+          meta.innerHTML = `
+            <div class="meta-item">
+              <span>连续缺勤</span>
+              <span>${event.consecutiveAbsences || 0} 次</span>
+            </div>
+            <div class="meta-item">
+              <span>开始周</span>
+              <span>${(event.trackingStartDate || event.startDate || '未知').replace('T', ' ')}</span>
+            </div>
+            <div class="meta-item">
+              <span>最近更新</span>
+              <span>${(event.updatedAt || event.createdAt || '未知').replace('T', ' ').split('.')[0]}</span>
+            </div>
+          `;
+          card.appendChild(meta);
+
+          const followUpContainer = document.createElement('div');
+          followUpContainer.className = 'follow-up-block';
+          const followUpTitle = document.createElement('h3');
+          followUpTitle.textContent = '最新回访记录';
+          followUpContainer.appendChild(followUpTitle);
+
+          if (event.latestFollowUp && event.latestFollowUp.content) {
+            const followUp = document.createElement('p');
+            followUp.className = 'follow-up-content';
+            const submittedAt = event.latestFollowUp.submittedAt
+              ? new Date(event.latestFollowUp.submittedAt).toLocaleString('zh-CN', { hour12: false })
+              : '未知时间';
+            followUp.textContent = `${event.latestFollowUp.content}\n—— ${submittedAt}`;
+            followUpContainer.appendChild(followUp);
+          } else {
+            const empty = document.createElement('div');
+            empty.className = 'follow-up-empty';
+            empty.textContent = '暂无回访信息，请填写后保存。';
+            followUpContainer.appendChild(empty);
+          }
+
+          card.appendChild(followUpContainer);
+
+          const formWrapper = document.createElement('div');
+          formWrapper.className = 'follow-up-form';
+          const textarea = document.createElement('textarea');
+          textarea.id = `followUpInput-${event.recordId}`;
+          textarea.placeholder = '在此录入回访内容（测试模式）';
+          textarea.setAttribute('aria-label', '回访内容');
+          formWrapper.appendChild(textarea);
+
+          const actions = document.createElement('div');
+          actions.className = 'form-actions';
+          const saveButton = document.createElement('button');
+          saveButton.type = 'button';
+          saveButton.className = 'btn-primary';
+          saveButton.textContent = '保存回访';
+          saveButton.dataset.eventId = event.recordId;
+          saveButton.addEventListener('click', () => handleSaveFollowUp(event.recordId));
+          actions.appendChild(saveButton);
+          formWrapper.appendChild(actions);
+
+          card.appendChild(formWrapper);
+          elements.eventList.appendChild(card);
+        });
+
+        elements.eventList.style.display = 'grid';
+        elements.eventListEmpty.style.display = 'none';
+
+        if (state.autoHighlightEventId) {
+          highlightEventCardById(state.autoHighlightEventId);
+          state.autoHighlightEventId = null;
+        }
+      }
+
+      async function handleMemberSelection() {
+        const inputVal = elements.memberInput.value.trim();
+        if (!inputVal || !memberLabelMap.has(inputVal)) {
+          clearSelection();
+          return;
+        }
+
+        const member = memberLabelMap.get(inputVal);
+        state.selectedMemberUUID = member.uuid;
+        state.selectedMember = member;
+        elements.calendarMemberLabel.textContent = `${member.displayName} · ${member.groupName}`;
+        if (elements.calendarSection) {
+          elements.calendarSection.style.display = 'block';
+        }
+        state.calendarDate = new Date();
+        await refreshTrackingData();
+        renderEventList();
+        await renderCalendar();
+      }
+
+      async function handleSaveFollowUp(recordId) {
+        const textarea = document.getElementById(`followUpInput-${recordId}`);
+        if (!textarea) return;
+
+        const content = textarea.value.trim();
+        if (!content) {
+          showFeedback('请先填写回访内容', 'error');
+          textarea.focus();
+          return;
+        }
+
+        const button = textarea.parentElement.querySelector('button');
+        if (button) {
+          button.disabled = true;
+        }
+
+        try {
+          const result = window.utils.SundayTrackingManager.updateLatestFollowUp(recordId, {
+            content,
+            memberUUID: state.selectedMemberUUID,
+            source: 'manual-test',
+            submittedAt: new Date().toISOString()
+          });
+
+          if (!result.success) {
+            const reason = result.reason || 'save_failed';
+            showFeedback(`保存失败：${reason}`, 'error');
+            return;
+          }
+
+          textarea.value = '';
+          await refreshTrackingData();
+          state.autoHighlightEventId = recordId;
+          renderEventList();
+          showFeedback('回访记录已保存（测试模式）', 'success');
+        } catch (error) {
+          console.error('保存回访失败:', error);
+          showFeedback('保存失败，请稍后再试', 'error');
+        } finally {
+          if (button) {
+            button.disabled = false;
+          }
+        }
+      }
+
+      function highlightEventCardById(eventId) {
+        if (!eventId) {
+          return;
+        }
+        const previous = elements.eventList.querySelector('.event-card.focused');
+        if (previous) {
+          previous.classList.remove('focused');
+        }
+        const targetCard = elements.eventList.querySelector(`.event-card[data-event-id="${eventId}"]`);
+        if (targetCard) {
+          targetCard.classList.add('focused');
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+
+      async function handleInitialSelection() {
+        const params = new URLSearchParams(window.location.search);
+        const memberUUID = params.get('uuid');
+        if (!memberUUID) {
+          return;
+        }
+
+        const targetMember = state.members.find(member => member.uuid === memberUUID);
+        if (!targetMember) {
+          console.warn(`⚠️ 未找到UUID为 ${memberUUID} 的成员，取消自动选择`);
+          return;
+        }
+
+        state.selectedGroup = 'all';
+        elements.groupFilter.value = 'all';
+        rebuildMemberOptions();
+
+        const displayLabel = `${targetMember.displayName}（${targetMember.groupName}）`;
+        elements.memberInput.value = displayLabel;
+        state.autoHighlightEventId = params.get('eventId');
+        await handleMemberSelection();
+
+        if (state.autoHighlightEventId && !state.events.some(event => event.recordId === state.autoHighlightEventId)) {
+          console.warn(`⚠️ 未找到事件 ${state.autoHighlightEventId}，取消高亮`);
+          state.autoHighlightEventId = null;
+        }
+      }
+
+      function bindEvents() {
+        elements.groupFilter.addEventListener('change', () => {
+          state.selectedGroup = elements.groupFilter.value;
+          rebuildMemberOptions();
+          clearSelection();
+        });
+
+        elements.memberInput.addEventListener('change', handleMemberSelection);
+        elements.memberInput.addEventListener('blur', handleMemberSelection);
+        elements.clearSelection.addEventListener('click', () => {
+          state.selectedGroup = 'all';
+          elements.groupFilter.value = 'all';
+          rebuildMemberOptions();
+          clearSelection();
+        });
+
+        if (elements.calendarPrev) {
+          elements.calendarPrev.addEventListener('click', async () => {
+            state.calendarDate.setMonth(state.calendarDate.getMonth() - 1);
+            await renderCalendar();
+          });
+        }
+
+        if (elements.calendarNext) {
+          elements.calendarNext.addEventListener('click', async () => {
+            state.calendarDate.setMonth(state.calendarDate.getMonth() + 1);
+            await renderCalendar();
+          });
+        }
+
+        if (elements.backToEvents) {
+          elements.backToEvents.addEventListener('click', () => {
+            window.location.href = 'absence-events.html';
+          });
+        }
+
+        elements.backToSummary.addEventListener('click', () => {
+          window.location.href = 'summary.html';
+        });
+
+        window.addEventListener('attendanceRecordsUpdated', async () => {
+          console.log('🔔 检测到签到记录更新事件，重新加载数据');
+          await loadAttendanceRecords({ force: true });
+          await refreshTrackingData();
+          renderEventList();
+          await renderCalendar();
+        });
+
+        window.addEventListener('groupsUpdated', async () => {
+          console.log('🔔 检测到小组数据更新事件，重新加载成员');
+          await loadGroupsAndMembers();
+          await loadAttendanceRecords({ force: true });
+          await refreshTrackingData();
+          renderEventList();
+          await renderCalendar();
+        });
+      }
+
+      async function initializePage() {
+        try {
+          showLoading(true);
+          await initializeFirebase();
+          await ensureNewDataManagerReady();
+          await loadGroupsAndMembers();
+          await loadAttendanceRecords();
+          await loadTrackingRecordsFromFirebase();
+          await refreshTrackingData();
+          bindEvents();
+          await handleInitialSelection();
+          showFeedback('数据加载完成，可开始测试录入。', 'success', 2500);
+        } catch (error) {
+          console.error('页面初始化失败:', error);
+          showFeedback('页面初始化失败，请检查网络或配置。', 'error', 5000);
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', initializePage);
+      window.handleSaveFollowUp = handleSaveFollowUp;
+      window.renderCalendar = renderCalendar;
+
+      function normalizeAttendanceRecords(input) {
+        if (!input) return [];
+
+        if (Array.isArray(input)) {
+          return input.filter(item => item && typeof item === 'object');
+        }
+
+        if (typeof input === 'object') {
+          const keys = Object.keys(input);
+          if (keys.some(key => ['memberUUID', 'memberUuid', 'memberId', 'time', 'date', 'name', 'group'].includes(key))) {
+            return [input];
+          }
+          return keys.flatMap(key => normalizeAttendanceRecords(input[key]));
+        }
+
+        return [];
+      }
+
+      function getRecordDateString(record) {
+        if (!record || typeof record !== 'object') return '';
+        if (record.date) {
+          return String(record.date).slice(0, 10);
+        }
+        if (record.time) {
+          if (window.utils && typeof window.utils.getLocalDateFromISO === 'function') {
+            return window.utils.getLocalDateFromISO(record.time);
+          }
+          const date = new Date(record.time);
+          return window.utils && typeof window.utils.getLocalDateString === 'function'
+            ? window.utils.getLocalDateString(date)
+            : date.toISOString().split('T')[0];
+        }
+        if (record.timestamp) {
+          const date = new Date(record.timestamp);
+          return window.utils && typeof window.utils.getLocalDateString === 'function'
+            ? window.utils.getLocalDateString(date)
+            : date.toISOString().split('T')[0];
+        }
+        return '';
+      }
+
+      async function renderCalendar() {
+        if (!elements.calendarGrid) {
+          return;
+        }
+
+        if (!state.selectedMemberUUID) {
+          if (elements.calendarSection) {
+            elements.calendarSection.style.display = 'none';
+          }
+          if (elements.calendarGrid) {
+            elements.calendarGrid.innerHTML = '<div class="calendar-empty">请选择成员后查看签到状态。</div>';
+          }
+          return;
+        }
+
+        if (!state.attendanceRecordsLoaded || state.attendanceRecords.length === 0) {
+          const loadedCount = await loadAttendanceRecords({ force: true, minRecords: 1 });
+          if (!loadedCount) {
+            elements.calendarGrid.innerHTML = '<div class="calendar-empty">未查询到该成员的签到记录。</div>';
+            return;
+          }
+        }
+
+        const current = new Date(state.calendarDate.getTime());
+        const year = current.getFullYear();
+        const month = current.getMonth();
+
+        if (elements.calendarCurrent) {
+          elements.calendarCurrent.textContent = `${year}年${month + 1}月`;
+        }
+
+        const records = getMemberAttendanceRecords(state.selectedMemberUUID);
+        const calendarHtml = generateCalendarGrid(year, month, records);
+        elements.calendarGrid.innerHTML = calendarHtml;
+      }
+
+      function getMemberAttendanceRecords(memberUUID) {
+        if (!memberUUID) return [];
+
+        const manager = window.utils?.SundayTrackingManager;
+        if (manager && typeof manager.getMemberAttendanceRecords === 'function') {
+          try {
+            const managedRecords = manager.getMemberAttendanceRecords(memberUUID);
+            if (Array.isArray(managedRecords) && managedRecords.length > 0) {
+              return managedRecords;
+            }
+          } catch (error) {
+            console.warn('通过SundayTrackingManager获取签到记录失败，将回退到本地匹配逻辑', error);
+          }
+        }
+
+        const sourceRecords = Array.isArray(state.attendanceRecords)
+          ? state.attendanceRecords
+          : normalizeAttendanceRecords(state.attendanceRecords);
+
+        if (!Array.isArray(sourceRecords) || sourceRecords.length === 0) {
+          return [];
+        }
+
+        const member = state.members.find(item => item.uuid === memberUUID);
+        const candidateNames = new Set();
+        if (member) {
+          if (member.displayName) candidateNames.add(member.displayName.trim());
+          if (member.raw) {
+            ['name', 'nickname', 'fullName', 'realname', 'realName'].forEach(key => {
+              if (member.raw[key]) {
+                candidateNames.add(String(member.raw[key]).trim());
+              }
+            });
+          }
+        }
+
+        const normalizedRecords = [];
+
+        sourceRecords.forEach(record => {
+          if (!record || typeof record !== 'object') {
+            return;
+          }
+
+          const recordUUID =
+            record.memberUUID ||
+            record.memberUuid ||
+            record.memberId ||
+            (record.memberSnapshot && (record.memberSnapshot.uuid || record.memberSnapshot.memberUUID));
+
+          if (recordUUID === memberUUID) {
+            normalizedRecords.push(record);
+            return;
+          }
+
+          if (candidateNames.size === 0) {
+            return;
+          }
+
+          const recordNames = new Set();
+          ['name', 'nickname', 'displayName'].forEach(key => {
+            if (record[key]) {
+              recordNames.add(String(record[key]).trim());
+            }
+          });
+
+          if (record.memberSnapshot) {
+            ['name', 'nickname', 'displayName', 'fullName', 'realName'].forEach(key => {
+              if (record.memberSnapshot[key]) {
+                recordNames.add(String(record.memberSnapshot[key]).trim());
+              }
+            });
+          }
+
+          const hasMatch = Array.from(recordNames).some(name => name && candidateNames.has(name));
+          if (hasMatch) {
+            normalizedRecords.push({
+              ...record,
+              memberUUID: record.memberUUID || memberUUID
+            });
+          }
+        });
+
+        return normalizedRecords;
+      }
+
+      function generateCalendarGrid(year, month, records) {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const firstWeekday = firstDay.getDay();
+        const totalDays = lastDay.getDate();
+        const prevMonthLastDay = new Date(year, month, 0).getDate();
+        const today = new Date();
+
+        const cells = [];
+
+        for (let i = firstWeekday - 1; i >= 0; i--) {
+          const day = prevMonthLastDay - i;
+          cells.push(renderCalendarDay(new Date(year, month - 1, day), day, records, true, today));
+        }
+
+        for (let day = 1; day <= totalDays; day++) {
+          cells.push(renderCalendarDay(new Date(year, month, day), day, records, false, today));
+        }
+
+        while (cells.length < 42) {
+          const nextDay = cells.length - (firstWeekday + totalDays) + 1;
+          cells.push(renderCalendarDay(new Date(year, month + 1, nextDay), nextDay, records, true, today));
+        }
+
+        return cells.join('');
+      }
+
+      function renderCalendarDay(date, displayDay, records, otherMonth, today) {
+        const classes = ['calendar-day'];
+        const isToday = isSameDate(date, today);
+        const isSunday = date.getDay() === 0;
+        const targetDateKey = getDateKey(date);
+        const hasAttendance = records.some(record => {
+          const recordDateKey = getRecordDateString(record);
+          return recordDateKey && recordDateKey === targetDateKey;
+        });
+
+        if (otherMonth) classes.push('other-month');
+        if (isSunday) classes.push('sunday');
+        if (isToday) classes.push('today');
+        if (hasAttendance) {
+          classes.push('present');
+        } else if (isSunday && !otherMonth) {
+          classes.push('absent');
+        }
+
+        let info = '';
+        if (hasAttendance) {
+          info = '<div class="day-info present">已签到</div>';
+        } else if (isSunday && !otherMonth) {
+          info = '<div class="day-info absent">未签到</div>';
+        }
+
+        return `
+          <div class="${classes.join(' ')}" data-date="${targetDateKey}">
+            <div class="day-number">${displayDay}</div>
+            ${info}
+          </div>
+        `;
+      }
+
+      function isSameDate(a, b) {
+        return a instanceof Date && b instanceof Date &&
+               !Number.isNaN(a.getTime()) && !Number.isNaN(b.getTime()) &&
+               a.getFullYear() === b.getFullYear() &&
+               a.getMonth() === b.getMonth() &&
+               a.getDate() === b.getDate();
+      }
+
+      function getDateKey(date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+        if (window.utils && typeof window.utils.getLocalDateString === 'function') {
+          return window.utils.getLocalDateString(date);
+        }
+        const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+        return localDate.toISOString().split('T')[0];
+      }
+    })();
+  </script>
 </body>
 </html>
 

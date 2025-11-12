@@ -17,16 +17,15 @@
 |------|---------|---------|---------|---------|------|------|
 | 1 | 签到页面 | `index.html` | 成员签到、新朋友添加 | Firebase数据拉取、签到数据本地优先、同步按钮、group0处理 | ⏸️ | 核心功能页面 |
 | 2 | 管理页面 | `admin.html` | 成员管理、小组管理 | 成员CRUD、小组CRUD、Firebase同步、group0显示 | ⏸️ | 核心管理页面 |
-| 3 | 个人页面 | `personal-page.html` | 查看个人签到记录 | 数据读取、历史记录显示 | ⏸️ | 个人信息页面 |
-| 4 | 签到记录 | `attendance-records.html` | 查看所有签到记录 | 记录列表、筛选功能、导出功能 | ⏸️ | 记录查看页面 |
-| 5 | 每日报表 | `daily-report.html` | 生成每日签到报表 | 报表生成、统计计算、排除人员处理 | ⏸️ | 报表页面 |
-| 6 | 汇总报表 | `summary.html` | 生成签到汇总报表 | 汇总统计、group0排序、排除人员过滤 | ⏸️ | 汇总页面 |
-| 7 | 主日跟踪 | `sunday-tracking.html` | 主日签到跟踪 | 跟踪记录、事件生成、group0处理 | ⏸️ | 跟踪页面 |
-| 8 | 跟踪详情 | `tracking-event-detail.html` | 跟踪事件详情 | 事件详情、状态更新 | ⏸️ | 详情页面 |
-| 9 | 小组管理 | `group-management.html` | 小组信息管理 | 小组列表、成员分配、group0管理 | ⏸️ | 小组管理页面 |
-| 10 | 小组签到表单 | `group-signin/group-signin-form.html` | 小组签到表单 | 表单提交、数据验证 | ⏸️ | 表单页面 |
-| 11 | 小组签到结果 | `group-signin/group-signin-result.html` | 签到结果展示 | 结果显示、数据统计 | ⏸️ | 结果页面 |
-| 12 | 小组成员管理 | `group-signin/member-management.html` | 小组内成员管理 | 成员列表、成员操作 | ⏸️ | 成员管理页面 |
+| 3 | 签到记录 | `attendance-records.html` | 查看所有签到记录 | 记录列表、筛选功能、导出功能 | ⏸️ | 记录查看页面 |
+| 4 | 每日报表 | `daily-report.html` | 生成每日签到报表 | 报表生成、统计计算、排除人员处理 | ⏸️ | 报表页面 |
+| 5 | 汇总报表 | `summary.html` | 生成签到汇总报表 | 汇总统计、group0排序、排除人员过滤 | ⏸️ | 汇总页面 |
+| 6 | 事件管理 | `absence-events.html` | 缺勤事件管理、转发外部表单 | 事件关闭、转发、筛选 | ⏸️ | 替代主日跟踪页面 |
+| 7 | 个人主日跟踪 | `personal-page.html` | 按成员查看事件与回访 | 事件列表、回访录入、过滤 | ⏸️ | 新增页面 |
+| 8 | 小组管理 | `group-management.html` | 小组信息管理 | 小组列表、成员分配、group0管理 | ⏸️ | 小组管理页面 |
+| 9 | 小组签到表单 | `group-signin/group-signin-form.html` | 小组签到表单 | 表单提交、数据验证 | ⏸️ | 表单页面 |
+| 10 | 小组签到结果 | `group-signin/group-signin-result.html` | 签到结果展示 | 结果显示、数据统计 | ⏸️ | 结果页面 |
+| 11 | 小组成员管理 | `group-signin/member-management.html` | 小组内成员管理 | 成员列表、成员操作 | ⏸️ | 成员管理页面 |
 
 ## 🛠️ 工具页面测试
 

@@ -1172,20 +1172,6 @@ async function handleSignin() {
   // 保存记录
   await saveAttendanceRecord(record);
   
-  // 触发实时更新事件
-  if (window.realTimeUpdateManager) {
-    const memberInfo = groups[group]?.find(m => m.name === member);
-    if (memberInfo && memberInfo.uuid) {
-      // 触发实时更新
-      window.dispatchEvent(new CustomEvent('signinSuccess', {
-        detail: {
-          memberUUID: memberInfo.uuid,
-          signinData: record
-        }
-      }));
-    }
-  }
-  
   // 更新界面
   loadAttendanceRecords();
   clearSelections();

@@ -54,7 +54,6 @@ MSH/
 ├── admin.html              # 管理页面
 ├── group-management.html   # 成员管理
 ├── summary.html            # 签到汇总
-├── sunday-tracking.html    # 主日跟踪
 ├── src/                    # 源代码
 ├── tools/                  # 工具页面
 ├── docs/                   # 项目文档

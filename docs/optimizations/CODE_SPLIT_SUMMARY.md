@@ -21,7 +21,7 @@
 #### 2. src/style.css (3654行) → 6个模块
 - `src/styles/base.css` (1542行) - 基础样式
 - `src/styles/components.css` (843行) - 组件样式
-- `src/styles/pages/sunday-tracking.css` (394行) - 主日跟踪页面
+- （历史）`src/styles/pages/sunday-tracking.css` (394行) - 主日跟踪页面
 - `src/styles/pages/group-management.css` (775行) - 小组管理页面
 - `src/styles/pages/personal-page.css` (253行) - 个人页面
 - `src/styles/utils.css` (14行) - 工具类
@@ -45,7 +45,7 @@
 **拆分后**: 2892行  
 **改进**: 单文件最大888行，AI可读性提升65%
 
-#### 4. src/sunday-tracking.js (2202行) → 4个模块
+#### 4. （历史）src/sunday-tracking.js (2202行) → 4个模块
 - `src/sunday-tracking/index.js` (500行) - 主页面逻辑
 - `src/sunday-tracking/data-handler.js` (600行) - 数据处理
 - `src/sunday-tracking/event-manager.js` (700行) - 事件管理
@@ -89,11 +89,11 @@ sunday-tracking    → 700行           -68%
 - daily-report.html
 - group-management.html
 - index.html
-- personal-page.html
+- personal-page.html (历史)
 - summary.html
-- sunday-tracking.html
+- sunday-tracking.html (历史)
 - test-optimization.html
-- tracking-event-detail.html
+- tracking-event-detail.html (历史)
 
 所有HTML文件都已备份为 `*.pre-split-backup`
 

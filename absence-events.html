@@ -61,6 +61,13 @@
     tr:hover {
       background: #f0f0f0;
     }
+    .track-btn {
+      background: #17a2b8;
+      margin-right: 8px;
+    }
+    .track-btn:hover {
+      background: #138496;
+    }
     .count-badge {
       display: inline-block;
       padding: 4px 8px;
@@ -112,11 +119,45 @@
       color: #6c757d;
       font-weight: bold;
     }
+    .action-cell {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .action-cell button {
-      background: #dc3545;
+      min-width: 90px;
+      background: #6c757d;
     }
     .action-cell button:hover {
+      background: #5a6268;
+    }
+    .action-cell button.close-btn {
+      background: #dc3545;
+    }
+    .action-cell button.close-btn:hover {
       background: #b52a37;
+    }
+    .action-cell button.close-btn.disabled,
+    .action-cell button.close-btn:disabled {
+      background: #adb5bd;
+      cursor: not-allowed;
+    }
+    .action-cell button.close-btn.disabled:hover,
+    .action-cell button.close-btn:disabled:hover {
+      background: #adb5bd;
+    }
+    .action-cell button.forward-btn {
+      background: #17a2b8;
+    }
+    .action-cell button.forward-btn.forwarded {
+      background: #20c997;
+    }
+    .action-cell button.forward-btn:disabled {
+      background: #ffc107;
+      color: #333;
+    }
+    .event-count {
+      margin-left: auto;
     }
   </style>
 </head>
@@ -136,7 +177,7 @@
       </select>
     </div>
     
-    <span style="margin-left: auto;">
+    <span class="event-count">
       共 <strong id="eventCount">0</strong> 个事件
     </span>
   </div>
@@ -170,32 +211,26 @@
     let closedEvents = [];
     let groupNames = {};
     let showClosed = false;
-    
-    // 初始化Firebase
+    let forwardingEventId = null;
+
     async function initFirebase() {
       let attempts = 0;
       while (!window.firebaseConfig && attempts < 50) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
-      
       if (!window.firebaseConfig) {
         throw new Error('Firebase配置加载超时');
       }
-      
       if (!firebase.apps.length) {
         firebase.initializeApp(window.firebaseConfig);
       }
       db = firebase.database();
-      console.log('Firebase初始化成功');
     }
-    
-    // 加载小组名称
+
     async function loadGroupNames() {
       const snapshot = await db.ref('groupNames').once('value');
       groupNames = snapshot.val() || {};
-      
-      // 填充筛选下拉框
       const select = document.getElementById('groupFilter');
       Object.entries(groupNames).forEach(([key, name]) => {
         const option = document.createElement('option');
@@ -204,50 +239,103 @@
         select.appendChild(option);
       });
     }
-    
-    // 加载事件列表
+
+    function normalizeEvent(recordId, rawEvent = {}, trackingRecord = {}) {
+      const latestFollowUp = trackingRecord.latestFollowUp || rawEvent.latestFollowUp || null;
+      const weeksSource = Array.isArray(trackingRecord.weeks)
+        ? trackingRecord.weeks
+        : Array.isArray(rawEvent.weeks)
+          ? rawEvent.weeks
+          : [];
+      const weeks = [...new Set(weeksSource.filter(Boolean))].sort();
+      const startDate = trackingRecord.startDate || rawEvent.startDate || weeks[0] || null;
+      const endDate = trackingRecord.endDate || rawEvent.endDate || weeks[weeks.length - 1] || null;
+      const status = trackingRecord.status || rawEvent.status || 'active';
+      const memberSnapshot = trackingRecord.memberSnapshot || rawEvent.memberSnapshot || null;
+      const createdAt = trackingRecord.createdAt || rawEvent.createdAt || new Date().toISOString();
+      const updatedAt = trackingRecord.updatedAt || rawEvent.updatedAt || createdAt;
+      const memberUUID = trackingRecord.memberUUID || rawEvent.memberUUID || null;
+      const memberName = trackingRecord.memberName || rawEvent.memberName || '未知成员';
+      const group = trackingRecord.group || rawEvent.group || '';
+      const count = trackingRecord.count || rawEvent.count || weeks.length;
+
+      return {
+        id: recordId,
+        recordId: rawEvent.recordId || trackingRecord.recordId || recordId,
+        memberUUID,
+        memberName,
+        group,
+        weeks,
+        startDate,
+        endDate,
+        count,
+        status,
+        latestFollowUp,
+        forwarded: rawEvent.forwarded || false,
+        forwardDate: rawEvent.forwardDate || null,
+        forwardStatus: rawEvent.forwardStatus || null,
+        forwardResponse: rawEvent.forwardResponse || null,
+        uuidMatchRequired: rawEvent.uuidMatchRequired || false,
+        memberSnapshot,
+        createdAt,
+        updatedAt
+      };
+    }
+
     async function loadEvents() {
       try {
-        const snapshot = await db.ref('absenceEvents').once('value');
-        const events = snapshot.val() || {};
-        
-        const mappedEvents = Object.entries(events)
-          .map(([id, event]) => ({ id, ...event }))
+        const [eventsSnapshot, trackingSnapshot] = await Promise.all([
+          db.ref('absenceEvents').once('value'),
+          db.ref('trackingRecords').once('value')
+        ]);
+        const events = eventsSnapshot.val() || {};
+        const trackingRecords = trackingSnapshot.val() || {};
+        const allIds = new Set([
+          ...Object.keys(events),
+          ...Object.keys(trackingRecords)
+        ]);
+
+        const mappedEvents = Array.from(allIds)
+          .map(recordId => normalizeEvent(recordId, events[recordId], trackingRecords[recordId]))
           .sort((a, b) => {
-            if (a.group !== b.group) return (a.group || '').localeCompare(b.group || '');
+            if (a.group !== b.group) {
+              return (a.group || '').localeCompare(b.group || '');
+            }
             return (b.count || 0) - (a.count || 0);
           });
-        
+
         allEvents = mappedEvents.filter(event => event.status === 'active');
         closedEvents = mappedEvents.filter(event => event.status !== 'active');
-        
-        const eventsToDisplay = showClosed ? closedEvents : allEvents;
-        displayEvents(eventsToDisplay);
-        document.getElementById('eventCount').textContent = eventsToDisplay.length;
-        
+
+        const list = showClosed ? closedEvents : allEvents;
+        displayEvents(list);
+        document.getElementById('eventCount').textContent = list.length;
       } catch (error) {
         console.error('加载事件失败:', error);
         alert('加载事件失败: ' + error.message);
       }
     }
-    
+
     function formatWeekLabel(dateStr) {
-      if (!dateStr) return '未知';
+      if (!dateStr) {
+        return '未知';
+      }
       const date = new Date(dateStr);
-      if (Number.isNaN(date.getTime())) return dateStr;
+      if (Number.isNaN(date.getTime())) {
+        return dateStr;
+      }
       const month = date.getMonth() + 1;
       const week = Math.ceil(date.getDate() / 7);
       return `${month}月${week}周`;
     }
 
     function formatWeekRange(event) {
-      if (event.weeks && Array.isArray(event.weeks) && event.weeks.length > 0) {
-        const sortedWeeks = [...new Set(event.weeks)].sort();
+      if (Array.isArray(event.weeks) && event.weeks.length > 0) {
+        const sortedWeeks = [...event.weeks];
         const startLabel = formatWeekLabel(sortedWeeks[0]);
         const endLabel = formatWeekLabel(sortedWeeks[sortedWeeks.length - 1]);
         return startLabel === endLabel ? startLabel : `${startLabel}-${endLabel}`;
       }
-      // 回退到startDate/endDate
       const startLabel = formatWeekLabel(event.startDate);
       const endLabel = formatWeekLabel(event.endDate);
       if (!endLabel || endLabel === '未知') {
@@ -256,25 +344,54 @@
       return startLabel === endLabel ? startLabel : `${startLabel}-${endLabel}`;
     }
 
-    // 显示事件列表
     function displayEvents(events) {
       const tbody = document.getElementById('eventList');
-      
       if (events.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无跟踪事件</td></tr>';
         return;
       }
-      
+
       tbody.innerHTML = events.map(event => {
-        const groupName = groupNames[event.group] || event.group;
+        const groupName = groupNames[event.group] || event.group || '未分组';
         const countClass = event.count === 2 ? 'count-2' : (event.count === 3 ? 'count-3' : 'count-high');
         const weekRange = formatWeekRange(event);
-        
         const isActive = event.status === 'active';
         const statusClass = isActive ? 'status-active' : 'status-closed';
         const statusLabel = isActive ? '活跃' : '已关闭';
-        const actionCell = isActive ? `<button onclick="closeEvent('${event.id}')">关闭</button>` : '--';
-        
+        const memberUUID = event.memberUUID || '';
+        const latestFollowUpContent = event.latestFollowUp && typeof event.latestFollowUp.content === 'string'
+          ? event.latestFollowUp.content.trim()
+          : '';
+        const hasFollowUp = latestFollowUpContent.length > 0;
+        const trackButton = memberUUID
+          ? `<button class="track-btn" onclick="openTrackingPage('${memberUUID}', '${event.id}')">跟踪</button>`
+          : '';
+
+        const isForwarded = event.forwarded === true;
+        const forwardDateText = event.forwardDate ? new Date(event.forwardDate).toLocaleString('zh-CN') : '';
+        const forwardTitle = isForwarded ? `已于 ${forwardDateText} 转发到外部表单` : '转发到外部表单';
+        const isProcessing = forwardingEventId === event.id;
+        const forwardLabel = isProcessing ? '转发中...' : (isForwarded ? '已转发' : '转发');
+        const forwardClass = `forward-btn ${isForwarded ? 'forwarded' : ''}`;
+        const forwardDisabledAttr = isProcessing ? 'disabled' : '';
+
+        const forwardButton = `
+          <button
+            class="${forwardClass}"
+            data-forward-id="${event.id}"
+            data-forwarded="${isForwarded ? 'true' : 'false'}"
+            title="${forwardTitle}"
+            onclick="forwardAbsenceEvent('${event.id}')"
+            ${forwardDisabledAttr}
+          >
+            ${forwardLabel}
+          </button>
+        `;
+
+        const closeButton = isActive
+          ? `<button class="close-btn${hasFollowUp ? '' : ' disabled'}" ${hasFollowUp ? `onclick="closeEvent('${event.id}')"` : 'disabled aria-disabled="true" title="需先录入回访信息才可关闭事件"'}>关闭</button>`
+          : '';
+
         return `
           <tr data-group="${event.group}">
             <td>${event.memberName}</td>
@@ -282,48 +399,53 @@
             <td><span class="count-badge ${countClass}">${event.count}次</span></td>
             <td>${weekRange}</td>
             <td><span class="${statusClass}">${statusLabel}</span></td>
-            <td class="action-cell">${actionCell}</td>
+            <td class="action-cell">${trackButton}${forwardButton}${closeButton}</td>
           </tr>
         `;
       }).join('');
     }
-    
-    // 筛选事件
+
     function filterEvents() {
       const selectedGroup = document.getElementById('groupFilter').value;
       const source = showClosed ? closedEvents : allEvents;
-      
       if (!selectedGroup) {
         displayEvents(source);
         document.getElementById('eventCount').textContent = source.length;
         return;
       }
-      
       const filtered = source.filter(event => event.group === selectedGroup);
       displayEvents(filtered);
       document.getElementById('eventCount').textContent = filtered.length;
     }
-    
-    async function closeEvent(eventId) {
-      const targetEvent = allEvents.find(event => event.id === eventId);
+
+    async function closeEvent(recordId) {
+      const targetEvent = allEvents.find(event => event.id === recordId) || closedEvents.find(event => event.id === recordId);
       if (!targetEvent) {
         alert('未找到事件记录，无法关闭');
         return;
       }
-      
-      const confirmClose = confirm(`确认关闭 ${targetEvent.memberName} 的缺勤事件吗？`);
-      if (!confirmClose) {
+      const latestFollowUpContent = targetEvent.latestFollowUp && typeof targetEvent.latestFollowUp.content === 'string'
+        ? targetEvent.latestFollowUp.content.trim()
+        : '';
+      if (!latestFollowUpContent) {
+        alert('请先在个人事件页面录入有效的回访信息后再关闭事件。');
         return;
       }
-      
+      if (!confirm(`确认关闭 ${targetEvent.memberName} 的缺勤事件吗？`)) {
+        return;
+      }
       try {
         const today = new Date();
         const resolvedDate = today.toISOString().split('T')[0];
-        await db.ref(`absenceEvents/${eventId}`).update({
+        const payload = {
           status: 'resolved',
           resolvedDate,
-          updatedAt: new Date().toISOString()
-        });
+          updatedAt: today.toISOString()
+        };
+        await Promise.all([
+          db.ref(`absenceEvents/${recordId}`).update(payload),
+          db.ref(`trackingRecords/${recordId}`).update(payload)
+        ]);
         alert('事件已关闭');
         await loadEvents();
       } catch (error) {
@@ -331,7 +453,192 @@
         alert('关闭事件失败: ' + error.message);
       }
     }
-    
+
+    function findEventById(recordId) {
+      return allEvents.find(event => event.id === recordId)
+        || closedEvents.find(event => event.id === recordId)
+        || null;
+    }
+
+    function updateForwardButtonState(recordId, state) {
+      const button = document.querySelector(`button[data-forward-id="${recordId}"]`);
+      if (!button) {
+        return;
+      }
+      const { loading = false, forwarded = null } = state || {};
+      if (loading) {
+        button.disabled = true;
+        button.textContent = '转发中...';
+      } else {
+        button.disabled = false;
+        const isForwarded = forwarded !== null ? forwarded : button.dataset.forwarded === 'true';
+        button.dataset.forwarded = isForwarded ? 'true' : 'false';
+        button.textContent = isForwarded ? '已转发' : '转发';
+        if (isForwarded) {
+          button.classList.add('forwarded');
+        } else {
+          button.classList.remove('forwarded');
+        }
+      }
+    }
+
+    async function getExternalFormToken() {
+      if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
+        throw new Error('外部表单系统未配置，请联系管理员');
+      }
+      if (window.externalFormConfig.auth && window.externalFormConfig.auth.token) {
+        return window.externalFormConfig.auth.token;
+      }
+      const response = await fetch(`${window.externalFormConfig.apiBaseUrl}${window.externalFormConfig.endpoints.login}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: window.externalFormConfig.auth.username,
+          password: window.externalFormConfig.auth.password
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`登录外部表单系统失败：${response.status}`);
+      }
+      const result = await response.json();
+      const token = (result && (result.token || (result.data && result.data.token))) || null;
+      if (!token) {
+        throw new Error('外部表单系统登录响应缺少token');
+      }
+      window.externalFormConfig.auth.token = token;
+      if (result.data && result.data.user) {
+        window.externalFormConfig.auth.user = result.data.user;
+      }
+      return token;
+    }
+
+    async function forwardAbsenceEvent(recordId) {
+      try {
+        const targetEvent = findEventById(recordId);
+        if (!targetEvent) {
+          alert('未找到事件记录，无法转发');
+          return;
+        }
+        if (!window.externalFormConfig || !window.externalFormConfig.features || window.externalFormConfig.features.enableForwarding !== true) {
+          alert('外部表单转发功能未启用，请联系管理员');
+          return;
+        }
+        const memberUUID = targetEvent.memberUUID;
+        if (!memberUUID) {
+          alert('当前事件缺少成员UUID，请先补齐成员UUID后再尝试转发。');
+          return;
+        }
+        if (targetEvent.forwarded === true) {
+          const forwardDate = targetEvent.forwardDate ? new Date(targetEvent.forwardDate).toLocaleString('zh-CN') : '未知时间';
+          const confirmResend = confirm(`该事件已于 ${forwardDate} 转发过！\n\n是否要重新转发？\n\n点击"确定"重新转发\n点击"取消"取消操作`);
+          if (!confirmResend) {
+            return;
+          }
+        }
+        if (forwardingEventId) {
+          alert('已有转发操作正在进行，请稍候再试');
+          return;
+        }
+        forwardingEventId = recordId;
+        updateForwardButtonState(recordId, { loading: true });
+
+        const token = await getExternalFormToken();
+        const displayGroupName = targetEvent.groupDisplayName
+          || groupNames[targetEvent.group]
+          || targetEvent.group
+          || '未知组别';
+        const weeks = Array.isArray(targetEvent.weeks) ? targetEvent.weeks : [];
+        const startDate = targetEvent.startDate || (weeks.length > 0 ? weeks[0] : new Date().toISOString().split('T')[0]);
+        const eventName = `${targetEvent.memberName || '未知成员'} 连续缺勤 ${targetEvent.count || weeks.length} 次`;
+        const detailPayload = {
+          absenceEventId: recordId,
+          memberName: targetEvent.memberName || '未知成员',
+          memberUUID,
+          group: displayGroupName,
+          startDate,
+          consecutiveAbsences: targetEvent.count || weeks.length,
+          absenceWeeks: weeks,
+          generatedAt: new Date().toISOString(),
+          source: 'msh-absence-events'
+        };
+
+        const eventData = {
+          name: eventName,
+          description: `自动转发的缺勤事件：\n${JSON.stringify(detailPayload, null, 2)}`,
+          event_date: startDate,
+          status: 'active'
+        };
+
+        const response = await fetch(`${window.externalFormConfig.apiBaseUrl}${window.externalFormConfig.endpoints.submissions}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(eventData)
+        });
+
+        const resultText = await response.text();
+        let result = {};
+        try {
+          result = JSON.parse(resultText);
+        } catch (parseError) {
+          console.warn('无法解析外部表单响应', parseError);
+        }
+
+        if (response.status !== 201) {
+          const errorMessage = (result && (result.message || result.error)) || resultText || '外部表单返回未知错误';
+          throw new Error(`HTTP ${response.status}: ${errorMessage}`);
+        }
+
+        const now = new Date().toISOString();
+        const updates = {
+          forwarded: true,
+          forwardDate: now,
+          forwardStatus: 'pending',
+          forwardResponse: result,
+          uuidMatchRequired: true,
+          updatedAt: now
+        };
+        await db.ref(`absenceEvents/${recordId}`).update(updates);
+        Object.assign(targetEvent, updates);
+        updateForwardButtonState(recordId, { loading: false, forwarded: true });
+        alert('事件已成功转发到外部表单，等待UUID匹配确认！');
+        forwardingEventId = null;
+        await loadEvents();
+      } catch (error) {
+        console.error('转发到外部表单失败:', error);
+        alert('转发失败：' + error.message);
+        if (forwardingEventId) {
+          updateForwardButtonState(forwardingEventId, { loading: false });
+        }
+      } finally {
+        forwardingEventId = null;
+      }
+    }
+
+    function openTrackingPage(memberUUID, recordId) {
+      if (!memberUUID) {
+        alert('当前事件缺少成员UUID，无法跳转到个人页面。');
+        return;
+      }
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.pathname = url.pathname.replace(/[^/]+$/, 'personal-page.html');
+      url.searchParams.set('uuid', memberUUID);
+      if (recordId) {
+        url.searchParams.set('eventId', recordId);
+      }
+      const pageUrl = url.toString();
+      const popup = window.open(pageUrl, '_blank');
+      if (!popup) {
+        alert('浏览器已拦截弹出窗口，请允许后重试。您也可以复制粘贴此链接：\n' + pageUrl);
+      } else {
+        popup.opener = null;
+      }
+    }
+
     function toggleClosedEvents() {
       showClosed = !showClosed;
       const toggleBtn = document.getElementById('toggleClosedBtn');
@@ -348,13 +655,14 @@
       }
       document.getElementById('groupFilter').value = '';
     }
-    
-    // 页面加载
+
     window.addEventListener('load', async () => {
       await initFirebase();
       await loadGroupNames();
       await loadEvents();
     });
+
+    window.openTrackingPage = openTrackingPage;
   </script>
 </body>
 </html>

@@ -193,7 +193,7 @@ function initializeEventListeners() {
   
   if (dom.showSundayTracking) {
     dom.showSundayTracking.addEventListener('click', () => {
-      window.location.href = 'sunday-tracking.html';
+      window.location.href = 'absence-events.html';
     });
   }
   
@@ -241,6 +241,7 @@ window.summaryPage.initializePage = initializePage;
 window.summaryPage.showSection = showSection;
 
 console.log('✅ 汇总页面 - 主逻辑模块已加载');
+
 
 
 

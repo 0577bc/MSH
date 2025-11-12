@@ -19,7 +19,13 @@
     },
     "trackingRecords": {
       ".read": true,
-      ".write": true
+      ".write": true,
+      "$recordId": {
+        "latestFollowUp": {
+          ".read": true,
+          ".write": true
+        }
+      }
     },
     "personalTracking": {
       ".read": true,
