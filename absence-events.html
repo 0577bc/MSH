@@ -131,6 +131,31 @@
     .action-cell button:hover {
       background: #5a6268;
     }
+    .action-cell button.fetch-btn {
+      background: #ffc107;
+      color: #333;
+    }
+    .action-cell button.fetch-btn.fetching {
+      background: #f5a623;
+      color: #fff;
+    }
+    .action-cell button.delete-btn {
+      background: #fd7e14;
+      color: #fff;
+    }
+    .action-cell button.delete-btn.deleting {
+      background: #e2690f;
+    }
+    .action-cell button.delete-btn.deleted {
+      background: #adb5bd;
+      color: #f8f9fa;
+      cursor: not-allowed;
+    }
+    .action-cell button.delete-btn:disabled {
+      background: #f3b98a;
+      color: #fafafa;
+      cursor: not-allowed;
+    }
     .action-cell button.close-btn {
       background: #dc3545;
     }
@@ -159,6 +184,25 @@
     .event-count {
       margin-left: auto;
     }
+    .bulk-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .bulk-actions button {
+      background: #343a40;
+      color: #fff;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .bulk-actions button:disabled {
+      background: #adb5bd;
+      color: #f8f9fa;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -180,6 +224,11 @@
     <span class="event-count">
       共 <strong id="eventCount">0</strong> 个事件
     </span>
+  </div>
+  <div class="bulk-actions">
+    <button id="bulkForwardBtn" type="button" onclick="bulkForwardEvents()">一键转发 (0)</button>
+    <button id="bulkFetchBtn" type="button" onclick="bulkFetchFollowUps()">一键抓取 (0)</button>
+    <button id="bulkDeleteBtn" type="button" onclick="bulkDeleteExternalEvents()">一键删除外部事件 (0)</button>
   </div>
   
   <table id="eventTable">
@@ -212,6 +261,14 @@
     let groupNames = {};
     let showClosed = false;
     let forwardingEventId = null;
+    let fetchingEventId = null;
+    let deletingEventId = null;
+    const bulkButtons = {
+      forward: null,
+      fetch: null,
+      delete: null
+    };
+    const BULK_REQUEST_DELAY = 400;
 
     async function initFirebase() {
       let attempts = 0;
@@ -258,6 +315,8 @@
       const memberName = trackingRecord.memberName || rawEvent.memberName || '未知成员';
       const group = trackingRecord.group || rawEvent.group || '';
       const count = trackingRecord.count || rawEvent.count || weeks.length;
+      const externalDeleted = trackingRecord.externalDeleted === true || rawEvent.externalDeleted === true;
+      const externalDeletedAt = trackingRecord.externalDeletedAt || rawEvent.externalDeletedAt || null;
 
       return {
         id: recordId,
@@ -278,7 +337,9 @@
         uuidMatchRequired: rawEvent.uuidMatchRequired || false,
         memberSnapshot,
         createdAt,
-        updatedAt
+        updatedAt,
+        externalDeleted,
+        externalDeletedAt
       };
     }
 
@@ -310,6 +371,7 @@
         const list = showClosed ? closedEvents : allEvents;
         displayEvents(list);
         document.getElementById('eventCount').textContent = list.length;
+        updateBulkButtons();
       } catch (error) {
         console.error('加载事件失败:', error);
         alert('加载事件失败: ' + error.message);
@@ -363,6 +425,8 @@
           ? event.latestFollowUp.content.trim()
           : '';
         const hasFollowUp = latestFollowUpContent.length > 0;
+        const externalDeleted = event.externalDeleted === true;
+        const canDeleteExternal = hasFollowUp && !externalDeleted;
         const trackButton = memberUUID
           ? `<button class="track-btn" onclick="openTrackingPage('${memberUUID}', '${event.id}')">跟踪</button>`
           : '';
@@ -374,6 +438,23 @@
         const forwardLabel = isProcessing ? '转发中...' : (isForwarded ? '已转发' : '转发');
         const forwardClass = `forward-btn ${isForwarded ? 'forwarded' : ''}`;
         const forwardDisabledAttr = isProcessing ? 'disabled' : '';
+
+        const isFetching = fetchingEventId === event.id;
+        const fetchLabel = isFetching ? '抓取中...' : '抓取';
+        const fetchClass = `fetch-btn${isFetching ? ' fetching' : ''}`;
+        const fetchDisabledAttr = isFetching ? 'disabled' : '';
+
+        const fetchButton = `
+          <button
+            class="${fetchClass}"
+            data-fetch-id="${event.id}"
+            title="抓取外部回访记录"
+            onclick="fetchLatestFollowUp('${event.id}')"
+            ${fetchDisabledAttr}
+          >
+            ${fetchLabel}
+          </button>
+        `;
 
         const forwardButton = `
           <button
@@ -388,6 +469,32 @@
           </button>
         `;
 
+        const isDeleting = deletingEventId === event.id;
+        const deleteLabel = externalDeleted
+          ? '已删外部事件'
+          : (isDeleting ? '删除中...' : '删除外部事件');
+        const deleteDisabledAttr = externalDeleted
+          ? 'disabled aria-disabled="true" title="外部事件已删除"'
+          : (!canDeleteExternal
+            ? 'disabled aria-disabled="true" title="抓取回访后方可删除外部事件"'
+            : (isDeleting ? 'disabled' : ''));
+        const deleteClass = `delete-btn${isDeleting ? ' deleting' : ''}${externalDeleted ? ' deleted' : ''}`;
+        const deleteAction = externalDeleted
+          ? 'return false;'
+          : (canDeleteExternal ? `deleteExternalEvent('${event.id}')` : 'return false;');
+        const deleteButton = `
+          <button
+            class="${deleteClass}"
+            data-delete-id="${event.id}"
+            data-external-deleted="${externalDeleted ? 'true' : 'false'}"
+            title="${externalDeleted ? '外部事件已删除' : (canDeleteExternal ? '删除云表单中的对应事件与回访记录' : '抓取回访后方可删除外部事件')}"
+            onclick="${deleteAction}"
+            ${deleteDisabledAttr}
+          >
+            ${deleteLabel}
+          </button>
+        `;
+
         const closeButton = isActive
           ? `<button class="close-btn${hasFollowUp ? '' : ' disabled'}" ${hasFollowUp ? `onclick="closeEvent('${event.id}')"` : 'disabled aria-disabled="true" title="需先录入回访信息才可关闭事件"'}>关闭</button>`
           : '';
@@ -399,10 +506,111 @@
             <td><span class="count-badge ${countClass}">${event.count}次</span></td>
             <td>${weekRange}</td>
             <td><span class="${statusClass}">${statusLabel}</span></td>
-            <td class="action-cell">${trackButton}${forwardButton}${closeButton}</td>
+            <td class="action-cell">${trackButton}${fetchButton}${forwardButton}${deleteButton}${closeButton}</td>
           </tr>
         `;
       }).join('');
+    }
+
+    function ensureBulkButtonRefs() {
+      if (!bulkButtons.forward) {
+        bulkButtons.forward = document.getElementById('bulkForwardBtn');
+      }
+      if (!bulkButtons.fetch) {
+        bulkButtons.fetch = document.getElementById('bulkFetchBtn');
+      }
+      if (!bulkButtons.delete) {
+        bulkButtons.delete = document.getElementById('bulkDeleteBtn');
+      }
+    }
+
+    function getAllEventItems() {
+      return [...allEvents, ...closedEvents].filter(item => item && typeof item === 'object');
+    }
+
+    function getBulkCandidates() {
+      const events = getAllEventItems();
+      const forwardCandidates = events.filter(event =>
+        event.status === 'active'
+        && event.forwarded !== true
+        && event.memberUUID
+      );
+      const fetchCandidates = events.filter(event => {
+        const content = event.latestFollowUp && typeof event.latestFollowUp.content === 'string'
+          ? event.latestFollowUp.content.trim()
+          : '';
+        return event.status === 'active'
+          && event.forwarded === true
+          && content.length === 0;
+      });
+      const deleteCandidates = events.filter(event => {
+        const content = event.latestFollowUp && typeof event.latestFollowUp.content === 'string'
+          ? event.latestFollowUp.content.trim()
+          : '';
+        return event.status === 'active'
+          && content.length > 0
+          && event.externalDeleted !== true;
+      });
+      return {
+        forward: forwardCandidates,
+        fetch: fetchCandidates,
+        delete: deleteCandidates
+      };
+    }
+
+    function updateBulkButtons() {
+      ensureBulkButtonRefs();
+      const counts = getBulkCandidates();
+      if (bulkButtons.forward) {
+        bulkButtons.forward.textContent = `一键转发 (${counts.forward.length})`;
+        bulkButtons.forward.disabled = counts.forward.length === 0;
+      }
+      if (bulkButtons.fetch) {
+        bulkButtons.fetch.textContent = `一键抓取 (${counts.fetch.length})`;
+        bulkButtons.fetch.disabled = counts.fetch.length === 0;
+      }
+      if (bulkButtons.delete) {
+        bulkButtons.delete.textContent = `一键删除外部事件 (${counts.delete.length})`;
+        bulkButtons.delete.disabled = counts.delete.length === 0;
+      }
+    }
+
+    function setBulkButtonProcessing(type, { total = 0, completed = 0, label = '' } = {}) {
+      ensureBulkButtonRefs();
+      const mapping = {
+        forward: bulkButtons.forward,
+        fetch: bulkButtons.fetch,
+        delete: bulkButtons.delete
+      };
+      const button = mapping[type];
+      if (!button) {
+        return;
+      }
+      if (label) {
+        button.textContent = `${label} (${completed}/${total})`;
+      }
+      button.disabled = true;
+    }
+
+    function resetBulkButton(type) {
+      ensureBulkButtonRefs();
+      const counts = getBulkCandidates();
+      if (type === 'forward' && bulkButtons.forward) {
+        bulkButtons.forward.disabled = counts.forward.length === 0;
+        bulkButtons.forward.textContent = `一键转发 (${counts.forward.length})`;
+      }
+      if (type === 'fetch' && bulkButtons.fetch) {
+        bulkButtons.fetch.disabled = counts.fetch.length === 0;
+        bulkButtons.fetch.textContent = `一键抓取 (${counts.fetch.length})`;
+      }
+      if (type === 'delete' && bulkButtons.delete) {
+        bulkButtons.delete.disabled = counts.delete.length === 0;
+        bulkButtons.delete.textContent = `一键删除外部事件 (${counts.delete.length})`;
+      }
+    }
+
+    function delay(ms = 0) {
+      return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     function filterEvents() {
@@ -482,6 +690,58 @@
       }
     }
 
+    function updateFetchButtonState(recordId, state) {
+      const button = document.querySelector(`button[data-fetch-id="${recordId}"]`);
+      if (!button) {
+        return;
+      }
+      const { loading = false, success = false } = state || {};
+      if (loading) {
+        button.disabled = true;
+        button.textContent = '抓取中...';
+        button.classList.add('fetching');
+        return;
+      }
+      button.disabled = false;
+      button.classList.remove('fetching');
+      button.textContent = success ? '已抓取' : '抓取';
+      if (success) {
+        setTimeout(() => {
+          const target = document.querySelector(`button[data-fetch-id="${recordId}"]`);
+          if (target) {
+            target.textContent = '抓取';
+          }
+        }, 2000);
+      }
+    }
+
+    function updateDeleteButtonState(recordId, state) {
+      const button = document.querySelector(`button[data-delete-id="${recordId}"]`);
+      if (!button) {
+        return;
+      }
+      const { loading = false } = state || {};
+      const externalDeleted = button.dataset.externalDeleted === 'true' || button.classList.contains('deleted');
+      if (loading) {
+        button.disabled = true;
+        button.textContent = '删除中...';
+        button.classList.add('deleting');
+      } else {
+        button.classList.remove('deleting');
+        if (externalDeleted) {
+          button.disabled = true;
+          button.textContent = '已删外部事件';
+          button.classList.add('deleted');
+          button.title = '外部事件已删除';
+        } else {
+          button.disabled = false;
+          button.textContent = '删除外部事件';
+          button.classList.remove('deleted');
+          button.title = '删除云表单中的对应事件与回访记录';
+        }
+      }
+    }
+
     async function getExternalFormToken() {
       if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
         throw new Error('外部表单系统未配置，请联系管理员');
@@ -514,32 +774,77 @@
       return token;
     }
 
-    async function forwardAbsenceEvent(recordId) {
+    async function forwardAbsenceEvent(recordId, options = {}) {
+      const {
+        silent = false,
+        skipReload = false,
+        throwOnError = false
+      } = options;
       try {
         const targetEvent = findEventById(recordId);
         if (!targetEvent) {
-          alert('未找到事件记录，无法转发');
-          return;
+          const message = '未找到事件记录，无法转发';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'not_found' };
         }
         if (!window.externalFormConfig || !window.externalFormConfig.features || window.externalFormConfig.features.enableForwarding !== true) {
-          alert('外部表单转发功能未启用，请联系管理员');
-          return;
+          const message = '外部表单转发功能未启用，请联系管理员';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'feature_disabled' };
         }
         const memberUUID = targetEvent.memberUUID;
         if (!memberUUID) {
-          alert('当前事件缺少成员UUID，请先补齐成员UUID后再尝试转发。');
-          return;
+          const message = '当前事件缺少成员UUID，请先补齐成员UUID后再尝试转发。';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'missing_uuid' };
         }
         if (targetEvent.forwarded === true) {
           const forwardDate = targetEvent.forwardDate ? new Date(targetEvent.forwardDate).toLocaleString('zh-CN') : '未知时间';
-          const confirmResend = confirm(`该事件已于 ${forwardDate} 转发过！\n\n是否要重新转发？\n\n点击"确定"重新转发\n点击"取消"取消操作`);
+          const message = `该事件已于 ${forwardDate} 转发过！\n\n是否要重新转发？\n\n点击"确定"重新转发\n点击"取消"取消操作`;
+          if (silent) {
+            console.warn('批量模式跳过已转发事件', recordId);
+            if (throwOnError) {
+              throw new Error('事件已转发');
+            }
+            return { success: false, reason: 'already_forwarded' };
+          }
+          const confirmResend = confirm(message);
           if (!confirmResend) {
-            return;
+            return { success: false, reason: 'user_cancel' };
           }
         }
         if (forwardingEventId) {
-          alert('已有转发操作正在进行，请稍候再试');
-          return;
+          const message = '已有转发操作正在进行，请稍候再试';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'busy' };
         }
         forwardingEventId = recordId;
         updateForwardButtonState(recordId, { loading: true });
@@ -605,18 +910,603 @@
         await db.ref(`absenceEvents/${recordId}`).update(updates);
         Object.assign(targetEvent, updates);
         updateForwardButtonState(recordId, { loading: false, forwarded: true });
-        alert('事件已成功转发到外部表单，等待UUID匹配确认！');
+        if (!silent) {
+          alert('事件已成功转发到外部表单，等待UUID匹配确认！');
+        } else {
+          console.log(`事件 ${recordId} 已转发到外部表单`);
+        }
         forwardingEventId = null;
-        await loadEvents();
+        if (!skipReload) {
+          await loadEvents();
+        } else {
+          updateBulkButtons();
+        }
+        return { success: true };
       } catch (error) {
         console.error('转发到外部表单失败:', error);
-        alert('转发失败：' + error.message);
+        if (!silent) {
+          alert('转发失败：' + error.message);
+        } else {
+          console.warn('转发失败（批量模式）:', error);
+        }
         if (forwardingEventId) {
           updateForwardButtonState(forwardingEventId, { loading: false });
         }
+        if (throwOnError) {
+          throw error;
+        }
+        return { success: false, error };
       } finally {
         forwardingEventId = null;
       }
+    }
+
+    async function fetchLatestFollowUp(recordId, options = {}) {
+      const {
+        silent = false,
+        skipReload = false,
+        throwOnError = false
+      } = options;
+      try {
+        const targetEvent = findEventById(recordId);
+        if (!targetEvent) {
+          const message = '未找到事件记录，无法抓取回访';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'not_found' };
+        }
+        if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
+          const message = '外部表单系统未配置，请联系管理员';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'config_missing' };
+        }
+        if (window.externalFormConfig.features && window.externalFormConfig.features.enableFetching === false) {
+          const message = '外部表单抓取功能未启用，请联系管理员';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'feature_disabled' };
+        }
+        if (!targetEvent.memberUUID) {
+          const message = '当前事件缺少成员UUID，无法匹配外部表单记录。';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'missing_uuid' };
+        }
+        if (fetchingEventId) {
+          const message = '已有抓取操作正在进行，请稍候再试';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'busy' };
+        }
+        fetchingEventId = recordId;
+        updateFetchButtonState(recordId, { loading: true });
+
+        console.groupCollapsed(
+          '🔍 抓取外部回访调试',
+          recordId,
+          new Date().toLocaleString('zh-CN', { hour12: false })
+        );
+        console.log('recordId:', recordId);
+        console.log('targetEvent:', targetEvent);
+        console.log('externalFormConfig:', window.externalFormConfig);
+
+        const apiBase = window.externalFormConfig.apiBaseUrl.replace(/\/+$/, '');
+        const lookupPath =
+          (window.externalFormConfig.endpoints && window.externalFormConfig.endpoints.lookup) || '/events/lookup';
+        const url = new URL(`${apiBase}${lookupPath}`);
+        url.searchParams.set('absenceEventId', recordId);
+        url.searchParams.set('includeFeedbacks', 'true');
+
+        const headers = { 'Content-Type': 'application/json' };
+        const requestInfo = {
+          url: url.toString(),
+          headers: { ...headers }
+        };
+        console.log('请求信息:', requestInfo);
+
+        let response = await fetch(requestInfo.url, { headers: requestInfo.headers });
+
+        if (response.status === 401 && window.externalFormConfig.endpoints && window.externalFormConfig.endpoints.login) {
+          try {
+            const token = await getExternalFormToken();
+            headers.Authorization = `Bearer ${token}`;
+            requestInfo.headers = { ...headers };
+            console.log('重新获取token后重新请求:', requestInfo);
+            response = await fetch(requestInfo.url, { headers: requestInfo.headers });
+          } catch (authError) {
+            console.warn('获取外部表单token失败，继续使用匿名请求', authError);
+          }
+        }
+
+        const resultText = await response.text();
+        console.log('响应状态:', response.status);
+        console.log('响应文本:', resultText);
+        let result = {};
+        try {
+          result = JSON.parse(resultText);
+        } catch (parseError) {
+          console.warn('无法解析外部表单抓取响应', parseError);
+        }
+
+        if (!response.ok) {
+          const message =
+            (result && (result.message || result.error)) || `HTTP ${response.status}` || '外部表单返回错误';
+          console.error('抓取接口返回非200状态', {
+            status: response.status,
+            statusText: response.statusText,
+            result
+          });
+          throw new Error(message);
+        }
+
+        const rawData = result.data || {};
+        const eventData = rawData.event || rawData;
+        if (!eventData || !eventData.external_event_id) {
+          console.warn('抓取结果缺少事件数据', rawData);
+        }
+
+        const feedbacks = Array.isArray(rawData.feedbacks)
+          ? rawData.feedbacks
+          : Array.isArray(eventData && eventData.feedbacks)
+            ? eventData.feedbacks
+            : [];
+
+        if (!feedbacks.length) {
+          if (!silent) {
+            alert('外部表单暂无新的回访记录。');
+          } else {
+            console.log(`事件 ${recordId} 暂无新的回访记录`);
+          }
+          updateFetchButtonState(recordId, { loading: false, success: false });
+          fetchingEventId = null;
+          if (throwOnError) {
+            throw new Error('外部表单暂无新的回访记录');
+          }
+          return { success: false, reason: 'no_feedback' };
+        }
+
+        const latest = feedbacks[0] || null;
+        const feedbackContent = latest && typeof latest.feedback_text === 'string'
+          ? latest.feedback_text.trim()
+          : '';
+        if (!feedbackContent) {
+          if (!silent) {
+            alert('外部表单返回的回访记录为空，已忽略。');
+          } else {
+            console.warn(`事件 ${recordId} 的回访记录为空`);
+          }
+          updateFetchButtonState(recordId, { loading: false, success: false });
+          fetchingEventId = null;
+          if (throwOnError) {
+            throw new Error('回访记录为空');
+          }
+          return { success: false, reason: 'empty_feedback' };
+        }
+
+        const submittedAt = latest.created_at || latest.updated_at || new Date().toISOString();
+        const followUpPayload = {
+          content: feedbackContent,
+          memberUUID: targetEvent.memberUUID,
+          source: 'external-form',
+          externalFeedbackId: latest.id || null,
+          externalEventId: eventData && eventData.external_event_id ? eventData.external_event_id : recordId,
+          fetchedAt: new Date().toISOString(),
+          submittedAt,
+          createdAt: latest.created_at || submittedAt,
+          updatedAt: latest.updated_at || submittedAt
+        };
+
+        const now = new Date().toISOString();
+        await Promise.all([
+          db.ref(`absenceEvents/${recordId}`).update({
+            latestFollowUp: followUpPayload,
+            updatedAt: now
+          }),
+          db.ref(`trackingRecords/${recordId}`).update({
+            latestFollowUp: followUpPayload,
+            updatedAt: now
+          })
+        ]);
+
+        targetEvent.latestFollowUp = followUpPayload;
+        targetEvent.updatedAt = now;
+
+        updateFetchButtonState(recordId, { loading: false, success: true });
+        fetchingEventId = null;
+        if (!silent) {
+          alert('已成功抓取最新回访记录！');
+        } else {
+          console.log(`事件 ${recordId} 已抓取最新回访记录`);
+        }
+        if (!skipReload) {
+          await loadEvents();
+        } else {
+          updateBulkButtons();
+        }
+        console.groupEnd();
+        return { success: true };
+      } catch (error) {
+        console.error('抓取外部回访失败:', error);
+        if (!silent) {
+          alert('抓取失败：' + error.message);
+        } else {
+          console.warn('抓取失败（批量模式）:', error);
+        }
+        if (fetchingEventId) {
+          updateFetchButtonState(fetchingEventId, { loading: false, success: false });
+        }
+        if (throwOnError) {
+          throw error;
+        }
+        return { success: false, error };
+      } finally {
+        fetchingEventId = null;
+        if (console.groupEnd) {
+          console.groupEnd();
+        }
+      }
+    }
+
+    async function deleteExternalEvent(recordId, options = {}) {
+      const {
+        silent = false,
+        skipReload = false,
+        throwOnError = false,
+        skipConfirm = false
+      } = options;
+      try {
+        const targetEvent = findEventById(recordId);
+        if (!targetEvent) {
+          const message = '未找到事件记录，无法删除外部事件';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'not_found' };
+        }
+        const latestFollowUpContent = targetEvent.latestFollowUp && typeof targetEvent.latestFollowUp.content === 'string'
+          ? targetEvent.latestFollowUp.content.trim()
+          : '';
+        if (!latestFollowUpContent) {
+          const message = '需先抓取到有效回访记录后才能删除外部事件。';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'missing_followup' };
+        }
+        if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
+          const message = '外部表单系统未配置，请联系管理员';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'config_missing' };
+        }
+        if (deletingEventId) {
+          const message = '已有删除操作正在进行，请稍候再试';
+          if (!silent) {
+            alert(message);
+          } else {
+            console.warn(message);
+          }
+          if (throwOnError) {
+            throw new Error(message);
+          }
+          return { success: false, reason: 'busy' };
+        }
+        if (!skipConfirm) {
+          const confirmDelete = confirm(`此操作将删除云表单中的事件及其回访记录：\n\n成员：${targetEvent.memberName}\n缺勤次数：${targetEvent.count} 次\n\n确定继续？`);
+          if (!confirmDelete) {
+            return { success: false, reason: 'user_cancel' };
+          }
+        }
+
+        console.groupCollapsed(
+          '🗑️ 删除外部事件调试',
+          recordId,
+          new Date().toLocaleString('zh-CN', { hour12: false })
+        );
+        console.log('recordId:', recordId);
+        console.log('targetEvent:', targetEvent);
+        console.log('externalFormConfig:', window.externalFormConfig);
+
+        deletingEventId = recordId;
+        updateDeleteButtonState(recordId, { loading: true });
+
+        const apiBase = window.externalFormConfig.apiBaseUrl.replace(/\/+$/, '');
+        const deleteEndpoint = window.externalFormConfig.endpoints && window.externalFormConfig.endpoints.deleteByExternalId
+          ? window.externalFormConfig.endpoints.deleteByExternalId
+          : 'events/byExternalId';
+        const normalizedEndpoint = deleteEndpoint.replace(/^\/+/, '');
+        const requestUrl = `${apiBase}/${normalizedEndpoint}/${encodeURIComponent(recordId)}`;
+        console.log('请求URL:', requestUrl);
+
+        const headers = { 'Content-Type': 'application/json' };
+        console.log('请求Headers:', headers);
+        let response = await fetch(requestUrl, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (response.status === 401 && window.externalFormConfig.endpoints && window.externalFormConfig.endpoints.login) {
+          try {
+            const token = await getExternalFormToken();
+            headers.Authorization = `Bearer ${token}`;
+            console.log('重新获取token后请求Headers:', headers);
+            response = await fetch(requestUrl, {
+              method: 'DELETE',
+              headers
+            });
+          } catch (tokenError) {
+            console.warn('获取外部表单token失败，继续使用匿名请求', tokenError);
+          }
+        }
+
+        const resultText = await response.text();
+        console.log('响应状态:', response.status);
+        console.log('响应文本:', resultText);
+        let result = {};
+        try {
+          result = JSON.parse(resultText);
+        } catch (parseError) {
+          console.warn('无法解析外部事件删除响应', parseError);
+        }
+
+        if (!response.ok) {
+          const message =
+            (result && (result.message || result.error)) || `HTTP ${response.status}` || '外部表单返回错误';
+          throw new Error(message);
+        }
+
+        if (result.code === 200) {
+          const deletedCount = result.data && typeof result.data.deletedFeedbacksCount === 'number'
+            ? result.data.deletedFeedbacksCount
+            : 0;
+          await markExternalEventDeleted(recordId, targetEvent);
+          if (!silent) {
+            alert(`外部事件已删除。\n删除的回访记录数量：${deletedCount} 条。`);
+          } else {
+            console.log(`事件 ${recordId} 外部记录已删除，回访数 ${deletedCount}`);
+          }
+          if (!skipReload) {
+            await loadEvents();
+          } else {
+            updateBulkButtons();
+          }
+          console.groupEnd();
+          return { success: true };
+        }
+
+        if (result.code === 404) {
+          await markExternalEventDeleted(recordId, targetEvent);
+          if (!silent) {
+            alert('外部事件不存在，已视为删除状态。');
+          } else {
+            console.log(`事件 ${recordId} 外部记录不存在，已标记删除状态`);
+          }
+          if (!skipReload) {
+            await loadEvents();
+          } else {
+            updateBulkButtons();
+          }
+          console.groupEnd();
+          return { success: true, note: 'not_found' };
+        }
+
+        const fallbackMessage = result.message || '删除外部事件失败，云表单返回未知状态。';
+        throw new Error(fallbackMessage);
+      } catch (error) {
+        console.error('删除外部事件失败:', error);
+        if (!silent) {
+          alert('删除外部事件失败：' + error.message);
+        } else {
+          console.warn('删除外部事件失败（批量模式）:', error);
+        }
+        if (throwOnError) {
+          throw error;
+        }
+        return { success: false, error };
+      } finally {
+        if (deletingEventId) {
+          updateDeleteButtonState(deletingEventId, { loading: false });
+        }
+        deletingEventId = null;
+        if (console.groupEnd) {
+          console.groupEnd();
+        }
+      }
+    }
+
+    async function bulkForwardEvents() {
+      ensureBulkButtonRefs();
+      const candidates = getBulkCandidates().forward;
+      if (candidates.length === 0) {
+        alert('暂无可转发的事件。');
+        return;
+      }
+      if (!window.externalFormConfig || !window.externalFormConfig.features || window.externalFormConfig.features.enableForwarding !== true) {
+        alert('外部表单转发功能未启用，请联系管理员');
+        return;
+      }
+      if (!confirm(`将转发 ${candidates.length} 个未转发事件到外部表单，是否继续？`)) {
+        return;
+      }
+      let success = 0;
+      let failed = 0;
+      for (let i = 0; i < candidates.length; i += 1) {
+        setBulkButtonProcessing('forward', { total: candidates.length, completed: i, label: '转发中' });
+        const event = candidates[i];
+        try {
+          await forwardAbsenceEvent(event.id, { silent: true, skipReload: true, throwOnError: true });
+          success += 1;
+        } catch (error) {
+          failed += 1;
+          console.warn('批量转发失败', event.id, error);
+        }
+        setBulkButtonProcessing('forward', { total: candidates.length, completed: i + 1, label: '转发中' });
+        if (i < candidates.length - 1) {
+          await delay(BULK_REQUEST_DELAY);
+        }
+      }
+      await loadEvents();
+      resetBulkButton('forward');
+      updateBulkButtons();
+      alert(`批量转发完成：成功 ${success} 条，失败 ${failed} 条。`);
+    }
+
+    async function bulkFetchFollowUps() {
+      ensureBulkButtonRefs();
+      const candidates = getBulkCandidates().fetch;
+      if (candidates.length === 0) {
+        alert('暂无需要抓取回访的事件。');
+        return;
+      }
+      if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
+        alert('外部表单系统未配置，请联系管理员');
+        return;
+      }
+      if (window.externalFormConfig.features && window.externalFormConfig.features.enableFetching === false) {
+        alert('外部表单抓取功能未启用，请联系管理员');
+        return;
+      }
+      if (!confirm(`将为 ${candidates.length} 个事件抓取最新回访记录，是否继续？`)) {
+        return;
+      }
+      let success = 0;
+      let failed = 0;
+      for (let i = 0; i < candidates.length; i += 1) {
+        setBulkButtonProcessing('fetch', { total: candidates.length, completed: i, label: '抓取中' });
+        const event = candidates[i];
+        try {
+          await fetchLatestFollowUp(event.id, { silent: true, skipReload: true, throwOnError: true });
+          success += 1;
+        } catch (error) {
+          failed += 1;
+          console.warn('批量抓取失败', event.id, error);
+        }
+        setBulkButtonProcessing('fetch', { total: candidates.length, completed: i + 1, label: '抓取中' });
+        if (i < candidates.length - 1) {
+          await delay(BULK_REQUEST_DELAY);
+        }
+      }
+      await loadEvents();
+      resetBulkButton('fetch');
+      updateBulkButtons();
+      alert(`批量抓取完成：成功 ${success} 条，失败 ${failed} 条。`);
+    }
+
+    async function bulkDeleteExternalEvents() {
+      ensureBulkButtonRefs();
+      const candidates = getBulkCandidates().delete;
+      if (candidates.length === 0) {
+        alert('暂无可删除的外部事件。');
+        return;
+      }
+      if (!window.externalFormConfig || !window.externalFormConfig.apiBaseUrl) {
+        alert('外部表单系统未配置，请联系管理员');
+        return;
+      }
+      if (!confirm(`将删除 ${candidates.length} 个外部事件及其回访记录，操作不可撤销，是否继续？`)) {
+        return;
+      }
+      let success = 0;
+      let failed = 0;
+      for (let i = 0; i < candidates.length; i += 1) {
+        setBulkButtonProcessing('delete', { total: candidates.length, completed: i, label: '删除中' });
+        const event = candidates[i];
+        try {
+          await deleteExternalEvent(event.id, { silent: true, skipReload: true, throwOnError: true, skipConfirm: true });
+          success += 1;
+        } catch (error) {
+          failed += 1;
+          console.warn('批量删除外部事件失败', event.id, error);
+        }
+        setBulkButtonProcessing('delete', { total: candidates.length, completed: i + 1, label: '删除中' });
+        if (i < candidates.length - 1) {
+          await delay(BULK_REQUEST_DELAY);
+        }
+      }
+      await loadEvents();
+      resetBulkButton('delete');
+      updateBulkButtons();
+      alert(`批量删除完成：成功 ${success} 条，失败 ${failed} 条。`);
+    }
+
+    async function markExternalEventDeleted(recordId, targetEvent) {
+      const now = new Date().toISOString();
+      const payload = {
+        externalDeleted: true,
+        externalDeletedAt: now,
+        updatedAt: now
+      };
+      try {
+        if (db) {
+          await Promise.all([
+            db.ref(`absenceEvents/${recordId}`).update(payload),
+            db.ref(`trackingRecords/${recordId}`).update(payload)
+          ]);
+        }
+      } catch (error) {
+        console.warn('标记外部事件已删除失败:', error);
+      }
+      if (targetEvent) {
+        targetEvent.externalDeleted = true;
+        targetEvent.externalDeletedAt = now;
+      }
+      const button = document.querySelector(`button[data-delete-id="${recordId}"]`);
+      if (button) {
+        button.dataset.externalDeleted = 'true';
+        button.disabled = true;
+        button.textContent = '已删外部事件';
+        button.classList.remove('deleting');
+        button.classList.add('deleted');
+        button.title = '外部事件已删除';
+      }
+      updateBulkButtons();
     }
 
     function openTrackingPage(memberUUID, recordId) {
@@ -654,15 +1544,23 @@
         document.getElementById('eventCount').textContent = allEvents.length;
       }
       document.getElementById('groupFilter').value = '';
+      updateBulkButtons();
     }
 
     window.addEventListener('load', async () => {
       await initFirebase();
       await loadGroupNames();
       await loadEvents();
+      ensureBulkButtonRefs();
+      updateBulkButtons();
     });
 
     window.openTrackingPage = openTrackingPage;
+    window.fetchLatestFollowUp = fetchLatestFollowUp;
+    window.deleteExternalEvent = deleteExternalEvent;
+    window.bulkForwardEvents = bulkForwardEvents;
+    window.bulkFetchFollowUps = bulkFetchFollowUps;
+    window.bulkDeleteExternalEvents = bulkDeleteExternalEvents;
   </script>
 </body>
 </html>
