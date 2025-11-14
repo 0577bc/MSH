@@ -28,7 +28,20 @@ if (typeof window !== 'undefined') {
       login: '/auth/login',
       forms: '/forms',
       submissions: '/submissions',
-      status: '/status'
+      status: '/status',
+      lookup: '/events/lookup',
+      deleteByExternalId: '/events/byExternalId'
+    },
+    requestConfig: {
+      timeout: 10000,
+      retryAttempts: 3,
+      retryDelay: 1000
+    },
+    features: {
+      enableForwarding: true,
+      enableFetching: true,
+      enableDeletion: true,
+      enableLogging: true
     }
   };
   
